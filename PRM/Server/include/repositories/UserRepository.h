@@ -1,20 +1,25 @@
 #pragma once
 
-#include <memory>
 #include <string>
 #include <vector>
-#include "database/Database.h"
-#include "models/User.h"
 
-class UserRepository
+#include "Database.h"
+#include "IUserRepository.h"
+#include "User.h"
+
+class UserRepository : public IUserRepository
 {
-public:
-    explicit UserRepository(std::shared_ptr<DatabaseManager> database);
-    bool createUser(const User& user);
-    User getUserById(int id);
-    User getUserByUsername(const std::string& username);
-    std::vector<User> getAllUsers();
-    bool updateUser(const User& user);
-    bool deleteUser(int id);
-    bool updatePassword(int id,const std::string& passwordHash);
+   private:
+    database::Database& database_;
+
+   public:
+    explicit UserRepository(database::Database& database);
+
+    bool createUser(const User& user) override;
+    User getUserById(int id) override;
+    User getUserByUsername(const std::string& username) override;
+    std::vector<User> getAllUsers() override;
+    bool updateUser(const User& user) override;
+    bool deleteUser(int id) override;
+    bool updatePassword(int id, const std::string& passwordHash) override;
 };

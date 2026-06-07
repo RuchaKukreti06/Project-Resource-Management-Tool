@@ -1,4 +1,4 @@
-#include "database/Database.h"
+#include "Database.h"
 
 #include <spdlog/spdlog.h>
 

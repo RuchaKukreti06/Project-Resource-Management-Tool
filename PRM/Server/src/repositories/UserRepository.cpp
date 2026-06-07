@@ -1,19 +1,23 @@
 #include "UserRepository.h"
 
-UserRepository::UserRepository(std::shared_ptr<DatabaseManager> database) : database_(std::move(database)) {}
+#include <spdlog/spdlog.h>
+
+#include <stdexcept>
+
+UserRepository::UserRepository(database::Database& database) : database_(database)
+{
+}
 
 bool UserRepository::createUser(const User& user)
 {
     try
     {
-        auto session = database_->getSession();
-        auto schema = session.getSchema(database_->getDatabaseName());
-        auto usersTable = schema.getTable("users");
-
-        usersTable.insert("username", "password_hash", "role", "status", "force_password_change")
-            .values(user.username, user.passwordHash, user.role, user.status, user.forcePasswordChange)
+        database_.getSchema()
+            .getTable("users")
+            .insert("username", "password_hash", "role", "status", "force_password_change")
+            .values(user.username, user.passwordHash, user.role, user.status,
+                    user.forcePasswordChange)
             .execute();
-
         return true;
     }
     catch (const mysqlx::Error& error)
@@ -28,14 +32,15 @@ User UserRepository::getUserById(int id)
     User user;
     try
     {
-        auto session = database_->getSession();
-        auto schema = session.getSchema(database_->getDatabaseName());
+        auto schema = database_.getSchema();
         auto usersTable = schema.getTable("users");
 
-        auto result = usersTable.select("id", "username", "password_hash", "role", "status", "force_password_change")
-            .where("id = :id")
-            .bind("id", id)
-            .execute();
+        auto result = usersTable
+                          .select("id", "username", "password_hash", "role", "status",
+                                  "force_password_change")
+                          .where("id = :id")
+                          .bind("id", id)
+                          .execute();
 
         if (result.count() > 0)
         {
@@ -60,14 +65,15 @@ User UserRepository::getUserByUsername(const std::string& username)
     User user;
     try
     {
-        auto session = database_->getSession();
-        auto schema = session.getSchema(database_->getDatabaseName());
+        auto schema = database_.getSchema();
         auto usersTable = schema.getTable("users");
 
-        auto result = usersTable.select("id", "username", "password_hash", "role", "status", "force_password_change")
-            .where("username = :username")
-            .bind("username", username)
-            .execute();
+        auto result = usersTable
+                          .select("id", "username", "password_hash", "role", "status",
+                                  "force_password_change")
+                          .where("username = :username")
+                          .bind("username", username)
+                          .execute();
 
         if (result.count() > 0)
         {
@@ -92,14 +98,15 @@ std::vector<User> UserRepository::getAllUsers()
     std::vector<User> users;
     try
     {
-        auto session = database_->getSession();
-        auto schema = session.getSchema(database_->getDatabaseName());
+        auto schema = database_.getSchema();
         auto usersTable = schema.getTable("users");
 
-        auto result = usersTable.select("id", "username", "password_hash", "role", "status", "force_password_change")
-            .execute();
+        auto result = usersTable
+                          .select("id", "username", "password_hash", "role", "status",
+                                  "force_password_change")
+                          .execute();
 
-        while (result.next())
+        while (result.count() > 0 && result.fetchOne())
         {
             auto row = result.fetchOne();
             User user;
@@ -123,8 +130,7 @@ bool UserRepository::updateUser(const User& user)
 {
     try
     {
-        auto session = database_->getSession();
-        auto schema = session.getSchema(database_->getDatabaseName());
+        auto schema = database_.getSchema();
         auto usersTable = schema.getTable("users");
 
         usersTable.update()
@@ -150,14 +156,10 @@ bool UserRepository::deleteUser(int id)
 {
     try
     {
-        auto session = database_->getSession();
-        auto schema = session.getSchema(database_->getDatabaseName());
+        auto schema = database_.getSchema();
         auto usersTable = schema.getTable("users");
 
-        usersTable.remove()
-            .where("id = :id")
-            .bind("id", id)
-            .execute();
+        usersTable.remove().where("id = :id").bind("id", id).execute();
 
         return true;
     }
@@ -172,8 +174,7 @@ bool UserRepository::updatePassword(int id, const std::string& passwordHash)
 {
     try
     {
-        auto session = database_->getSession();
-        auto schema = session.getSchema(database_->getDatabaseName());
+        auto schema = database_.getSchema();
         auto usersTable = schema.getTable("users");
 
         usersTable.update()

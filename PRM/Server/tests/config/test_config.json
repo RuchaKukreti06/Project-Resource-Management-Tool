@@ -1,12 +1,12 @@
 {
   "server": {
-    "host": "0.0.0.0",
+    "host": "127.0.0.1",
     "port": 8080
   },
   "database": {
     "host": "localhost",
     "port": 33060,
-    "name": "resource_management",
+    "name": "resource_management_test",
     "user": "root",
     "password": "root123"
   },

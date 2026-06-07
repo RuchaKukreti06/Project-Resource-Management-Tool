@@ -20,6 +20,21 @@ CREATE TABLE users (
         ON UPDATE CURRENT_TIMESTAMP
 );
 
+INSERT INTO users (
+    username,
+    password_hash,
+    role,
+    status,
+    force_password_change
+)
+VALUES (
+    'admin',
+    '3b612c75a7b5048a435fb6ec81e52ff92d6d795a8b5a9c17070f6a63c97a53b2',
+    'ADMIN',
+    'ACTIVE',
+    TRUE
+);
+
 CREATE TABLE employees (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT UNIQUE,

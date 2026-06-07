@@ -1,0 +1,13 @@
+{
+  "name": "personal-finance-manager",
+  "version": "1.0.0",
+  "dependencies": [
+    "spdlog",
+    "nlohmann-json",
+    "jwt-cpp",
+    "mysql-connector-cpp",
+    "cpp-httplib",
+    "openssl",
+    "gtest"
+  ]
+}
