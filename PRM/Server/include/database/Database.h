@@ -6,6 +6,8 @@
 #include <memory>
 #include <string>
 
+#include "DatabaseConnectionConfig.h"
+
 namespace database
 {
 
@@ -14,8 +16,7 @@ class Database
    public:
     static Database& instance();
 
-    void connect(const std::string& host, int port, const std::string& user,
-                 const std::string& password, const std::string& dbName);
+    void connect(DatabaseConnectionConfig& databaseConnectionConfig);
 
     mysqlx::Session& getSession();
     mysqlx::Schema getSchema();
@@ -34,6 +35,6 @@ class Database
     bool connected_ = false;
 };
 
-}
+}  // namespace database
 
 #endif

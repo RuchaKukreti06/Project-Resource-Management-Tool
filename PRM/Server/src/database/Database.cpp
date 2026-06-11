@@ -9,32 +9,34 @@ namespace database
 
 Database& Database::instance()
 {
-    static Database inst;
-    return inst;
+    static Database instance;
+    return instance;
 }
 
-void Database::connect(const std::string& host, int port, const std::string& user,
-                       const std::string& password, const std::string& dbName)
+void Database::connect(DatabaseConnectionConfig& databaseConnectionConfig)
 {
     if (connected_)
     {
         return;
     }
 
-    dbName_ = dbName;
+    dbName_ = databaseConnectionConfig.databaseName;
 
     try
     {
         session_ = std::make_unique<mysqlx::Session>(
-            mysqlx::SessionOption::HOST, host, mysqlx::SessionOption::PORT, port,
-            mysqlx::SessionOption::USER, user, mysqlx::SessionOption::PWD, password);
+            mysqlx::SessionOption::HOST, databaseConnectionConfig.host, mysqlx::SessionOption::PORT,
+            databaseConnectionConfig.port, mysqlx::SessionOption::USER,
+            databaseConnectionConfig.user, mysqlx::SessionOption::PWD,
+            databaseConnectionConfig.password);
         connected_ = true;
-        spdlog::info("Connected to MySQL at {}:{}/{}", host, port, dbName);
+        spdlog::info("Connected to MySQL at {}:{}/{}", databaseConnectionConfig.host,
+                     databaseConnectionConfig.port, databaseConnectionConfig.databaseName);
     }
-    catch (const mysqlx::Error& e)
+    catch (const mysqlx::Error& error)
     {
-        spdlog::error("MySQL connection failed: {}", e.what());
-        throw std::runtime_error("Database connection failed: " + std::string(e.what()));
+        spdlog::error("MySQL connection failed: {}", error.what());
+        throw std::runtime_error("Database connection failed: " + std::string(error.what()));
     }
 }
 
@@ -68,4 +70,4 @@ void Database::disconnect()
     spdlog::info("Disconnected from MySQL");
 }
 
-}
+}  // namespace database
