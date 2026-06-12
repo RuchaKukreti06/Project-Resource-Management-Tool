@@ -11,78 +11,8 @@
 #include "AuthService.h"
 #include "ConfigLoader.h"
 #include "IUserRepository.h"
+#include "MockUserRepository.h"
 #include "User.h"
-
-class MockUserRepository : public IUserRepository
-{
-   public:
-    MockUserRepository() = default;
-
-    bool createUser(const User& user) override
-    {
-        if (usernameIndex_.find(user.username) != usernameIndex_.end())
-        {
-            return false;
-        }
-        User stored = user;
-        stored.id = nextId_++;
-        usersById_[stored.id] = stored;
-        usernameIndex_[stored.username] = stored.id;
-        return true;
-    }
-
-    User getUserById(int id) override
-    {
-        auto it = usersById_.find(id);
-        return it == usersById_.end() ? User{} : it->second;
-    }
-
-    User getUserByUsername(const std::string& username) override
-    {
-        auto it = usernameIndex_.find(username);
-        if (it == usernameIndex_.end()) return User{};
-        return usersById_[it->second];
-    }
-
-    std::vector<User> getAllUsers() override
-    {
-        std::vector<User> all;
-        all.reserve(usersById_.size());
-        for (auto& pair : usersById_) all.push_back(pair.second);
-        return all;
-    }
-
-    bool updateUser(const User& user) override
-    {
-        auto it = usersById_.find(user.id);
-        if (it == usersById_.end()) return false;
-        usersById_[user.id] = user;
-        usernameIndex_[user.username] = user.id;
-        return true;
-    }
-
-    bool deleteUser(int id) override
-    {
-        auto it = usersById_.find(id);
-        if (it == usersById_.end()) return false;
-        usernameIndex_.erase(it->second.username);
-        usersById_.erase(it);
-        return true;
-    }
-
-    bool updatePassword(int id, const std::string& passwordHash) override
-    {
-        auto it = usersById_.find(id);
-        if (it == usersById_.end()) return false;
-        it->second.passwordHash = passwordHash;
-        return true;
-    }
-
-   private:
-    std::unordered_map<int, User> usersById_;
-    std::unordered_map<std::string, int> usernameIndex_;
-    int nextId_ = 1;
-};
 
 static std::filesystem::path getTestConfigPath()
 {
@@ -112,15 +42,15 @@ class AuthServiceTest : public ::testing::Test
 
 TEST_F(AuthServiceTest, RegisterNewUser_Succeeds)
 {
-    auto response = auth_->registerUser("alice", "Password123");
+    auto response = auth_->registerUser("alice", "Password123", "alice@example.com", "Alice Smith");
     EXPECT_TRUE(response["success"].get<bool>());
     EXPECT_EQ(response["message"].get<std::string>(), "Registration successful.");
 }
 
 TEST_F(AuthServiceTest, RegisterDuplicateUser_Fails)
 {
-    auth_->registerUser("alice", "Password123");
-    auto duplicate = auth_->registerUser("alice", "Password123");
+    auth_->registerUser("alice", "Password123", "alice@example.com", "Alice Smith");
+    auto duplicate = auth_->registerUser("alice", "Password123", "alice2@example.com", "Alice Smith");
     EXPECT_FALSE(duplicate["success"].get<bool>());
     EXPECT_EQ(duplicate["message"].get<std::string>(), "Username already exists.");
 }
@@ -138,7 +68,7 @@ TEST_F(AuthServiceTest, Login_UnknownUser_Fails)
 
 TEST_F(AuthServiceTest, Login_WrongPassword_Fails)
 {
-    auth_->registerUser("bob", "Secret1");
+    auth_->registerUser("bob", "Secret1", "bob@example.com", "Bob Jones");
     auto result = auth_->login("bob", "WrongSecret");
     EXPECT_FALSE(result["success"].get<bool>());
     EXPECT_EQ(result["message"].get<std::string>(), "Invalid username or password.");
@@ -146,10 +76,10 @@ TEST_F(AuthServiceTest, Login_WrongPassword_Fails)
 
 TEST_F(AuthServiceTest, Login_InactiveAccount_Fails)
 {
-    auth_->registerUser("carol", "Secret1");
+    auth_->registerUser("carol", "Secret1", "carol@example.com", "Carol White");
 
     User inactive = repo_->getUserByUsername("carol");
-    inactive.status = "inactive";
+    inactive.status = "INACTIVE";
     repo_->updateUser(inactive);
 
     auto result = auth_->login("carol", "Secret1");
@@ -159,7 +89,7 @@ TEST_F(AuthServiceTest, Login_InactiveAccount_Fails)
 
 TEST_F(AuthServiceTest, ChangePassword_UpdatesStoredHash)
 {
-    auth_->registerUser("dave", "Password1");
+    auth_->registerUser("dave", "Password1", "dave@example.com", "Dave Brown");
     User user = repo_->getUserByUsername("dave");
     ASSERT_NE(user.id, 0) << "Created user must have a valid ID.";
 
@@ -172,7 +102,7 @@ TEST_F(AuthServiceTest, ChangePassword_UpdatesStoredHash)
 
 TEST_F(AuthServiceTest, ChangePassword_NewPasswordAllowsLogin)
 {
-    auth_->registerUser("dave", "Password1");
+    auth_->registerUser("dave", "Password1", "dave@example.com", "Dave Brown");
     User user = repo_->getUserByUsername("dave");
     auth_->changePassword(user.id, "NewPassword2");
 
@@ -189,7 +119,7 @@ class AuthServiceTokenTest : public AuthServiceTest
         AuthServiceTest::SetUp();
         utils::ConfigLoader::instance().load(getTestConfigPath().string());
 
-        auth_->registerUser("eve", "Password1");
+        auth_->registerUser("eve", "Password1", "eve@example.com", "Eve Green");
         user_ = repo_->getUserByUsername("eve");
 
         auto loginResult = auth_->login("eve", "Password1");

@@ -51,12 +51,18 @@ nlohmann::json AuthService::login(const std::string& username, const std::string
     std::string token = generateToken(user);
     response["success"] = true;
     response["token"] = token;
-    response["user"] = {{"id", user.id}, {"username", user.username}, {"role", user.role}};
+    response["user"] = {{"id", user.id},
+                        {"username", user.username},
+                        {"role", user.role},
+                        {"force_password_change", user.forcePasswordChange}};
     response["message"] = "Login successful.";
     return response;
 }
 
-nlohmann::json AuthService::registerUser(const std::string& username, const std::string& password)
+nlohmann::json AuthService::registerUser(const std::string& username,
+                                         const std::string& password,
+                                         const std::string& email,
+                                         const std::string& fullName)
 {
     auto& repository = this->repository();
     nlohmann::json response;
@@ -64,11 +70,14 @@ nlohmann::json AuthService::registerUser(const std::string& username, const std:
     if (repository.getUserByUsername(username).username.empty())
     {
         User newUser;
-        newUser.username = username;
-        newUser.passwordHash = hashPassword(password);
-        newUser.role = "user";
-        newUser.status = "active";
-        newUser.forcePasswordChange = false;
+        newUser.username            = username;
+        newUser.passwordHash        = hashPassword(password);
+        newUser.role                = "EMPLOYEE";
+        newUser.email               = email;
+        newUser.fullName            = fullName;
+        newUser.isActive            = true;
+        newUser.status              = "ACTIVE";
+        newUser.forcePasswordChange = true;
 
         if (repository.createUser(newUser))
         {
@@ -78,7 +87,7 @@ nlohmann::json AuthService::registerUser(const std::string& username, const std:
         else
         {
             response["success"] = false;
-            response["message"] = "Failed to create user.";
+            response["message"] = "Failed to create user. Email may already be in use.";
         }
     }
     else
@@ -103,7 +112,11 @@ bool AuthService::changePassword(int userId, const std::string& newPassword)
 {
     auto& repository = this->repository();
     std::string newHash = hashPassword(newPassword);
-    return repository.updatePassword(userId, newHash);
+    if (!repository.updatePassword(userId, newHash))
+    {
+        return false;
+    }
+    return repository.setForcePasswordChange(userId, false);
 }
 
 bool AuthService::validateToken(const std::string& token) const

@@ -13,6 +13,10 @@ Database& Database::instance()
     return instance;
 }
 
+void Database::loadDatabaseConnectionConfig(DatabaseConnectionConfig databaseConnectionConfig)
+{
+}
+
 void Database::connect(DatabaseConnectionConfig& databaseConnectionConfig)
 {
     if (connected_)
@@ -28,7 +32,8 @@ void Database::connect(DatabaseConnectionConfig& databaseConnectionConfig)
             mysqlx::SessionOption::HOST, databaseConnectionConfig.host, mysqlx::SessionOption::PORT,
             databaseConnectionConfig.port, mysqlx::SessionOption::USER,
             databaseConnectionConfig.user, mysqlx::SessionOption::PWD,
-            databaseConnectionConfig.password);
+            databaseConnectionConfig.password, mysqlx::SessionOption::DB,
+            databaseConnectionConfig.databaseName);
         connected_ = true;
         spdlog::info("Connected to MySQL at {}:{}/{}", databaseConnectionConfig.host,
                      databaseConnectionConfig.port, databaseConnectionConfig.databaseName);
