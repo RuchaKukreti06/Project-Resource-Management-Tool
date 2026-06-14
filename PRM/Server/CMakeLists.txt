@@ -14,6 +14,7 @@ find_package(nlohmann_json CONFIG REQUIRED)
 find_package(mysql-concpp CONFIG REQUIRED)
 find_package(jwt-cpp CONFIG REQUIRED)
 find_package(OpenSSL REQUIRED)
+find_package(CURL REQUIRED)
 find_package(httplib CONFIG REQUIRED)
 find_package(GTest CONFIG REQUIRED)
 
@@ -48,6 +49,7 @@ target_link_libraries(prm-server-lib PUBLIC
     jwt-cpp::jwt-cpp
     OpenSSL::SSL
     OpenSSL::Crypto
+    CURL::libcurl
     httplib::httplib
 )
 

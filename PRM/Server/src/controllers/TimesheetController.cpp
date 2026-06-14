@@ -64,6 +64,32 @@ void TimesheetController::registerRoutes(httplib::Server& server) const
                     }
                 });
 
+    server.Put("/timesheets/access/restore",
+               [&](const httplib::Request& req, httplib::Response& res)
+               {
+                   try
+                   {
+                       const auto body = nlohmann::json::parse(req.body);
+                       std::string message;
+                       const bool ok = timesheetService_.restoreTimesheetAccess(
+                           body.at("user_id").get<int>(),
+                           body.at("week_start_date").get<std::string>(),
+                           message);
+
+                       res.status = ok ? 200 : 400;
+                       res.set_content(
+                           nlohmann::json({{"success", ok}, {"message", message}}).dump(),
+                           "application/json");
+                   }
+                   catch (const std::exception& e)
+                   {
+                       res.status = 400;
+                       res.set_content(
+                           nlohmann::json({{"success", false}, {"message", e.what()}}).dump(),
+                           "application/json");
+                   }
+               });
+
     server.Get(R"(/employees/(\d+)/timesheets)",
                [&](const httplib::Request& req, httplib::Response& res)
                {

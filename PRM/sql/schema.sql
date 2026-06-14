@@ -152,7 +152,30 @@ CREATE TABLE system_config (
     llm_provider VARCHAR(100) NOT NULL,
     llm_api_key VARCHAR(255) NOT NULL,
     scheduler_interval_hrs INT NOT NULL DEFAULT 24,
-    max_weekly_hours INT NOT NULL DEFAULT 40
+    max_weekly_hours INT NOT NULL DEFAULT 40,
+    smtp_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    smtp_host VARCHAR(255) NOT NULL DEFAULT '',
+    smtp_port INT NOT NULL DEFAULT 587,
+    smtp_username VARCHAR(255) NOT NULL DEFAULT '',
+    smtp_password VARCHAR(255) NOT NULL DEFAULT '',
+    smtp_from_email VARCHAR(255) NOT NULL DEFAULT '',
+    smtp_from_name VARCHAR(255) NOT NULL DEFAULT '',
+    smtp_use_tls BOOLEAN NOT NULL DEFAULT TRUE
+);
+
+CREATE TABLE timesheet_notification_state (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    week_start_date DATE NOT NULL,
+    notification_stage INT NOT NULL DEFAULT 0,
+    is_locked BOOLEAN NOT NULL DEFAULT FALSE,
+    is_restored BOOLEAN NOT NULL DEFAULT FALSE,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT uq_timesheet_notification_state_user_week UNIQUE (user_id, week_start_date),
+    CONSTRAINT fk_timesheet_notification_state_user
+        FOREIGN KEY (user_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE
 );
 
 INSERT INTO roles (name)

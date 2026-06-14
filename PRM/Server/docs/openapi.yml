@@ -897,6 +897,14 @@ paths:
                       llm_api_key: { type: string, example: "****" }
                       scheduler_interval: { type: integer, example: 4 }
                       max_weekly_hours: { type: integer, example: 40 }
+                      smtp_enabled: { type: boolean, example: true }
+                      smtp_host: { type: string, example: smtp.gmail.com }
+                      smtp_port: { type: integer, example: 587 }
+                      smtp_username: { type: string, example: noreply@company.com }
+                      smtp_password: { type: string, example: "****" }
+                      smtp_from_email: { type: string, example: noreply@company.com }
+                      smtp_from_name: { type: string, example: PRM Notifications }
+                      smtp_use_tls: { type: boolean, example: true }
     put:
       tags: [System Configuration]
       summary: Update System Config
@@ -914,9 +922,62 @@ paths:
                 llm_api_key: { type: string, example: "AIzaSy..." }
                 max_weekly_hours: { type: integer, example: 40 }
                 scheduler_interval: { type: integer, example: 4 }
+                smtp_enabled: { type: boolean, example: true }
+                smtp_host: { type: string, example: smtp.gmail.com }
+                smtp_port: { type: integer, example: 587 }
+                smtp_username: { type: string, example: noreply@company.com }
+                smtp_password: { type: string, example: app-password }
+                smtp_from_email: { type: string, example: noreply@company.com }
+                smtp_from_name: { type: string, example: PRM Notifications }
+                smtp_use_tls: { type: boolean, example: true }
       responses:
         '200':
           description: Configuration updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessResponse' }
+
+  /notifications/test-email:
+    post:
+      tags: [System Configuration]
+      summary: Send SMTP Test Email
+      description: Sends a test email using the currently saved SMTP configuration.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [to_email]
+              properties:
+                to_email: { type: string, example: qa@company.com }
+                subject: { type: string, example: PRM SMTP Test }
+                body: { type: string, example: SMTP configuration test succeeded. }
+      responses:
+        '200':
+          description: Test email sent
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessResponse' }
+
+  /timesheets/access/restore:
+    put:
+      tags: [Timesheets]
+      summary: Restore Timesheet Access
+      description: Restores timesheet submission access for a user and week after manager review.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id, week_start_date]
+              properties:
+                user_id: { type: integer, example: 5 }
+                week_start_date: { type: string, format: date, example: "2026-06-08" }
+      responses:
+        '200':
+          description: Access restored
           content:
             application/json:
               schema: { $ref: '#/components/schemas/SuccessResponse' }

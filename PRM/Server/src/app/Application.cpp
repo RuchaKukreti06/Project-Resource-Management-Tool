@@ -19,6 +19,7 @@
 #include "repositories/AllocationRepository.h"
 #include "repositories/EmployeeRepository.h"
 #include "repositories/ProjectRepository.h"
+#include "repositories/NotificationRepository.h"
 #include "repositories/TimesheetRepository.h"
 #include "repositories/UserRepository.h"
 #include "repositories/SystemConfigRepository.h"
@@ -26,6 +27,8 @@
 #include "services/AllocationService.h"
 #include "services/AuthService.h"
 #include "services/EmployeeService.h"
+#include "services/EmailService.h"
+#include "services/NotificationService.h"
 #include "services/ProjectService.h"
 #include "services/SchedulerService.h"
 #include "services/TimesheetService.h"
@@ -62,6 +65,7 @@ bool Application::run()
         auto projectRepository    = std::make_shared<ProjectRepository>(database);
         auto allocationRepository = std::make_shared<AllocationRepository>(database);
         auto timesheetRepository  = std::make_shared<TimesheetRepository>(database);
+        auto notificationRepository = std::make_shared<NotificationRepository>(database);
         auto systemConfigRepository = std::make_shared<SystemConfigRepository>(database);
 
         // ── Services ──────────────────────────────────────────────────────────
@@ -76,12 +80,18 @@ bool Application::run()
                                                                       projectRepository);
         auto timesheetService = std::make_shared<TimesheetService>(timesheetRepository,
                                                                     employeeRepository,
-                                                                    allocationRepository);
+                                                           allocationRepository,
+                                                           notificationRepository);
+           auto emailService = std::make_shared<EmailService>(systemConfigRepository);
+           auto notificationService = std::make_shared<NotificationService>(notificationRepository,
+                                                               userRepository,
+                                                               emailService);
         auto schedulerService = std::make_shared<SchedulerService>(employeeService,
                                                                     projectService,
                                                                     allocationService,
-                                                                    timesheetService);
-        auto aiService = std::make_shared<AIService>(employeeRepository,
+                                                           timesheetService,
+                                                           notificationService);
+           auto aiService = std::make_shared<AIService>(employeeRepository,
                                                       allocationRepository,
                                                       projectRepository,
                                                       timesheetRepository);
@@ -121,7 +131,15 @@ bool Application::run()
                            {"llm_provider",        sysCfg.llmProvider},
                            {"llm_api_key",         sysCfg.llmApiKey.empty() ? "" : "****"},
                            {"scheduler_interval",  sysCfg.schedulerIntervalHrs},
-                           {"max_weekly_hours",    sysCfg.maxWeeklyHours}
+                           {"max_weekly_hours",    sysCfg.maxWeeklyHours},
+                           {"smtp_enabled",        sysCfg.smtpEnabled},
+                           {"smtp_host",           sysCfg.smtpHost},
+                           {"smtp_port",           sysCfg.smtpPort},
+                           {"smtp_username",       sysCfg.smtpUsername},
+                           {"smtp_password",       sysCfg.smtpPassword.empty() ? "" : "****"},
+                           {"smtp_from_email",     sysCfg.smtpFromEmail},
+                           {"smtp_from_name",      sysCfg.smtpFromName},
+                           {"smtp_use_tls",        sysCfg.smtpUseTls}
                        };
                        res.set_content(
                            nlohmann::json({{"success", true}, {"data", data}}).dump(),
@@ -144,6 +162,22 @@ bool Application::run()
                                sysCfg.maxWeeklyHours = body["max_weekly_hours"].get<int>();
                            if (body.contains("scheduler_interval"))
                                sysCfg.schedulerIntervalHrs = body["scheduler_interval"].get<int>();
+                           if (body.contains("smtp_enabled"))
+                               sysCfg.smtpEnabled = body["smtp_enabled"].get<bool>();
+                           if (body.contains("smtp_host"))
+                               sysCfg.smtpHost = body["smtp_host"].get<std::string>();
+                           if (body.contains("smtp_port"))
+                               sysCfg.smtpPort = body["smtp_port"].get<int>();
+                           if (body.contains("smtp_username"))
+                               sysCfg.smtpUsername = body["smtp_username"].get<std::string>();
+                           if (body.contains("smtp_password"))
+                               sysCfg.smtpPassword = body["smtp_password"].get<std::string>();
+                           if (body.contains("smtp_from_email"))
+                               sysCfg.smtpFromEmail = body["smtp_from_email"].get<std::string>();
+                           if (body.contains("smtp_from_name"))
+                               sysCfg.smtpFromName = body["smtp_from_name"].get<std::string>();
+                           if (body.contains("smtp_use_tls"))
+                               sysCfg.smtpUseTls = body["smtp_use_tls"].get<bool>();
 
                            systemConfigRepository->updateConfig(sysCfg);
 
@@ -160,6 +194,45 @@ bool Application::run()
                                "application/json");
                        }
                    });
+
+        server.Post("/notifications/test-email",
+                    [emailService](const httplib::Request& req, httplib::Response& res)
+                    {
+                        try
+                        {
+                            const auto body = nlohmann::json::parse(req.body);
+                            EmailMessage message;
+                            message.to = body.at("to_email").get<std::string>();
+                            message.subject = body.value("subject", std::string("PRM Test Email"));
+                            message.body = body.value("body", std::string("SMTP configuration is working."));
+
+                            std::string errorMessage;
+                            const bool sent = emailService->sendEmail(message, errorMessage);
+
+                            if (sent)
+                            {
+                                res.set_content(
+                                    nlohmann::json({{"success", true},
+                                                    {"message", "Test email sent successfully."}})
+                                        .dump(),
+                                    "application/json");
+                                return;
+                            }
+
+                            res.status = 400;
+                            res.set_content(
+                                nlohmann::json({{"success", false}, {"message", errorMessage}})
+                                    .dump(),
+                                "application/json");
+                        }
+                        catch (const std::exception& e)
+                        {
+                            res.status = 400;
+                            res.set_content(
+                                nlohmann::json({{"success", false}, {"message", e.what()}}).dump(),
+                                "application/json");
+                        }
+                    });
 
         server.Get("/health",
                    [&](const httplib::Request&, httplib::Response& res)

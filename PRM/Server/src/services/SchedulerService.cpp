@@ -34,11 +34,13 @@ std::string previousMondayIso(const std::string& todayDate)
 SchedulerService::SchedulerService(std::shared_ptr<EmployeeService> employeeService,
                                    std::shared_ptr<ProjectService> projectService,
                                    std::shared_ptr<AllocationService> allocationService,
-                                   std::shared_ptr<TimesheetService> timesheetService)
+                         std::shared_ptr<TimesheetService> timesheetService,
+                         std::shared_ptr<NotificationService> notificationService)
     : employeeService_(std::move(employeeService)),
       projectService_(std::move(projectService)),
       allocationService_(std::move(allocationService)),
-      timesheetService_(std::move(timesheetService))
+    timesheetService_(std::move(timesheetService)),
+    notificationService_(std::move(notificationService))
 {
 }
 
@@ -113,7 +115,12 @@ void SchedulerService::recomputeProjectHealth(const std::string& todayDate)
 void SchedulerService::flagMissedTimesheets(const std::string& weekStartDate)
 {
     spdlog::info("Scheduler: flagging missed timesheets for week {}", weekStartDate);
-    const auto missedEmployeeIds = timesheetService_->getMissedTimesheetEmployeeIds(weekStartDate);
-    spdlog::info("Scheduler: {} employees missed timesheets for week {}", missedEmployeeIds.size(),
+    const auto missedUserIds = timesheetService_->getMissedTimesheetEmployeeIds(weekStartDate);
+    spdlog::info("Scheduler: {} employees missed timesheets for week {}", missedUserIds.size(),
                  weekStartDate);
+
+    if (notificationService_ && !missedUserIds.empty())
+    {
+        notificationService_->processMissedTimesheetNotifications(weekStartDate, missedUserIds);
+    }
 }

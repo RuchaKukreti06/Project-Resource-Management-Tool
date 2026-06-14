@@ -9,6 +9,14 @@ struct SystemConfig
     std::string llmApiKey;
     int         schedulerIntervalHrs;
     int         maxWeeklyHours;
+    bool        smtpEnabled;
+    std::string smtpHost;
+    int         smtpPort;
+    std::string smtpUsername;
+    std::string smtpPassword;
+    std::string smtpFromEmail;
+    std::string smtpFromName;
+    bool        smtpUseTls;
 };
 
 class ISystemConfigRepository

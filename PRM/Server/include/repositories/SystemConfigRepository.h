@@ -12,5 +12,7 @@ class SystemConfigRepository : public ISystemConfigRepository
     bool         updateConfig(const SystemConfig& config) override;
 
    private:
+    void ensureSchema();
+
     database::Database& db_;
 };
