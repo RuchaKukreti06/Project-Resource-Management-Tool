@@ -1,9 +1,36 @@
 #include "Application.h"
 
-#include "AuthService.h"
-#include "ConfigLoader.h"
-#include "Database.h"
+#include <filesystem>
+#include <memory>
+#include <nlohmann/json.hpp>
+
+#include "BackgroundScheduler.h"
+#include "DatabaseConnectionConfig.h"
+#include "controllers/AIController.h"
+#include "controllers/AllocationController.h"
+#include "controllers/AuthController.h"
+#include "controllers/EmployeeController.h"
+#include "controllers/ProjectController.h"
+#include "controllers/SchedulerController.h"
+#include "controllers/TimesheetController.h"
+#include "controllers/UserController.h"
+#include "database/Database.h"
 #include "httplib.h"
+#include "repositories/AllocationRepository.h"
+#include "repositories/EmployeeRepository.h"
+#include "repositories/ProjectRepository.h"
+#include "repositories/TimesheetRepository.h"
+#include "repositories/UserRepository.h"
+#include "repositories/SystemConfigRepository.h"
+#include "services/AIService.h"
+#include "services/AllocationService.h"
+#include "services/AuthService.h"
+#include "services/EmployeeService.h"
+#include "services/ProjectService.h"
+#include "services/SchedulerService.h"
+#include "services/TimesheetService.h"
+#include "services/UserService.h"
+#include "utils/ConfigLoader.h"
 
 Application::Application()
 {
@@ -14,73 +41,151 @@ bool Application::run()
     try
     {
         auto& config = utils::ConfigLoader::instance();
-        config.load("PRM/Server/config/config.json");
+        DatabaseConnectionConfig databaseConnectionConfig;
+        const std::string configPath = std::filesystem::exists("Server/config/config.json")
+                                           ? "Server/config/config.json"
+                                           : "PRM/Server/config/config.json";
+        config.load(configPath);
+
+        databaseConnectionConfig.host         = config.dbHost();
+        databaseConnectionConfig.port         = config.dbPort();
+        databaseConnectionConfig.user         = config.dbUser();
+        databaseConnectionConfig.password     = config.dbPassword();
+        databaseConnectionConfig.databaseName = config.dbName();
 
         auto& database = database::Database::instance();
-        database.connect(config.dbHost(), config.dbPort(), config.dbUser(), config.dbPassword(),
-                         config.dbName());
+        database.connect(databaseConnectionConfig);
 
-        AuthService authService;
+        // ── Repositories ──────────────────────────────────────────────────────
+        auto userRepository       = std::make_shared<UserRepository>(database);
+        auto employeeRepository   = std::make_shared<EmployeeRepository>(database);
+        auto projectRepository    = std::make_shared<ProjectRepository>(database);
+        auto allocationRepository = std::make_shared<AllocationRepository>(database);
+        auto timesheetRepository  = std::make_shared<TimesheetRepository>(database);
+        auto systemConfigRepository = std::make_shared<SystemConfigRepository>(database);
+
+        // ── Services ──────────────────────────────────────────────────────────
+        AuthService authService(userRepository);
+        UserService userService(userRepository);
+        auto employeeService  = std::make_shared<EmployeeService>(employeeRepository,
+                                                                   userRepository,
+                                                                   allocationRepository);
+        auto projectService   = std::make_shared<ProjectService>(projectRepository, userRepository);
+        auto allocationService = std::make_shared<AllocationService>(allocationRepository,
+                                                                      employeeRepository,
+                                                                      projectRepository);
+        auto timesheetService = std::make_shared<TimesheetService>(timesheetRepository,
+                                                                    employeeRepository,
+                                                                    allocationRepository);
+        auto schedulerService = std::make_shared<SchedulerService>(employeeService,
+                                                                    projectService,
+                                                                    allocationService,
+                                                                    timesheetService);
+        auto aiService = std::make_shared<AIService>(employeeRepository,
+                                                      allocationRepository,
+                                                      projectRepository,
+                                                      timesheetRepository);
+
+        // ── Controllers ───────────────────────────────────────────────────────
+        AuthController      authController(authService);
+        UserController      userController(userService);
+        EmployeeController  employeeController(*employeeService);
+        ProjectController   projectController(*projectService);
+        AllocationController allocationController(*allocationService);
+        TimesheetController  timesheetController(*timesheetService);
+        SchedulerController  schedulerController(*schedulerService);
+        AIController         aiController(aiService, systemConfigRepository);
+
         httplib::Server server;
+        authController.registerRoutes(server);
+        userController.registerRoutes(server);
+        employeeController.registerRoutes(server);
+        projectController.registerRoutes(server);
+        allocationController.registerRoutes(server);
+        timesheetController.registerRoutes(server);
+        schedulerController.registerRoutes(server);
+        aiController.registerRoutes(server);
 
-        server.Post("/auth/login",
-                    [&](const httplib::Request& req, httplib::Response& res)
-                    {
-                        try
-                        {
-                            auto payload = nlohmann::json::parse(req.body);
-                            auto username = payload.at("username").get<std::string>();
-                            auto password = payload.at("password").get<std::string>();
-                            auto response = authService.login(username, password);
-                            res.set_content(response.dump(), "application/json");
-                        }
-                        catch (const std::exception& e)
-                        {
-                            nlohmann::json response;
-                            response["success"] = false;
-                            response["message"] = std::string("Invalid request body: ") + e.what();
-                            res.status = 400;
-                            res.set_content(response.dump(), "application/json");
-                        }
-                    });
+        // ── API Documentation (Swagger) ───────────────────────────────────────
+        const std::string docsPath = std::filesystem::exists("Server/docs")
+                                         ? "Server/docs"
+                                         : "PRM/Server/docs";
+        server.set_mount_point("/docs", docsPath.c_str());
 
-        server.Post("/auth/register",
-                    [&](const httplib::Request& req, httplib::Response& res)
-                    {
-                        try
-                        {
-                            auto payload = nlohmann::json::parse(req.body);
-                            auto username = payload.at("username").get<std::string>();
-                            auto password = payload.at("password").get<std::string>();
-                            auto response = authService.registerUser(username, password);
-                            res.set_content(response.dump(), "application/json");
-                        }
-                        catch (const std::exception& e)
-                        {
-                            nlohmann::json response;
-                            response["success"] = false;
-                            response["message"] = std::string("Invalid request body: ") + e.what();
-                            res.status = 400;
-                            res.set_content(response.dump(), "application/json");
-                        }
-                    });
+        // ── System Config Endpoints ───────────────────────────────────────────
+        server.Get("/system/config",
+                   [&, systemConfigRepository](const httplib::Request&, httplib::Response& res)
+                   {
+                       auto sysCfg = systemConfigRepository->getConfig();
+                       nlohmann::json data = {
+                           {"llm_provider",        sysCfg.llmProvider},
+                           {"llm_api_key",         sysCfg.llmApiKey.empty() ? "" : "****"},
+                           {"scheduler_interval",  sysCfg.schedulerIntervalHrs},
+                           {"max_weekly_hours",    sysCfg.maxWeeklyHours}
+                       };
+                       res.set_content(
+                           nlohmann::json({{"success", true}, {"data", data}}).dump(),
+                           "application/json");
+                   });
 
-        server.Get("/health", [&](const httplib::Request&, httplib::Response& res)
-                   { res.set_content("OK", "text/plain"); });
+        server.Put("/system/config",
+                   [&, systemConfigRepository](const httplib::Request& req, httplib::Response& res)
+                   {
+                       try
+                       {
+                           const auto body = nlohmann::json::parse(req.body);
+                           auto sysCfg = systemConfigRepository->getConfig();
+
+                           if (body.contains("llm_api_key"))
+                               sysCfg.llmApiKey = body["llm_api_key"].get<std::string>();
+                           if (body.contains("llm_provider"))
+                               sysCfg.llmProvider = body["llm_provider"].get<std::string>();
+                           if (body.contains("max_weekly_hours"))
+                               sysCfg.maxWeeklyHours = body["max_weekly_hours"].get<int>();
+                           if (body.contains("scheduler_interval"))
+                               sysCfg.schedulerIntervalHrs = body["scheduler_interval"].get<int>();
+
+                           systemConfigRepository->updateConfig(sysCfg);
+
+                           res.set_content(
+                               nlohmann::json({{"success", true},
+                                               {"message", "Configuration updated."}}).dump(),
+                               "application/json");
+                       }
+                       catch (const std::exception& e)
+                       {
+                           res.status = 400;
+                           res.set_content(
+                               nlohmann::json({{"success", false}, {"message", e.what()}}).dump(),
+                               "application/json");
+                       }
+                   });
+
+        server.Get("/health",
+                   [&](const httplib::Request&, httplib::Response& res)
+                   {
+                       nlohmann::json health = {{"status", "OK"}};
+                       res.set_content(health.dump(), "application/json");
+                   });
+
+        // ── Background Scheduler ──────────────────────────────────────────────
+        BackgroundScheduler bgScheduler(schedulerService, systemConfigRepository);
+        bgScheduler.start();
 
         std::cout << "Application started on " << config.serverHost() << ":" << config.serverPort()
                   << "\n";
         if (!server.listen(config.serverHost().c_str(), config.serverPort()))
         {
             std::cerr << "Failed to start HTTP server.\n";
-            return 1;
+            return false;
         }
 
-        return 0;
+        bgScheduler.stop();
+        return true;
     }
     catch (const std::exception& ex)
     {
         std::cerr << "Startup error: " << ex.what() << "\n";
-        return 1;
+        return false;
     }
 }

@@ -1,17 +1,25 @@
 {
+  "database": {
+    "host": "localhost",
+    "name": "resource_management_database_prm_tool",
+    "password": "root123",
+    "port": 33060,
+    "user": "root"
+  },
+  "jwt": {
+    "expiration_minutes": 60,
+    "secret": "abcdefghi1234567890"
+  },
+  "scheduler": {
+    "interval_hours": 1
+  },
   "server": {
     "host": "0.0.0.0",
     "port": 8080
   },
-  "database": {
-    "host": "localhost",
-    "port": 33060,
-    "name": "resource_management",
-    "user": "root",
-    "password": "root123"
-  },
-  "jwt": {
-    "secret": "abcdefghi1234567890",
-    "expiration_minutes": 60
+  "system": {
+    "llm_api_key": "",
+    "llm_provider": "Gemma (Remote)",
+    "max_weekly_hours": 1
   }
 }

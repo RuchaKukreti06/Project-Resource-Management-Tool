@@ -17,7 +17,7 @@ class Database
     static Database& instance();
 
     void connect(DatabaseConnectionConfig& databaseConnectionConfig);
-
+    void loadDatabaseConnectionConfig(DatabaseConnectionConfig databaseConnectionConfig);
     mysqlx::Session& getSession();
     mysqlx::Schema getSchema();
 

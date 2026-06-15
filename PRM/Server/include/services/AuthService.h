@@ -16,7 +16,8 @@ class AuthService
     ~AuthService();
 
     nlohmann::json login(const std::string& username, const std::string& password);
-    nlohmann::json registerUser(const std::string& username, const std::string& password);
+    nlohmann::json registerUser(const std::string& username, const std::string& password,
+                                const std::string& email, const std::string& fullName);
     bool isLoggedIn() const;
     void setToken(const std::string& token);
     bool changePassword(int userId, const std::string& newPassword);

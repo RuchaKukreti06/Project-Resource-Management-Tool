@@ -61,6 +61,16 @@ int ConfigLoader::jwtExpirationMinutes() const {
     return config_["jwt"]["expiration_minutes"].get<int>();
 }
 
+
+
+void ConfigLoader::save(const std::string& path) {
+    std::ofstream file(path);
+    if (!file.is_open()) {
+        throw std::runtime_error("Failed to open config file for writing: " + path);
+    }
+    file << config_.dump(2);
+}
+
 const nlohmann::json& ConfigLoader::raw() const {
     return config_;
 }

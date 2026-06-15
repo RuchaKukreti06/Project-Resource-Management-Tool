@@ -1,0 +1,966 @@
+openapi: 3.0.3
+info:
+  title: PRM Tool - API Collection
+  version: 1.0.0
+  description: |
+    Project & Resource Management Tool - Complete API documentation for Milestone 1 & 2.
+
+    **Authentication:** All endpoints (except `POST /auth/login`) require a session token
+    obtained from the login endpoint. Pass it as a request header:
+    `X-Auth-Token: <token>`
+
+servers:
+  - url: http://localhost:8080
+    description: Local Development Server
+
+components:
+  securitySchemes:
+    TokenAuth:
+      type: apiKey
+      in: header
+      name: X-Auth-Token
+
+  schemas:
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+
+security:
+  - TokenAuth: []
+
+tags:
+  - name: Auth
+  - name: Users
+  - name: Employees
+  - name: Projects
+  - name: Allocations
+  - name: Timesheets
+  - name: AI Assistant
+  - name: System Configuration
+  - name: Scheduler
+  - name: Health
+
+paths:
+
+  # ─── AUTH ───────────────────────────────────────────────────────────────────
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      description: >
+        Authenticate a user. Returns user details and a session token.
+        If `force_password_change` is true, the user must change their
+        password before accessing any other endpoint.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username:
+                  type: string
+                  example: admin
+                password:
+                  type: string
+                  example: Admin@123
+      responses:
+        '200':
+          description: Successful login
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    type: object
+                    properties:
+                      token: { type: string, example: "<session-token>" }
+                      user_id: { type: integer, example: 1 }
+                      role: { type: string, example: ADMIN }
+                      force_password_change: { type: boolean, example: false }
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /auth/change-password:
+    post:
+      tags: [Auth]
+      summary: Change Password
+      description: >
+        Change the current user's password.
+        Required on first login if `force_password_change = true`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [current_password, new_password]
+              properties:
+                current_password:
+                  type: string
+                  example: Admin@123
+                new_password:
+                  type: string
+                  example: NewPass@456
+      responses:
+        '200':
+          description: Password changed successfully
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessResponse' }
+
+  # ─── USERS ──────────────────────────────────────────────────────────────────
+
+  /users:
+    get:
+      tags: [Users]
+      summary: Get All Users
+      description: Returns all users in the system. Admin only.
+      responses:
+        '200':
+          description: List of users
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessResponse' }
+    post:
+      tags: [Users]
+      summary: Create User
+      description: >
+        Create a new user account. Role must be ADMIN, MANAGER, or EMPLOYEE.
+        For EMPLOYEE and MANAGER roles, an employee profile is also automatically created.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password, role, email, full_name]
+              properties:
+                username: { type: string, example: john.doe }
+                password: { type: string, example: Temp@1234 }
+                role: { type: string, enum: [ADMIN, MANAGER, EMPLOYEE], example: EMPLOYEE }
+                email: { type: string, example: john.doe@company.com }
+                full_name: { type: string, example: John Doe }
+                department: { type: string, example: Backend }
+                designation: { type: string, example: Software Engineer }
+                force_password_change: { type: boolean, example: true }
+      responses:
+        '200':
+          description: User created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessResponse' }
+
+  /users/{user_id}:
+    get:
+      tags: [Users]
+      summary: Get User by ID
+      description: Returns a single user by their ID.
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema: { type: integer }
+          example: 1
+      responses:
+        '200':
+          description: User details
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessResponse' }
+
+  /users/{user_id}/deactivate:
+    put:
+      tags: [Users]
+      summary: Deactivate User
+      description: Deactivates a user account. The user loses login access. Their historical data is preserved.
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema: { type: integer }
+          example: 5
+      responses:
+        '200':
+          description: User deactivated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessResponse' }
+
+  /users/{user_id}/reactivate:
+    put:
+      tags: [Users]
+      summary: Reactivate User
+      description: Reactivates a previously deactivated user account. Previous allocations are NOT restored.
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema: { type: integer }
+          example: 5
+      responses:
+        '200':
+          description: User reactivated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessResponse' }
+
+  /users/{user_id}/reset-password:
+    put:
+      tags: [Users]
+      summary: Reset User Password
+      description: Resets a user's password to a temporary one. The user will be forced to change it on next login.
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema: { type: integer }
+          example: 5
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [new_password]
+              properties:
+                new_password: { type: string, example: TempReset@123 }
+                force_password_change: { type: boolean, example: true }
+      responses:
+        '200':
+          description: Password reset
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessResponse' }
+
+  # ─── EMPLOYEES ──────────────────────────────────────────────────────────────
+
+  /employees:
+    get:
+      tags: [Employees]
+      summary: Get All Employees
+      description: Returns all employee profiles with status (BENCH or ALLOCATED), department, and designation.
+      responses:
+        '200':
+          description: List of employees
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessResponse' }
+
+  /employees/{employee_id}:
+    put:
+      tags: [Employees]
+      summary: Update Employee
+      description: Update an employee's profile information.
+      parameters:
+        - name: employee_id
+          in: path
+          required: true
+          schema: { type: integer }
+          example: 3
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                full_name: { type: string, example: Ravi Kumar }
+                email: { type: string, example: ravi.kumar@company.com }
+                department: { type: string, example: Backend }
+                designation: { type: string, example: Senior Engineer }
+      responses:
+        '200':
+          description: Employee updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessResponse' }
+
+  /employees/{employee_id}/deactivate:
+    patch:
+      tags: [Employees]
+      summary: Deactivate Employee
+      description: >
+        Deactivates an employee. All active allocations are ended immediately.
+        The linked user account is also blocked. Historical data is preserved.
+      parameters:
+        - name: employee_id
+          in: path
+          required: true
+          schema: { type: integer }
+          example: 3
+      responses:
+        '200':
+          description: Employee deactivated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessResponse' }
+
+  /employees/{employee_id}/manager:
+    patch:
+      tags: [Employees]
+      summary: Assign Manager to Employee
+      description: Assign a manager to an employee. The manager_user_id must belong to a user with role MANAGER.
+      parameters:
+        - name: employee_id
+          in: path
+          required: true
+          schema: { type: integer }
+          example: 3
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [manager_user_id]
+              properties:
+                manager_user_id: { type: integer, example: 2 }
+      responses:
+        '200':
+          description: Manager assigned
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessResponse' }
+
+  /employees/{employee_id}/skills:
+    get:
+      tags: [Employees]
+      summary: Get Employee Skills
+      description: Returns all skills for a specific employee with proficiency levels.
+      parameters:
+        - name: employee_id
+          in: path
+          required: true
+          schema: { type: integer }
+          example: 3
+      responses:
+        '200':
+          description: List of skills
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessResponse' }
+    post:
+      tags: [Employees]
+      summary: Add Skill to Employee
+      description: >
+        Add a new skill to an employee.
+        Category: Backend, Frontend, DevOps, QA, Other.
+        Proficiency: Beginner, Intermediate, Advanced.
+      parameters:
+        - name: employee_id
+          in: path
+          required: true
+          schema: { type: integer }
+          example: 3
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [skill_name, category, proficiency]
+              properties:
+                skill_name: { type: string, example: WebSocket }
+                category:
+                  type: string
+                  enum: [Backend, Frontend, DevOps, QA, Other]
+                  example: Backend
+                proficiency:
+                  type: string
+                  enum: [Beginner, Intermediate, Advanced]
+                  example: Intermediate
+      responses:
+        '200':
+          description: Skill added
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessResponse' }
+
+  /employees/{employee_id}/skills/{skill_id}:
+    put:
+      tags: [Employees]
+      summary: Update Skill Proficiency
+      description: Update the proficiency level of an employee's existing skill.
+      parameters:
+        - name: employee_id
+          in: path
+          required: true
+          schema: { type: integer }
+          example: 3
+        - name: skill_id
+          in: path
+          required: true
+          schema: { type: integer }
+          example: 7
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [proficiency]
+              properties:
+                proficiency:
+                  type: string
+                  enum: [Beginner, Intermediate, Advanced]
+                  example: Advanced
+      responses:
+        '200':
+          description: Skill updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessResponse' }
+    delete:
+      tags: [Employees]
+      summary: Remove Skill from Employee
+      description: Remove a specific skill from an employee's profile.
+      parameters:
+        - name: employee_id
+          in: path
+          required: true
+          schema: { type: integer }
+          example: 3
+        - name: skill_id
+          in: path
+          required: true
+          schema: { type: integer }
+          example: 7
+      responses:
+        '200':
+          description: Skill removed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessResponse' }
+
+  /employees/{employee_id}/timesheets:
+    get:
+      tags: [Timesheets]
+      summary: Get Employee Timesheets
+      description: Returns all submitted timesheets for a specific employee.
+      parameters:
+        - name: employee_id
+          in: path
+          required: true
+          schema: { type: integer }
+          example: 3
+      responses:
+        '200':
+          description: List of timesheets
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessResponse' }
+
+  # ─── PROJECTS ───────────────────────────────────────────────────────────────
+
+  /projects:
+    get:
+      tags: [Projects]
+      summary: Get All Projects
+      description: Returns all projects with name, status, manager_id, dates, and health (GREEN/AMBER/RED).
+      responses:
+        '200':
+          description: List of projects
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessResponse' }
+    post:
+      tags: [Projects]
+      summary: Create Project
+      description: >
+        Create a new project.
+        Status: PLANNED, ACTIVE, ON_HOLD, COMPLETED.
+        manager_id must be a valid MANAGER user.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, start_date, end_date, status, manager_id]
+              properties:
+                name: { type: string, example: Alpha Portal }
+                description: { type: string, example: Customer-facing web portal }
+                start_date: { type: string, format: date, example: "2026-01-01" }
+                end_date: { type: string, format: date, example: "2026-06-30" }
+                status:
+                  type: string
+                  enum: [PLANNED, ACTIVE, ON_HOLD, COMPLETED]
+                  example: ACTIVE
+                manager_id: { type: integer, example: 2 }
+                total_story_points: { type: integer, example: 120 }
+      responses:
+        '200':
+          description: Project created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessResponse' }
+
+  /projects/{project_id}:
+    get:
+      tags: [Projects]
+      summary: Get Project by ID
+      description: Returns details for a specific project.
+      parameters:
+        - name: project_id
+          in: path
+          required: true
+          schema: { type: integer }
+          example: 1
+      responses:
+        '200':
+          description: Project details
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessResponse' }
+    put:
+      tags: [Projects]
+      summary: Update Project
+      description: Update project details. All fields are required.
+      parameters:
+        - name: project_id
+          in: path
+          required: true
+          schema: { type: integer }
+          example: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, start_date, end_date, status, manager_id]
+              properties:
+                name: { type: string, example: Alpha Portal }
+                description: { type: string, example: Updated description }
+                start_date: { type: string, format: date, example: "2026-01-01" }
+                end_date: { type: string, format: date, example: "2026-07-31" }
+                status:
+                  type: string
+                  enum: [PLANNED, ACTIVE, ON_HOLD, COMPLETED]
+                  example: ACTIVE
+                manager_id: { type: integer, example: 2 }
+      responses:
+        '200':
+          description: Project updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessResponse' }
+
+  /projects/{project_id}/milestones:
+    get:
+      tags: [Projects]
+      summary: Get Project Milestones
+      description: Returns all milestones for a project with due dates and statuses.
+      parameters:
+        - name: project_id
+          in: path
+          required: true
+          schema: { type: integer }
+          example: 1
+      responses:
+        '200':
+          description: List of milestones
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessResponse' }
+    post:
+      tags: [Projects]
+      summary: Add Milestone
+      description: >
+        Add a milestone to a project.
+        Status: NOT_STARTED, IN_PROGRESS, DONE.
+      parameters:
+        - name: project_id
+          in: path
+          required: true
+          schema: { type: integer }
+          example: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, due_date, status]
+              properties:
+                title: { type: string, example: Backend API Complete }
+                due_date: { type: string, format: date, example: "2026-04-15" }
+                status:
+                  type: string
+                  enum: [NOT_STARTED, IN_PROGRESS, DONE]
+                  example: NOT_STARTED
+      responses:
+        '200':
+          description: Milestone added
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessResponse' }
+
+  /projects/{project_id}/allocations:
+    get:
+      tags: [Allocations]
+      summary: Get Project Allocations
+      description: Returns all active allocations for a specific project.
+      parameters:
+        - name: project_id
+          in: path
+          required: true
+          schema: { type: integer }
+          example: 1
+      responses:
+        '200':
+          description: List of allocations
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessResponse' }
+
+  /milestones/{milestone_id}/status:
+    put:
+      tags: [Projects]
+      summary: Update Milestone Status
+      description: >
+        Update the status of a milestone.
+        Status: NOT_STARTED, IN_PROGRESS, DONE.
+      parameters:
+        - name: milestone_id
+          in: path
+          required: true
+          schema: { type: integer }
+          example: 3
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [NOT_STARTED, IN_PROGRESS, DONE]
+                  example: IN_PROGRESS
+      responses:
+        '200':
+          description: Milestone status updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessResponse' }
+
+  /managers/{manager_user_id}/projects:
+    get:
+      tags: [Projects]
+      summary: Get Manager's Projects
+      description: Returns all projects assigned to a specific manager by their user ID.
+      parameters:
+        - name: manager_user_id
+          in: path
+          required: true
+          schema: { type: integer }
+          example: 2
+      responses:
+        '200':
+          description: List of projects
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessResponse' }
+
+  /managers/{manager_user_id}/timesheets:
+    get:
+      tags: [Timesheets]
+      summary: Get Team Timesheets (Manager View)
+      description: >
+        Returns timesheet status for all employees on the manager's team for the specified week.
+        Shows SUBMITTED or MISSED for each employee-project pair.
+      parameters:
+        - name: manager_user_id
+          in: path
+          required: true
+          schema: { type: integer }
+          example: 2
+        - name: week
+          in: query
+          required: false
+          schema: { type: string, format: date }
+          example: "2026-06-09"
+      responses:
+        '200':
+          description: Team timesheet status
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessResponse' }
+
+  # ─── ALLOCATIONS ────────────────────────────────────────────────────────────
+
+  /allocations:
+    get:
+      tags: [Allocations]
+      summary: Get All Allocations
+      description: Returns all active allocations company-wide.
+      responses:
+        '200':
+          description: List of allocations
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessResponse' }
+    post:
+      tags: [Allocations]
+      summary: Create Allocation
+      description: >
+        Allocate an employee to a project. Server validates that the total
+        utilization across overlapping periods does not exceed 100%.
+        Project must be ACTIVE or PLANNED.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [employee_id, project_id, utilization_percentage, from_date, to_date]
+              properties:
+                employee_id: { type: integer, example: 3 }
+                project_id: { type: integer, example: 1 }
+                utilization_percentage: { type: integer, minimum: 1, maximum: 100, example: 50 }
+                from_date: { type: string, format: date, example: "2026-06-01" }
+                to_date: { type: string, format: date, example: "2026-09-30" }
+      responses:
+        '200':
+          description: Allocation created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessResponse' }
+
+  /allocations/{allocation_id}/end:
+    put:
+      tags: [Allocations]
+      summary: End Allocation
+      description: >
+        End an active allocation by setting its to_date.
+        The employee's status is automatically recomputed to BENCH if no other
+        active allocations remain.
+      parameters:
+        - name: allocation_id
+          in: path
+          required: true
+          schema: { type: integer }
+          example: 5
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [end_date]
+              properties:
+                end_date: { type: string, format: date, example: "2026-06-12" }
+      responses:
+        '200':
+          description: Allocation ended
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessResponse' }
+
+  # ─── TIMESHEETS ─────────────────────────────────────────────────────────────
+
+  /timesheets:
+    post:
+      tags: [Timesheets]
+      summary: Submit Timesheet
+      description: >
+        Submit a weekly timesheet for an employee. Hours per project cannot
+        exceed the allocation limit. Total weekly hours cannot exceed
+        max_weekly_hours (default: 40). One submission per employee per week.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [employee_id, week_start_date, lines]
+              properties:
+                employee_id: { type: integer, example: 3 }
+                week_start_date: { type: string, format: date, example: "2026-06-09" }
+                lines:
+                  type: array
+                  items:
+                    type: object
+                    required: [project_id, hours_worked]
+                    properties:
+                      project_id: { type: integer, example: 1 }
+                      hours_worked: { type: number, example: 18 }
+                      tags:
+                        type: array
+                        items: { type: string }
+                        example: ["Backend API Development", "Microservices / Architecture"]
+      responses:
+        '200':
+          description: Timesheet submitted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessResponse' }
+
+  # ─── AI ASSISTANT ────────────────────────────────────────────────────────────
+
+  /ai/skill-match:
+    post:
+      tags: [AI Assistant]
+      summary: Skill Match
+      description: >
+        Uses an LLM (Gemini or Groq) to match employees to a natural-language requirement.
+        Returns a JSON array of top matches with employee_id, name, and reason.
+        Falls back to availability-only matching if no API key is configured.
+        Configure the API key via PUT /system/config.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [requirement]
+              properties:
+                requirement:
+                  type: string
+                  example: "I need a backend developer with Java and microservices experience, available for at least 3 months from June"
+      responses:
+        '200':
+          description: Matched employees
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessResponse' }
+
+  /ai/risk-summary:
+    post:
+      tags: [AI Assistant]
+      summary: Risk Summary
+      description: >
+        Uses an LLM to generate a plain-English risk summary for a project.
+        Analyses overdue milestones, logged hours vs expected hours, and
+        allocation data. Returns a summary paragraph.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [project_id]
+              properties:
+                project_id: { type: integer, example: 1 }
+      responses:
+        '200':
+          description: Risk summary
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessResponse' }
+
+  # ─── SYSTEM CONFIG ───────────────────────────────────────────────────────────
+
+  /system/config:
+    get:
+      tags: [System Configuration]
+      summary: Get System Config
+      description: Returns current system configuration. The LLM API key is masked (shown as ****).
+      responses:
+        '200':
+          description: System configuration
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    type: object
+                    properties:
+                      llm_provider: { type: string, example: gemini }
+                      llm_api_key: { type: string, example: "****" }
+                      scheduler_interval: { type: integer, example: 4 }
+                      max_weekly_hours: { type: integer, example: 40 }
+    put:
+      tags: [System Configuration]
+      summary: Update System Config
+      description: >
+        Update system configuration. All fields are optional - only provided
+        fields are updated. Changes are persisted to the config.json file.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                llm_provider: { type: string, enum: [gemini, groq], example: gemini }
+                llm_api_key: { type: string, example: "AIzaSy..." }
+                max_weekly_hours: { type: integer, example: 40 }
+                scheduler_interval: { type: integer, example: 4 }
+      responses:
+        '200':
+          description: Configuration updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessResponse' }
+
+  # ─── SCHEDULER ───────────────────────────────────────────────────────────────
+
+  /scheduler/recompute:
+    post:
+      tags: [Scheduler]
+      summary: Trigger Manual Recompute
+      description: >
+        Manually trigger the scheduler recomputation job. This runs:
+        employee bench/allocated status recomputation, project health
+        (GREEN/AMBER/RED) recalculation, and missed timesheet detection.
+        The background scheduler also runs this automatically every 4 hours (configurable).
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                today: { type: string, format: date, example: "2026-06-12" }
+      responses:
+        '200':
+          description: Recomputation triggered
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessResponse' }
+
+  # ─── HEALTH ─────────────────────────────────────────────────────────────────
+
+  /health:
+    get:
+      tags: [Health]
+      summary: Health Check
+      description: 'Simple health check endpoint. Returns {"status": "OK"} if the server is running.'
+      security: []
+      responses:
+        '200':
+          description: Server is running
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: OK }
