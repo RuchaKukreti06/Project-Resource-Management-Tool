@@ -1,7 +1,6 @@
 #include "services/AuthService.h"
 
-#include <jwt-cpp/jwt.h>
-#include <jwt-cpp/traits/nlohmann-json/defaults.h>
+
 #include <spdlog/spdlog.h>
 
 #include <chrono>
@@ -11,8 +10,8 @@
 
 AuthService::AuthService(std::shared_ptr<IUserRepository> repository,
                          std::shared_ptr<IPasswordHasher> passwordHasher,
-                         const AuthConfig& config)
-    : repository_(std::move(repository)), passwordHasher_(std::move(passwordHasher)), config_(std::move(config))
+                         std::shared_ptr<ITokenService> tokenService)
+    : repository_(std::move(repository)), passwordHasher_(std::move(passwordHasher)), tokenService_(std::move(tokenService))
 {
 }
 
@@ -39,7 +38,7 @@ nlohmann::json AuthService::login(const std::string& username, const std::string
         return response;
     }
 
-    std::string token = generateToken(user);
+    const std::string token = tokenService_->generateToken(user);
     response["success"] = true;
     response["token"]   = token;
     response["user"]    = {{"id",                    user.id},
@@ -90,7 +89,7 @@ nlohmann::json AuthService::registerUser(const std::string& username,
 
 bool AuthService::isLoggedIn() const
 {
-    return token_.has_value() && validateToken(*token_);
+    return token_.has_value() && tokenService_->validateToken(*token_);
 }
 
 void AuthService::setToken(const std::string& token)
@@ -110,36 +109,9 @@ bool AuthService::changePassword(int userId, const std::string& newPassword)
 
 bool AuthService::validateToken(const std::string& token) const
 {
-    try
-    {
-        auto decoded  = jwt::decode(token);
-        auto verifier = jwt::verify()
-                            .allow_algorithm(jwt::algorithm::hs256{config_.jwtSecret})
-                            .with_issuer("PRM_Server");
-        verifier.verify(decoded);
-        return true;
-    }
-    catch (const std::exception& e)
-    {
-        spdlog::error("Token validation failed: {}", e.what());
-        return false;
-    }
+    return tokenService_->validateToken(token);
 }
 
-std::string AuthService::generateToken(const User& user)
-{
-    auto token = jwt::create()
-                     .set_issuer("PRM_Server")
-                     .set_type("JWT")
-                     .set_issued_at(std::chrono::system_clock::now())
-                     .set_expires_at(std::chrono::system_clock::now() +
-                                     std::chrono::minutes(config_.jwtExpirationMinutes))
-                     .set_payload_claim("id",       jwt::claim(std::to_string(user.id)))
-                     .set_payload_claim("username", jwt::claim(user.username))
-                     .set_payload_claim("role",     jwt::claim(user.role))
-                     .sign(jwt::algorithm::hs256{config_.jwtSecret});
 
-    return token;
-}
 
 

@@ -27,6 +27,7 @@
 #include "services/AllocationService.h"
 #include "services/AuthService.h"
 #include "services/PasswordHasher.h"
+#include "services/JwtTokenService.h"
 #include "services/EmployeeService.h"
 #include "services/EmailService.h"
 #include "services/NotificationService.h"
@@ -72,7 +73,8 @@ bool Application::run()
         // ── Services ──────────────────────────────────────────────────────────
         auto passwordHasher = std::make_shared<PasswordHasher>();
         AuthConfig  authConfig{config.jwtSecret(), config.jwtExpirationMinutes()};
-        AuthService authService(userRepository, passwordHasher, authConfig);
+        auto tokenService = std::make_shared<JwtTokenService>(authConfig);
+        AuthService authService(userRepository, passwordHasher, tokenService);
         UserService userService(userRepository, passwordHasher);
         auto employeeService  = std::make_shared<EmployeeService>(employeeRepository,
                                                                    userRepository,

@@ -8,16 +8,16 @@
 
 #include "models/User.h"
 #include "repositories/IUserRepository.h"
-#include "services/AuthConfig.h"
 #include "services/interfaces/IAuthService.h"
 #include "services/interfaces/IPasswordHasher.h"
+#include "services/interfaces/ITokenService.h"
 
 class AuthService : public IAuthService
 {
    public:
     explicit AuthService(std::shared_ptr<IUserRepository> repository,
                          std::shared_ptr<IPasswordHasher> passwordHasher,
-                         const AuthConfig& config);
+                         std::shared_ptr<ITokenService> tokenService);
     ~AuthService();
 
     nlohmann::json login(const std::string& username, const std::string& password) override;
@@ -29,12 +29,10 @@ class AuthService : public IAuthService
     bool validateToken(const std::string& token) const override;
 
    private:
-    std::string generateToken(const User& user);
-
     std::shared_ptr<IUserRepository> repository_;
     std::shared_ptr<IPasswordHasher> passwordHasher_;
+    std::shared_ptr<ITokenService>   tokenService_;
     std::optional<std::string>       token_;
-    AuthConfig                       config_;
 };
 
 #endif

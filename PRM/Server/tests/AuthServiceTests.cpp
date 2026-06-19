@@ -13,6 +13,7 @@
 #include "IUserRepository.h"
 #include "MockUserRepository.h"
 #include "services/PasswordHasher.h"
+#include "services/JwtTokenService.h"
 #include "User.h"
 
 
@@ -23,8 +24,9 @@ class AuthServiceTest : public ::testing::Test
     {
         repo_ = std::make_shared<MockUserRepository>();
         auto hasher = std::make_shared<PasswordHasher>();
+        auto tokenService = std::make_shared<JwtTokenService>(AuthConfig{"test-jwt-secret", 60});
         auth_ = std::make_unique<AuthService>(
-            repo_, hasher, AuthConfig{"test-jwt-secret", 60});
+            repo_, hasher, tokenService);
     }
 
     std::shared_ptr<MockUserRepository> repo_;
