@@ -9,31 +9,20 @@
 #include <vector>
 
 #include "AuthService.h"
-#include "ConfigLoader.h"
+#include "AuthConfig.h"
 #include "IUserRepository.h"
 #include "MockUserRepository.h"
 #include "User.h"
 
-static std::filesystem::path getTestConfigPath()
-{
-    return std::filesystem::path(__FILE__).parent_path() / "config" / "test_config.json";
-}
-
-static void loadTestConfiguration()
-{
-    ASSERT_NO_THROW({ utils::ConfigLoader::instance().load(getTestConfigPath().string()); })
-        << "Configuration load failed.";
-}
 
 class AuthServiceTest : public ::testing::Test
 {
    protected:
     void SetUp() override
     {
-        utils::ConfigLoader::instance().load(getTestConfigPath().string());
-
         repo_ = std::make_shared<MockUserRepository>();
-        auth_ = std::make_unique<AuthService>(repo_);
+        auth_ = std::make_unique<AuthService>(
+            repo_, AuthConfig{"test-jwt-secret", 60});
     }
 
     std::shared_ptr<MockUserRepository> repo_;
@@ -117,7 +106,6 @@ class AuthServiceTokenTest : public AuthServiceTest
     void SetUp() override
     {
         AuthServiceTest::SetUp();
-        utils::ConfigLoader::instance().load(getTestConfigPath().string());
 
         auth_->registerUser("eve", "Password1", "eve@example.com", "Eve Green");
         user_ = repo_->getUserByUsername("eve");

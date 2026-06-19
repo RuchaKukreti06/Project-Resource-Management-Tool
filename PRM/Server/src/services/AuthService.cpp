@@ -5,13 +5,12 @@
 #include <openssl/evp.h>
 #include <spdlog/spdlog.h>
 
+#include <iomanip>
+#include <sstream>
 #include <stdexcept>
 
-#include "ConfigLoader.h"
-#include "UserRepository.h"
-
-AuthService::AuthService(std::shared_ptr<IUserRepository> repository)
-    : repository_(std::move(repository))
+AuthService::AuthService(std::shared_ptr<IUserRepository> repository, AuthConfig config)
+    : repository_(std::move(repository)), config_(std::move(config))
 {
 }
 
@@ -19,22 +18,12 @@ AuthService::~AuthService()
 {
 }
 
-IUserRepository& AuthService::repository()
-{
-    if (!repository_)
-    {
-        repository_ = std::make_shared<UserRepository>(database::Database::instance());
-    }
-    return *repository_;
-}
-
 nlohmann::json AuthService::login(const std::string& username, const std::string& password)
 {
-    auto& repository = this->repository();
     nlohmann::json response;
-
-    User user = repository.getUserByUsername(username);
     response["success"] = false;
+
+    User user = repository_->getUserByUsername(username);
 
     if (user.username.empty() || !verifyPassword(password, user.passwordHash))
     {
@@ -50,11 +39,11 @@ nlohmann::json AuthService::login(const std::string& username, const std::string
 
     std::string token = generateToken(user);
     response["success"] = true;
-    response["token"] = token;
-    response["user"] = {{"id", user.id},
-                        {"username", user.username},
-                        {"role", user.role},
-                        {"force_password_change", user.forcePasswordChange}};
+    response["token"]   = token;
+    response["user"]    = {{"id",                    user.id},
+                            {"username",              user.username},
+                            {"role",                  user.role},
+                            {"force_password_change", user.forcePasswordChange}};
     response["message"] = "Login successful.";
     return response;
 }
@@ -64,10 +53,9 @@ nlohmann::json AuthService::registerUser(const std::string& username,
                                          const std::string& email,
                                          const std::string& fullName)
 {
-    auto& repository = this->repository();
     nlohmann::json response;
 
-    if (repository.getUserByUsername(username).username.empty())
+    if (repository_->getUserByUsername(username).username.empty())
     {
         User newUser;
         newUser.username            = username;
@@ -79,7 +67,7 @@ nlohmann::json AuthService::registerUser(const std::string& username,
         newUser.status              = "ACTIVE";
         newUser.forcePasswordChange = true;
 
-        if (repository.createUser(newUser))
+        if (repository_->createUser(newUser))
         {
             response["success"] = true;
             response["message"] = "Registration successful.";
@@ -110,24 +98,21 @@ void AuthService::setToken(const std::string& token)
 
 bool AuthService::changePassword(int userId, const std::string& newPassword)
 {
-    auto& repository = this->repository();
-    std::string newHash = hashPassword(newPassword);
-    if (!repository.updatePassword(userId, newHash))
+    const std::string newHash = hashPassword(newPassword);
+    if (!repository_->updatePassword(userId, newHash))
     {
         return false;
     }
-    return repository.setForcePasswordChange(userId, false);
+    return repository_->setForcePasswordChange(userId, false);
 }
 
 bool AuthService::validateToken(const std::string& token) const
 {
     try
     {
-        auto& config = utils::ConfigLoader::instance();
-        auto secretKey = config.jwtSecret();
-        auto decoded = jwt::decode(token);
+        auto decoded  = jwt::decode(token);
         auto verifier = jwt::verify()
-                            .allow_algorithm(jwt::algorithm::hs256{secretKey})
+                            .allow_algorithm(jwt::algorithm::hs256{config_.jwtSecret})
                             .with_issuer("PRM_Server");
         verifier.verify(decoded);
         return true;
@@ -141,20 +126,16 @@ bool AuthService::validateToken(const std::string& token) const
 
 std::string AuthService::generateToken(const User& user)
 {
-    auto& config = utils::ConfigLoader::instance();
-    auto secretKey = config.jwtSecret();
-    auto expirationMinutes = config.jwtExpirationMinutes();
-
     auto token = jwt::create()
                      .set_issuer("PRM_Server")
                      .set_type("JWT")
                      .set_issued_at(std::chrono::system_clock::now())
                      .set_expires_at(std::chrono::system_clock::now() +
-                                     std::chrono::minutes(expirationMinutes))
-                     .set_payload_claim("id", jwt::claim(std::to_string(user.id)))
+                                     std::chrono::minutes(config_.jwtExpirationMinutes))
+                     .set_payload_claim("id",       jwt::claim(std::to_string(user.id)))
                      .set_payload_claim("username", jwt::claim(user.username))
-                     .set_payload_claim("role", jwt::claim(user.role))
-                     .sign(jwt::algorithm::hs256{secretKey});
+                     .set_payload_claim("role",     jwt::claim(user.role))
+                     .sign(jwt::algorithm::hs256{config_.jwtSecret});
 
     return token;
 }
@@ -162,8 +143,8 @@ std::string AuthService::generateToken(const User& user)
 std::string AuthService::hashPassword(const std::string& password)
 {
     unsigned char digest[EVP_MAX_MD_SIZE];
-    unsigned int digestLength = 0;
-    EVP_MD_CTX* context = EVP_MD_CTX_new();
+    unsigned int  digestLength = 0;
+    EVP_MD_CTX*   context      = EVP_MD_CTX_new();
     if (context == nullptr)
     {
         throw std::runtime_error("Failed to create OpenSSL message digest context");
@@ -189,6 +170,5 @@ std::string AuthService::hashPassword(const std::string& password)
 
 bool AuthService::verifyPassword(const std::string& password, const std::string& hash)
 {
-    auto computedHash = hashPassword(password);
-    return computedHash == hash;
+    return hashPassword(password) == hash;
 }

@@ -69,7 +69,8 @@ bool Application::run()
         auto systemConfigRepository = std::make_shared<SystemConfigRepository>(database);
 
         // ── Services ──────────────────────────────────────────────────────────
-        AuthService authService(userRepository);
+        AuthConfig  authConfig{config.jwtSecret(), config.jwtExpirationMinutes()};
+        AuthService authService(userRepository, authConfig);
         UserService userService(userRepository);
         auto employeeService  = std::make_shared<EmployeeService>(employeeRepository,
                                                                    userRepository,

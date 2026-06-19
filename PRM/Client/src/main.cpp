@@ -8,6 +8,9 @@
 
 int main()
 {
+#ifdef _WIN32
+    SetConsoleOutputCP(CP_UTF8);
+#endif
     const std::string baseUrl = "http://localhost:8080";
     ApiClient apiClient(baseUrl);
     Application app(baseUrl, apiClient);

@@ -1,0 +1,534 @@
+{
+  "info": {
+    "name": "PRM Tool — API Collection",
+    "_postman_id": "prm-tool-api-v1",
+    "description": "Project & Resource Management Tool — Complete API documentation for Milestone 1 & 2.\nBase URL: http://localhost:8080\n\nAuthentication: All endpoints (except POST /auth/login) require a session token obtained from the login endpoint. Pass it as a header: X-Auth-Token: <token>",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url",  "value": "http://localhost:8080" },
+    { "key": "auth_token","value": "" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/auth/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"Admin@123\"\n}"
+            },
+            "description": "Authenticate a user. Returns user details and a session token. If force_password_change is true, the user must change their password before accessing any other endpoint."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"data\": {\n    \"token\": \"<session-token>\",\n    \"user_id\": 1,\n    \"role\": \"ADMIN\",\n    \"force_password_change\": false\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/auth/change-password",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Auth-Token", "value": "{{auth_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"current_password\": \"Admin@123\",\n  \"new_password\": \"NewPass@456\"\n}"
+            },
+            "description": "Change the current user's password. Required on first login if force_password_change = true."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "Get All Users",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/users",
+            "header": [{ "key": "X-Auth-Token", "value": "{{auth_token}}" }],
+            "description": "Returns all users in the system. Admin only."
+          }
+        },
+        {
+          "name": "Get User by ID",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/users/1",
+            "header": [{ "key": "X-Auth-Token", "value": "{{auth_token}}" }],
+            "description": "Returns a single user by their ID."
+          }
+        },
+        {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/users",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Auth-Token", "value": "{{auth_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"john.doe\",\n  \"password\": \"Temp@1234\",\n  \"role\": \"EMPLOYEE\",\n  \"email\": \"john.doe@company.com\",\n  \"full_name\": \"John Doe\",\n  \"department\": \"Backend\",\n  \"designation\": \"Software Engineer\",\n  \"force_password_change\": true\n}"
+            },
+            "description": "Create a new user account. Role must be ADMIN, MANAGER, or EMPLOYEE. For EMPLOYEE and MANAGER roles, an employee profile is also automatically created."
+          }
+        },
+        {
+          "name": "Deactivate User",
+          "request": {
+            "method": "PUT",
+            "url": "{{base_url}}/users/5/deactivate",
+            "header": [{ "key": "X-Auth-Token", "value": "{{auth_token}}" }],
+            "description": "Deactivates a user account. The user loses login access. Their historical data is preserved."
+          }
+        },
+        {
+          "name": "Reactivate User",
+          "request": {
+            "method": "PUT",
+            "url": "{{base_url}}/users/5/reactivate",
+            "header": [{ "key": "X-Auth-Token", "value": "{{auth_token}}" }],
+            "description": "Reactivates a previously deactivated user account. Previous allocations are NOT restored."
+          }
+        },
+        {
+          "name": "Reset User Password",
+          "request": {
+            "method": "PUT",
+            "url": "{{base_url}}/users/5/reset-password",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Auth-Token", "value": "{{auth_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"new_password\": \"TempReset@123\",\n  \"force_password_change\": true\n}"
+            },
+            "description": "Resets a user's password to a temporary one. The user will be forced to change it on next login."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Employees",
+      "item": [
+        {
+          "name": "Get All Employees",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/employees",
+            "header": [{ "key": "X-Auth-Token", "value": "{{auth_token}}" }],
+            "description": "Returns all employee profiles with status (BENCH or ALLOCATED), department, and designation."
+          }
+        },
+        {
+          "name": "Update Employee",
+          "request": {
+            "method": "PUT",
+            "url": "{{base_url}}/employees/3",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Auth-Token", "value": "{{auth_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Ravi Kumar\",\n  \"email\": \"ravi.kumar@company.com\",\n  \"department\": \"Backend\",\n  \"designation\": \"Senior Engineer\"\n}"
+            },
+            "description": "Update an employee's profile information."
+          }
+        },
+        {
+          "name": "Deactivate Employee",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/employees/3/deactivate",
+            "header": [{ "key": "X-Auth-Token", "value": "{{auth_token}}" }],
+            "description": "Deactivates an employee. All active allocations are ended immediately. The linked user account is also blocked. Historical data is preserved."
+          }
+        },
+        {
+          "name": "Get Employee Skills",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/employees/3/skills",
+            "header": [{ "key": "X-Auth-Token", "value": "{{auth_token}}" }],
+            "description": "Returns all skills for a specific employee with proficiency levels."
+          }
+        },
+        {
+          "name": "Add Skill to Employee",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/employees/3/skills",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Auth-Token", "value": "{{auth_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"skill_name\": \"WebSocket\",\n  \"category\": \"Backend\",\n  \"proficiency\": \"Intermediate\"\n}"
+            },
+            "description": "Add a new skill to an employee. Category: Backend, Frontend, DevOps, QA, Other. Proficiency: Beginner, Intermediate, Advanced."
+          }
+        },
+        {
+          "name": "Update Skill Proficiency",
+          "request": {
+            "method": "PUT",
+            "url": "{{base_url}}/employees/3/skills/7",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Auth-Token", "value": "{{auth_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"proficiency\": \"Advanced\"\n}"
+            },
+            "description": "Update the proficiency level of an employee's existing skill."
+          }
+        },
+        {
+          "name": "Remove Skill from Employee",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/employees/3/skills/7",
+            "header": [{ "key": "X-Auth-Token", "value": "{{auth_token}}" }],
+            "description": "Remove a specific skill from an employee's profile."
+          }
+        },
+        {
+          "name": "Assign Manager to Employee",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/employees/3/manager",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Auth-Token", "value": "{{auth_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"manager_user_id\": 2\n}"
+            },
+            "description": "Assign a manager to an employee. The manager_user_id must belong to a user with role MANAGER."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Projects",
+      "item": [
+        {
+          "name": "Get All Projects",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/projects",
+            "header": [{ "key": "X-Auth-Token", "value": "{{auth_token}}" }],
+            "description": "Returns all projects with name, status, manager_id, dates, and health (GREEN/AMBER/RED)."
+          }
+        },
+        {
+          "name": "Get Project by ID",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/projects/1",
+            "header": [{ "key": "X-Auth-Token", "value": "{{auth_token}}" }],
+            "description": "Returns details for a specific project."
+          }
+        },
+        {
+          "name": "Get Manager's Projects",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/managers/2/projects",
+            "header": [{ "key": "X-Auth-Token", "value": "{{auth_token}}" }],
+            "description": "Returns all projects assigned to a specific manager by their user ID."
+          }
+        },
+        {
+          "name": "Create Project",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/projects",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Auth-Token", "value": "{{auth_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Alpha Portal\",\n  \"description\": \"Customer-facing web portal\",\n  \"start_date\": \"2026-01-01\",\n  \"end_date\": \"2026-06-30\",\n  \"status\": \"ACTIVE\",\n  \"manager_id\": 2,\n  \"total_story_points\": 120\n}"
+            },
+            "description": "Create a new project. Status: PLANNED, ACTIVE, ON_HOLD, COMPLETED. manager_id must be a valid MANAGER user."
+          }
+        },
+        {
+          "name": "Update Project",
+          "request": {
+            "method": "PUT",
+            "url": "{{base_url}}/projects/1",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Auth-Token", "value": "{{auth_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Alpha Portal\",\n  \"description\": \"Updated description\",\n  \"start_date\": \"2026-01-01\",\n  \"end_date\": \"2026-07-31\",\n  \"status\": \"ACTIVE\",\n  \"manager_id\": 2\n}"
+            },
+            "description": "Update project details. All fields are required."
+          }
+        },
+        {
+          "name": "Get Project Milestones",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/projects/1/milestones",
+            "header": [{ "key": "X-Auth-Token", "value": "{{auth_token}}" }],
+            "description": "Returns all milestones for a project with due dates and statuses."
+          }
+        },
+        {
+          "name": "Add Milestone",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/projects/1/milestones",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Auth-Token", "value": "{{auth_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Backend API Complete\",\n  \"due_date\": \"2026-04-15\",\n  \"status\": \"NOT_STARTED\"\n}"
+            },
+            "description": "Add a milestone to a project. Status: NOT_STARTED, IN_PROGRESS, DONE."
+          }
+        },
+        {
+          "name": "Update Milestone Status",
+          "request": {
+            "method": "PUT",
+            "url": "{{base_url}}/milestones/3/status",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Auth-Token", "value": "{{auth_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"IN_PROGRESS\"\n}"
+            },
+            "description": "Update the status of a milestone. Status: NOT_STARTED, IN_PROGRESS, DONE."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Allocations",
+      "item": [
+        {
+          "name": "Get All Allocations",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/allocations",
+            "header": [{ "key": "X-Auth-Token", "value": "{{auth_token}}" }],
+            "description": "Returns all active allocations company-wide."
+          }
+        },
+        {
+          "name": "Get Project Allocations",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/projects/1/allocations",
+            "header": [{ "key": "X-Auth-Token", "value": "{{auth_token}}" }],
+            "description": "Returns all active allocations for a specific project."
+          }
+        },
+        {
+          "name": "Create Allocation",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/allocations",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Auth-Token", "value": "{{auth_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employee_id\": 3,\n  \"project_id\": 1,\n  \"utilization_percentage\": 50,\n  \"from_date\": \"2026-06-01\",\n  \"to_date\": \"2026-09-30\"\n}"
+            },
+            "description": "Allocate an employee to a project. Server validates that the total utilization across overlapping periods does not exceed 100%. Project must be ACTIVE or PLANNED."
+          }
+        },
+        {
+          "name": "End Allocation",
+          "request": {
+            "method": "PUT",
+            "url": "{{base_url}}/allocations/5/end",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Auth-Token", "value": "{{auth_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"end_date\": \"2026-06-12\"\n}"
+            },
+            "description": "End an active allocation by setting its to_date. The employee's status is automatically recomputed to BENCH if no other active allocations remain."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Timesheets",
+      "item": [
+        {
+          "name": "Submit Timesheet",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/timesheets",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Auth-Token", "value": "{{auth_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employee_id\": 3,\n  \"week_start_date\": \"2026-06-09\",\n  \"lines\": [\n    {\n      \"project_id\": 1,\n      \"hours_worked\": 18,\n      \"tags\": [\"Backend API Development\", \"Microservices / Architecture\"]\n    },\n    {\n      \"project_id\": 2,\n      \"hours_worked\": 20,\n      \"tags\": [\"Bug Fixing\", \"Code Review / Mentoring\"]\n    }\n  ]\n}"
+            },
+            "description": "Submit a weekly timesheet for an employee. Hours per project cannot exceed the allocation limit. Total weekly hours cannot exceed max_weekly_hours (default: 40). One submission per employee per week."
+          }
+        },
+        {
+          "name": "Get Employee Timesheets",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/employees/3/timesheets",
+            "header": [{ "key": "X-Auth-Token", "value": "{{auth_token}}" }],
+            "description": "Returns all submitted timesheets for a specific employee."
+          }
+        },
+        {
+          "name": "Get Team Timesheets (Manager View)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/managers/2/timesheets?week=2026-06-09",
+            "header": [{ "key": "X-Auth-Token", "value": "{{auth_token}}" }],
+            "description": "Returns timesheet status for all employees on the manager's team for the specified week. Shows SUBMITTED or MISSED for each employee-project pair."
+          }
+        }
+      ]
+    },
+    {
+      "name": "AI Assistant",
+      "item": [
+        {
+          "name": "Skill Match",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/ai/skill-match",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Auth-Token", "value": "{{auth_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"requirement\": \"I need a backend developer with Java and microservices experience, available for at least 3 months from June\"\n}"
+            },
+            "description": "Uses an LLM (Gemini or Groq) to match employees to a natural-language requirement. Returns a JSON array of top matches with employee_id, name, and reason. Falls back to availability-only matching if no API key is configured. Configure the API key via PUT /system/config."
+          }
+        },
+        {
+          "name": "Risk Summary",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/ai/risk-summary",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Auth-Token", "value": "{{auth_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"project_id\": 1\n}"
+            },
+            "description": "Uses an LLM to generate a plain-English risk summary for a project. Analyses overdue milestones, logged hours vs expected hours, and allocation data. Returns a summary paragraph."
+          }
+        }
+      ]
+    },
+    {
+      "name": "System Configuration",
+      "item": [
+        {
+          "name": "Get System Config",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/system/config",
+            "header": [{ "key": "X-Auth-Token", "value": "{{auth_token}}" }],
+            "description": "Returns current system configuration. The LLM API key is masked (shown as ****)."
+          }
+        },
+        {
+          "name": "Update System Config",
+          "request": {
+            "method": "PUT",
+            "url": "{{base_url}}/system/config",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Auth-Token", "value": "{{auth_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"llm_provider\": \"gemini\",\n  \"llm_api_key\": \"AIzaSy...\",\n  \"max_weekly_hours\": 40,\n  \"scheduler_interval\": 4\n}"
+            },
+            "description": "Update system configuration. All fields are optional — only provided fields are updated. Changes are persisted to the config.json file. llm_provider: 'gemini' or 'groq'."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Scheduler",
+      "item": [
+        {
+          "name": "Trigger Manual Recompute",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/scheduler/recompute",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Auth-Token", "value": "{{auth_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"today\": \"2026-06-12\"\n}"
+            },
+            "description": "Manually trigger the scheduler recomputation job. This runs: employee bench/allocated status recomputation, project health (GREEN/AMBER/RED) recalculation, and missed timesheet detection. The background scheduler also runs this automatically every 4 hours (configurable)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/health",
+            "description": "Simple health check endpoint. Returns {\"status\": \"OK\"} if the server is running."
+          }
+        }
+      ]
+    }
+  ]
+}

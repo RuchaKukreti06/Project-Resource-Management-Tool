@@ -8,11 +8,13 @@
 
 #include "models/User.h"
 #include "repositories/IUserRepository.h"
+#include "services/AuthConfig.h"
 
 class AuthService
 {
    public:
-    explicit AuthService(std::shared_ptr<IUserRepository> repository = nullptr);
+    explicit AuthService(std::shared_ptr<IUserRepository> repository,
+                     AuthConfig config);
     ~AuthService();
 
     nlohmann::json login(const std::string& username, const std::string& password);
@@ -27,10 +29,10 @@ class AuthService
     std::string hashPassword(const std::string& password);
     bool verifyPassword(const std::string& password, const std::string& hash);
     std::string generateToken(const User& user);
-    IUserRepository& repository();
 
     std::shared_ptr<IUserRepository> repository_;
     std::optional<std::string> token_;
+    AuthConfig config_;
 };
 
 #endif

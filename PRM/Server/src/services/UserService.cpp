@@ -7,31 +7,19 @@
 #include <stdexcept>
 #include <unordered_set>
 
-#include "database/Database.h"
-#include "repositories/UserRepository.h"
-
 UserService::UserService(std::shared_ptr<IUserRepository> repository)
     : repository_(std::move(repository))
 {
 }
 
-IUserRepository& UserService::repository()
-{
-    if (!repository_)
-    {
-        repository_ = std::make_shared<UserRepository>(database::Database::instance());
-    }
-    return *repository_;
-}
-
 std::vector<User> UserService::getAllUsers()
 {
-    return repository().getAllUsers();
+    return repository_->getAllUsers();
 }
 
 std::optional<User> UserService::getUserById(int id)
 {
-    User user = repository().getUserById(id);
+    User user = repository_->getUserById(id);
     if (user.id == 0)
     {
         return std::nullopt;
@@ -41,7 +29,7 @@ std::optional<User> UserService::getUserById(int id)
 
 User UserService::getUserByUsername(const std::string& username)
 {
-    return repository().getUserByUsername(username);
+    return repository_->getUserByUsername(username);
 }
 
 bool UserService::createUser(const std::string& username, const std::string& password,
@@ -57,12 +45,12 @@ bool UserService::createUser(const std::string& username, const std::string& pas
         throw std::runtime_error("Invalid user input. Check roles and mandatory fields.");
     }
 
-    if (!repository().getUserByUsername(username).username.empty())
+    if (!repository_->getUserByUsername(username).username.empty())
     {
         throw std::runtime_error(std::string("Username '") + username + "' already exists.");
     }
 
-    if (!repository().getUserByEmail(email).email.empty())
+    if (!repository_->getUserByEmail(email).email.empty())
     {
         throw std::runtime_error(std::string("Email '") + email + "' is already registered.");
     }
@@ -79,17 +67,17 @@ bool UserService::createUser(const std::string& username, const std::string& pas
     user.isActive            = true;
     user.forcePasswordChange = forcePasswordChange;
 
-    return repository().createUser(user);
+    return repository_->createUser(user);
 }
 
 bool UserService::deactivateUser(int id)
 {
-    return repository().setUserStatus(id, "INACTIVE");
+    return repository_->setUserStatus(id, "INACTIVE");
 }
 
 bool UserService::reactivateUser(int id)
 {
-    return repository().setUserStatus(id, "ACTIVE");
+    return repository_->setUserStatus(id, "ACTIVE");
 }
 
 bool UserService::resetPassword(int id, const std::string& newPassword, bool forcePasswordChange)
@@ -99,20 +87,20 @@ bool UserService::resetPassword(int id, const std::string& newPassword, bool for
         return false;
     }
 
-    const bool passwordUpdated = repository().updatePassword(id, hashPassword(newPassword));
+    const bool passwordUpdated = repository_->updatePassword(id, hashPassword(newPassword));
     if (!passwordUpdated)
     {
         return false;
     }
 
-    return repository().setForcePasswordChange(id, forcePasswordChange);
+    return repository_->setForcePasswordChange(id, forcePasswordChange);
 }
 
 std::string UserService::hashPassword(const std::string& password) const
 {
     unsigned char digest[EVP_MAX_MD_SIZE];
-    unsigned int digestLength = 0;
-    EVP_MD_CTX* context = EVP_MD_CTX_new();
+    unsigned int  digestLength = 0;
+    EVP_MD_CTX*   context      = EVP_MD_CTX_new();
     if (context == nullptr)
     {
         throw std::runtime_error("Failed to create OpenSSL message digest context");
@@ -141,5 +129,5 @@ bool UserService::assignManager(int userId, int managerId)
     if (userId <= 0)
         return false;
     // managerId == 0 means "unassign manager", which the repo handles by setting NULL
-    return repository().assignManager(userId, managerId);
+    return repository_->assignManager(userId, managerId);
 }

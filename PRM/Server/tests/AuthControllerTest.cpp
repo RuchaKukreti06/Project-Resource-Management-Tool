@@ -4,6 +4,7 @@
 
 #include "AuthController.h"
 #include "AuthService.h"
+#include "AuthConfig.h"
 #include "ConfigLoader.h"
 #include "MockUserRepository.h"
 
@@ -26,7 +27,8 @@ class AuthControllerTest : public ::testing::Test
         utils::ConfigLoader::instance().load(getTestConfigPath().string());
         repo = std::make_shared<MockUserRepository>();
 
-        authService = std::make_unique<AuthService>(repo);
+        authService = std::make_unique<AuthService>(
+            repo, AuthConfig{"test-jwt-secret", 60});
 
         controller = std::make_unique<AuthController>(*authService);
     }

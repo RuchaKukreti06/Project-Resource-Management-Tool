@@ -11,7 +11,7 @@
 class UserService
 {
    public:
-    explicit UserService(std::shared_ptr<IUserRepository> repository = nullptr);
+    explicit UserService(std::shared_ptr<IUserRepository> repository);
 
     std::vector<User> getAllUsers();
     std::optional<User> getUserById(int id);
@@ -29,7 +29,6 @@ class UserService
 
    private:
     std::string hashPassword(const std::string& password) const;
-    IUserRepository& repository();
 
     std::shared_ptr<IUserRepository> repository_;
 };
