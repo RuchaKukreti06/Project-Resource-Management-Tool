@@ -36,7 +36,7 @@ int parseUserId(const httplib::Request& req)
 
 }  // namespace
 
-UserController::UserController(UserService& userService) : userService_(userService)
+UserController::UserController(IUserService& userService) : userService_(userService)
 {
 }
 

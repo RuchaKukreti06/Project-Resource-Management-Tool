@@ -17,7 +17,7 @@ nlohmann::json timesheetToJson(const Timesheet& timesheet)
 
 }
 
-TimesheetController::TimesheetController(TimesheetService& timesheetService)
+TimesheetController::TimesheetController(ITimesheetService& timesheetService)
     : timesheetService_(timesheetService)
 {
 }

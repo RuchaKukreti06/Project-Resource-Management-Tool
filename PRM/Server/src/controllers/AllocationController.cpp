@@ -17,7 +17,7 @@ nlohmann::json allocationToJson(const Allocation& allocation)
 
 }  // namespace
 
-AllocationController::AllocationController(AllocationService& allocationService)
+AllocationController::AllocationController(IAllocationService& allocationService)
     : allocationService_(allocationService)
 {
 }

@@ -2,14 +2,14 @@
 
 #include "httplib.h"
 
-#include "services/TimesheetService.h"
+#include "services/interfaces/ITimesheetService.h"
 
 class TimesheetController
 {
    public:
-    explicit TimesheetController(TimesheetService& timesheetService);
+    explicit TimesheetController(ITimesheetService& timesheetService);
     void registerRoutes(httplib::Server& server) const;
 
    private:
-    TimesheetService& timesheetService_;
+    ITimesheetService& timesheetService_;
 };

@@ -39,7 +39,7 @@ nlohmann::json milestoneToJson(const Milestone& milestone)
 
 }  // namespace
 
-ProjectController::ProjectController(ProjectService& projectService)
+ProjectController::ProjectController(IProjectService& projectService)
     : projectService_(projectService)
 {
 }

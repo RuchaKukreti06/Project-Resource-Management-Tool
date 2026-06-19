@@ -31,11 +31,11 @@ std::string previousMondayIso(const std::string& todayDate)
 
 }  // namespace
 
-SchedulerService::SchedulerService(std::shared_ptr<EmployeeService> employeeService,
-                                   std::shared_ptr<ProjectService> projectService,
-                                   std::shared_ptr<AllocationService> allocationService,
-                         std::shared_ptr<TimesheetService> timesheetService,
-                         std::shared_ptr<NotificationService> notificationService)
+SchedulerService::SchedulerService(std::shared_ptr<IEmployeeService> employeeService,
+                                   std::shared_ptr<IProjectService> projectService,
+                                   std::shared_ptr<IAllocationService> allocationService,
+                         std::shared_ptr<ITimesheetService> timesheetService,
+                         std::shared_ptr<INotificationService> notificationService)
     : employeeService_(std::move(employeeService)),
       projectService_(std::move(projectService)),
       allocationService_(std::move(allocationService)),

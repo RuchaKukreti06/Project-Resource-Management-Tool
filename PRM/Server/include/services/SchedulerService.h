@@ -3,20 +3,20 @@
 #include <memory>
 #include <string>
 
-#include "services/AllocationService.h"
-#include "services/EmployeeService.h"
-#include "services/NotificationService.h"
-#include "services/ProjectService.h"
-#include "services/TimesheetService.h"
+#include "services/interfaces/IAllocationService.h"
+#include "services/interfaces/IEmployeeService.h"
+#include "services/interfaces/INotificationService.h"
+#include "services/interfaces/IProjectService.h"
+#include "services/interfaces/ITimesheetService.h"
 
 class SchedulerService
 {
    public:
-    SchedulerService(std::shared_ptr<EmployeeService> employeeService,
-                     std::shared_ptr<ProjectService> projectService,
-                     std::shared_ptr<AllocationService> allocationService,
-                     std::shared_ptr<TimesheetService> timesheetService,
-                     std::shared_ptr<NotificationService> notificationService = nullptr);
+    SchedulerService(std::shared_ptr<IEmployeeService> employeeService,
+                     std::shared_ptr<IProjectService> projectService,
+                     std::shared_ptr<IAllocationService> allocationService,
+                     std::shared_ptr<ITimesheetService> timesheetService,
+                     std::shared_ptr<INotificationService> notificationService = nullptr);
 
     void runRecomputationJob(const std::string& todayDate);
     void recomputeProjectHealth(const std::string& todayDate);
@@ -25,9 +25,9 @@ class SchedulerService
    private:
     std::string computeProjectHealth(int projectId, const std::string& todayDate);
 
-    std::shared_ptr<EmployeeService> employeeService_;
-    std::shared_ptr<ProjectService> projectService_;
-    std::shared_ptr<AllocationService> allocationService_;
-    std::shared_ptr<TimesheetService> timesheetService_;
-    std::shared_ptr<NotificationService> notificationService_;
+    std::shared_ptr<IEmployeeService> employeeService_;
+    std::shared_ptr<IProjectService> projectService_;
+    std::shared_ptr<IAllocationService> allocationService_;
+    std::shared_ptr<ITimesheetService> timesheetService_;
+    std::shared_ptr<INotificationService> notificationService_;
 };

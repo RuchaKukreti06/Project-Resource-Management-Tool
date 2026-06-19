@@ -7,25 +7,26 @@
 
 #include "models/User.h"
 #include "repositories/IUserRepository.h"
+#include "services/interfaces/IUserService.h"
 
-class UserService
+class UserService : public IUserService
 {
    public:
     explicit UserService(std::shared_ptr<IUserRepository> repository);
 
-    std::vector<User> getAllUsers();
-    std::optional<User> getUserById(int id);
-    User getUserByUsername(const std::string& username);
+    std::vector<User> getAllUsers() override;
+    std::optional<User> getUserById(int id) override;
+    User getUserByUsername(const std::string& username) override;
     bool createUser(const std::string& username, const std::string& password,
                     const std::string& role, const std::string& email,
                     const std::string& fullName, const std::string& department = "",
                     const std::string& designation = "",
-                    bool forcePasswordChange = true);
-    bool deactivateUser(int id);
-    bool reactivateUser(int id);
+                    bool forcePasswordChange = true) override;
+    bool deactivateUser(int id) override;
+    bool reactivateUser(int id) override;
     bool resetPassword(int id, const std::string& newPassword,
-                       bool forcePasswordChange = true);
-    bool assignManager(int userId, int managerId);
+                       bool forcePasswordChange = true) override;
+    bool assignManager(int userId, int managerId) override;
 
    private:
     std::string hashPassword(const std::string& password) const;

@@ -2,7 +2,7 @@
 
 #include <nlohmann/json.hpp>
 
-AuthController::AuthController(AuthService& authService) : authService_(authService)
+AuthController::AuthController(IAuthService& authService) : authService_(authService)
 {
 }
 

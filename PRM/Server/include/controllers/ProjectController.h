@@ -1,16 +1,16 @@
 #pragma once
 
-#include "ProjectService.h"
+#include "services/interfaces/IProjectService.h"
 #include "httplib.h"
 
 class ProjectController
 {
    public:
-    explicit ProjectController(ProjectService& projectService);
+    explicit ProjectController(IProjectService& projectService);
     void registerRoutes(httplib::Server& server);
 
    private:
-    ProjectService& projectService_;
+    IProjectService& projectService_;
 
     void handleGetAllProjects(const httplib::Request& req, httplib::Response& res);
     void handleGetProjectById(const httplib::Request& req, httplib::Response& res);

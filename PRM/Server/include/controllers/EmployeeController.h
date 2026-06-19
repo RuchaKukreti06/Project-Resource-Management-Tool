@@ -3,16 +3,16 @@
 
 #include <httplib.h>
 
-#include "services/EmployeeService.h"
+#include "services/interfaces/IEmployeeService.h"
 
 class EmployeeController
 {
    public:
-    explicit EmployeeController(EmployeeService& employeeService);
+    explicit EmployeeController(IEmployeeService& employeeService);
     void registerRoutes(httplib::Server& server);
 
    private:
-    EmployeeService& employeeService_;
+    IEmployeeService& employeeService_;
 
     void handleGetAllEmployees(const httplib::Request& req, httplib::Response& res);
     void handleGetTeamEmployees(const httplib::Request& req, httplib::Response& res);

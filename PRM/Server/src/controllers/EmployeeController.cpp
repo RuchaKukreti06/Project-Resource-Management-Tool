@@ -33,7 +33,7 @@ nlohmann::json skillToJson(const EmployeeSkillView& s)
 
 }  // namespace
 
-EmployeeController::EmployeeController(EmployeeService& employeeService)
+EmployeeController::EmployeeController(IEmployeeService& employeeService)
     : employeeService_(employeeService)
 {
 }

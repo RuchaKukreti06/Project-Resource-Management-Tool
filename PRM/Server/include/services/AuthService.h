@@ -9,21 +9,22 @@
 #include "models/User.h"
 #include "repositories/IUserRepository.h"
 #include "services/AuthConfig.h"
+#include "services/interfaces/IAuthService.h"
 
-class AuthService
+class AuthService : public IAuthService
 {
    public:
     explicit AuthService(std::shared_ptr<IUserRepository> repository,
                      AuthConfig config);
     ~AuthService();
 
-    nlohmann::json login(const std::string& username, const std::string& password);
+    nlohmann::json login(const std::string& username, const std::string& password) override;
     nlohmann::json registerUser(const std::string& username, const std::string& password,
-                                const std::string& email, const std::string& fullName);
-    bool isLoggedIn() const;
-    void setToken(const std::string& token);
-    bool changePassword(int userId, const std::string& newPassword);
-    bool validateToken(const std::string& token) const;
+                                const std::string& email, const std::string& fullName) override;
+    bool isLoggedIn() const override;
+    void setToken(const std::string& token) override;
+    bool changePassword(int userId, const std::string& newPassword) override;
+    bool validateToken(const std::string& token) const override;
 
    private:
     std::string hashPassword(const std::string& password);

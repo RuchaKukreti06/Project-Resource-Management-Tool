@@ -8,8 +8,9 @@
 #include "repositories/IEmployeeRepository.h"
 #include "repositories/INotificationRepository.h"
 #include "repositories/ITimesheetRepository.h"
+#include "services/interfaces/ITimesheetService.h"
 
-class TimesheetService
+class TimesheetService : public ITimesheetService
 {
    public:
     TimesheetService(std::shared_ptr<ITimesheetRepository> timesheetRepository,
@@ -19,14 +20,14 @@ class TimesheetService
 
     bool submitTimesheet(int employeeId, const std::string& weekStartDate,
                          const std::vector<TimesheetLineInput>& lines, int maxWeeklyHours,
-                         std::string& message);
-    std::vector<Timesheet> getEmployeeTimesheets(int employeeId);
+                         std::string& message) override;
+    std::vector<Timesheet> getEmployeeTimesheets(int employeeId) override;
     std::vector<TeamTimesheetRow> getTeamTimesheets(int managerUserId,
-                                                     const std::string& weekStartDate);
-    std::vector<TimesheetDetailRow> getTimesheetDetails(int timesheetId);
-    std::vector<int> getMissedTimesheetEmployeeIds(const std::string& weekStartDate);
+                                                     const std::string& weekStartDate) override;
+    std::vector<TimesheetDetailRow> getTimesheetDetails(int timesheetId) override;
+    std::vector<int> getMissedTimesheetEmployeeIds(const std::string& weekStartDate) override;
     bool restoreTimesheetAccess(int userId, const std::string& weekStartDate,
-                                std::string& message);
+                                std::string& message) override;
 
    private:
     std::string computeWeekEndDate(const std::string& weekStartDate) const;
