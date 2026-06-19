@@ -21,6 +21,7 @@ class NotificationService : public INotificationService
                                              const std::vector<int>& missedUserIds) override;
     bool restoreTimesheetAccess(int userId, const std::string& weekStartDate,
                                 std::string& message) override;
+    bool isTimesheetAccessLocked(int userId) const override;
 
    private:
     bool sendEmail(const std::string& to, const std::string& subject, const std::string& body);

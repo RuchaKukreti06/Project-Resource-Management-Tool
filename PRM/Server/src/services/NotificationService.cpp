@@ -168,3 +168,12 @@ bool NotificationService::restoreTimesheetAccess(int userId, const std::string& 
     message = ok ? "Timesheet access restored." : "Failed to restore timesheet access.";
     return ok;
 }
+
+bool NotificationService::isTimesheetAccessLocked(int userId) const
+{
+    if (!notificationRepository_)
+    {
+        return false;
+    }
+    return notificationRepository_->isTimesheetAccessLocked(userId);
+}

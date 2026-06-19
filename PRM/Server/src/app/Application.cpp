@@ -83,14 +83,14 @@ bool Application::run()
         auto allocationService = std::make_shared<AllocationService>(allocationRepository,
                                                                       employeeRepository,
                                                                       projectRepository);
+        auto emailService = std::make_shared<EmailService>(systemConfigRepository);
+        auto notificationService = std::make_shared<NotificationService>(notificationRepository,
+                                                                         userRepository,
+                                                                         emailService);
         auto timesheetService = std::make_shared<TimesheetService>(timesheetRepository,
                                                                     employeeRepository,
                                                            allocationRepository,
-                                                           notificationRepository);
-           auto emailService = std::make_shared<EmailService>(systemConfigRepository);
-           auto notificationService = std::make_shared<NotificationService>(notificationRepository,
-                                                               userRepository,
-                                                               emailService);
+                                                           notificationService);
         auto schedulerService = std::make_shared<SchedulerService>(employeeService,
                                                                     projectService,
                                                                     allocationService,
@@ -107,7 +107,7 @@ bool Application::run()
         EmployeeController  employeeController(*employeeService);
         ProjectController   projectController(*projectService);
         AllocationController allocationController(*allocationService);
-        TimesheetController  timesheetController(*timesheetService);
+        TimesheetController  timesheetController(*timesheetService, *notificationService);
         SchedulerController  schedulerController(*schedulerService);
         AIController         aiController(aiService, systemConfigRepository);
 

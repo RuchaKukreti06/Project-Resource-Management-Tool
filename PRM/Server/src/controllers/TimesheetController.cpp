@@ -17,8 +17,9 @@ nlohmann::json timesheetToJson(const Timesheet& timesheet)
 
 }
 
-TimesheetController::TimesheetController(ITimesheetService& timesheetService)
-    : timesheetService_(timesheetService)
+TimesheetController::TimesheetController(ITimesheetService& timesheetService,
+                                         INotificationService& notificationService)
+    : timesheetService_(timesheetService), notificationService_(notificationService)
 {
 }
 
@@ -71,7 +72,7 @@ void TimesheetController::registerRoutes(httplib::Server& server) const
                    {
                        const auto body = nlohmann::json::parse(req.body);
                        std::string message;
-                       const bool ok = timesheetService_.restoreTimesheetAccess(
+                       const bool ok = notificationService_.restoreTimesheetAccess(
                            body.at("user_id").get<int>(),
                            body.at("week_start_date").get<std::string>(),
                            message);

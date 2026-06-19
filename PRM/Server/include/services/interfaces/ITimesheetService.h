@@ -14,5 +14,4 @@ public:
     virtual std::vector<TeamTimesheetRow> getTeamTimesheets(int managerUserId, const std::string& weekStartDate) = 0;
     virtual std::vector<TimesheetDetailRow> getTimesheetDetails(int timesheetId) = 0;
     virtual std::vector<int> getMissedTimesheetEmployeeIds(const std::string& weekStartDate) = 0;
-    virtual bool restoreTimesheetAccess(int userId, const std::string& weekStartDate, std::string& message) = 0;
 };

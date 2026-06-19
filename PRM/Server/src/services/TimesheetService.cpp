@@ -6,12 +6,12 @@
 
 TimesheetService::TimesheetService(std::shared_ptr<ITimesheetRepository> timesheetRepository,
                                    std::shared_ptr<IEmployeeRepository> employeeRepository,
-                         std::shared_ptr<IAllocationRepository> allocationRepository,
-                         std::shared_ptr<INotificationRepository> notificationRepository)
+                                   std::shared_ptr<IAllocationRepository> allocationRepository,
+                                   std::shared_ptr<INotificationService> notificationService)
     : timesheetRepository_(std::move(timesheetRepository)),
       employeeRepository_(std::move(employeeRepository)),
-    allocationRepository_(std::move(allocationRepository)),
-    notificationRepository_(std::move(notificationRepository))
+      allocationRepository_(std::move(allocationRepository)),
+      notificationService_(std::move(notificationService))
 {
 }
 
@@ -48,8 +48,8 @@ bool TimesheetService::submitTimesheet(int employeeId, const std::string& weekSt
         return false;
     }
 
-    if (notificationRepository_ && employee.user_id > 0 &&
-        notificationRepository_->isTimesheetAccessLocked(employee.user_id))
+    if (notificationService_ && employee.user_id > 0 &&
+        notificationService_->isTimesheetAccessLocked(employee.user_id))
     {
         message = "Timesheet submission access is temporarily restricted.";
         return false;
@@ -133,21 +133,3 @@ std::vector<int> TimesheetService::getMissedTimesheetEmployeeIds(const std::stri
     return timesheetRepository_->getEmployeesWithMissedTimesheets(weekStartDate);
 }
 
-bool TimesheetService::restoreTimesheetAccess(int userId, const std::string& weekStartDate,
-                                              std::string& message)
-{
-    if (!notificationRepository_)
-    {
-        message = "Notification workflow is not configured.";
-        return false;
-    }
-    if (userId <= 0 || weekStartDate.empty())
-    {
-        message = "user_id and week_start_date are required.";
-        return false;
-    }
-
-    const bool ok = notificationRepository_->restoreTimesheetAccess(userId, weekStartDate);
-    message = ok ? "Timesheet access restored." : "Failed to restore timesheet access.";
-    return ok;
-}
