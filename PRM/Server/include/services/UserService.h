@@ -8,11 +8,13 @@
 #include "models/User.h"
 #include "repositories/IUserRepository.h"
 #include "services/interfaces/IUserService.h"
+#include "services/interfaces/IPasswordHasher.h"
 
 class UserService : public IUserService
 {
    public:
-    explicit UserService(std::shared_ptr<IUserRepository> repository);
+    explicit UserService(std::shared_ptr<IUserRepository> repository,
+                         std::shared_ptr<IPasswordHasher> passwordHasher);
 
     std::vector<User> getAllUsers() override;
     std::optional<User> getUserById(int id) override;
@@ -29,7 +31,6 @@ class UserService : public IUserService
     bool assignManager(int userId, int managerId) override;
 
    private:
-    std::string hashPassword(const std::string& password) const;
-
     std::shared_ptr<IUserRepository> repository_;
+    std::shared_ptr<IPasswordHasher> passwordHasher_;
 };

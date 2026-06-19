@@ -7,6 +7,7 @@
 #include "AuthConfig.h"
 #include "ConfigLoader.h"
 #include "MockUserRepository.h"
+#include "services/PasswordHasher.h"
 
 static std::filesystem::path getTestConfigPath()
 {
@@ -26,9 +27,10 @@ class AuthControllerTest : public ::testing::Test
     {
         utils::ConfigLoader::instance().load(getTestConfigPath().string());
         repo = std::make_shared<MockUserRepository>();
+        auto hasher = std::make_shared<PasswordHasher>();
 
         authService = std::make_unique<AuthService>(
-            repo, AuthConfig{"test-jwt-secret", 60});
+            repo, hasher, AuthConfig{"test-jwt-secret", 60});
 
         controller = std::make_unique<AuthController>(*authService);
     }

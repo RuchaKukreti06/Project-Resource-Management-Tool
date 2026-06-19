@@ -2,15 +2,17 @@
 
 #include <jwt-cpp/jwt.h>
 #include <jwt-cpp/traits/nlohmann-json/defaults.h>
-#include <openssl/evp.h>
 #include <spdlog/spdlog.h>
 
+#include <chrono>
 #include <iomanip>
 #include <sstream>
 #include <stdexcept>
 
-AuthService::AuthService(std::shared_ptr<IUserRepository> repository, AuthConfig config)
-    : repository_(std::move(repository)), config_(std::move(config))
+AuthService::AuthService(std::shared_ptr<IUserRepository> repository,
+                         std::shared_ptr<IPasswordHasher> passwordHasher,
+                         const AuthConfig& config)
+    : repository_(std::move(repository)), passwordHasher_(std::move(passwordHasher)), config_(std::move(config))
 {
 }
 
@@ -25,7 +27,7 @@ nlohmann::json AuthService::login(const std::string& username, const std::string
 
     User user = repository_->getUserByUsername(username);
 
-    if (user.username.empty() || !verifyPassword(password, user.passwordHash))
+    if (user.username.empty() || !passwordHasher_->verifyPassword(password, user.passwordHash))
     {
         response["message"] = "Invalid username or password.";
         return response;
@@ -59,7 +61,7 @@ nlohmann::json AuthService::registerUser(const std::string& username,
     {
         User newUser;
         newUser.username            = username;
-        newUser.passwordHash        = hashPassword(password);
+        newUser.passwordHash        = passwordHasher_->hashPassword(password);
         newUser.role                = "EMPLOYEE";
         newUser.email               = email;
         newUser.fullName            = fullName;
@@ -98,7 +100,7 @@ void AuthService::setToken(const std::string& token)
 
 bool AuthService::changePassword(int userId, const std::string& newPassword)
 {
-    const std::string newHash = hashPassword(newPassword);
+    const std::string newHash = passwordHasher_->hashPassword(newPassword);
     if (!repository_->updatePassword(userId, newHash))
     {
         return false;
@@ -140,35 +142,4 @@ std::string AuthService::generateToken(const User& user)
     return token;
 }
 
-std::string AuthService::hashPassword(const std::string& password)
-{
-    unsigned char digest[EVP_MAX_MD_SIZE];
-    unsigned int  digestLength = 0;
-    EVP_MD_CTX*   context      = EVP_MD_CTX_new();
-    if (context == nullptr)
-    {
-        throw std::runtime_error("Failed to create OpenSSL message digest context");
-    }
 
-    if (EVP_DigestInit_ex(context, EVP_sha256(), nullptr) != 1 ||
-        EVP_DigestUpdate(context, password.data(), password.size()) != 1 ||
-        EVP_DigestFinal_ex(context, digest, &digestLength) != 1)
-    {
-        EVP_MD_CTX_free(context);
-        throw std::runtime_error("Failed to compute password hash");
-    }
-    EVP_MD_CTX_free(context);
-
-    std::ostringstream oss;
-    oss << std::hex << std::setfill('0');
-    for (unsigned int i = 0; i < digestLength; ++i)
-    {
-        oss << std::setw(2) << static_cast<int>(digest[i]);
-    }
-    return oss.str();
-}
-
-bool AuthService::verifyPassword(const std::string& password, const std::string& hash)
-{
-    return hashPassword(password) == hash;
-}

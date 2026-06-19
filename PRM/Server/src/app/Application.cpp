@@ -26,6 +26,7 @@
 #include "services/AIService.h"
 #include "services/AllocationService.h"
 #include "services/AuthService.h"
+#include "services/PasswordHasher.h"
 #include "services/EmployeeService.h"
 #include "services/EmailService.h"
 #include "services/NotificationService.h"
@@ -69,9 +70,10 @@ bool Application::run()
         auto systemConfigRepository = std::make_shared<SystemConfigRepository>(database);
 
         // ── Services ──────────────────────────────────────────────────────────
+        auto passwordHasher = std::make_shared<PasswordHasher>();
         AuthConfig  authConfig{config.jwtSecret(), config.jwtExpirationMinutes()};
-        AuthService authService(userRepository, authConfig);
-        UserService userService(userRepository);
+        AuthService authService(userRepository, passwordHasher, authConfig);
+        UserService userService(userRepository, passwordHasher);
         auto employeeService  = std::make_shared<EmployeeService>(employeeRepository,
                                                                    userRepository,
                                                                    allocationRepository);

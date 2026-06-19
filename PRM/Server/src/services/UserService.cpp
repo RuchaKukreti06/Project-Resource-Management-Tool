@@ -1,14 +1,14 @@
 #include "services/UserService.h"
 
-#include <openssl/evp.h>
+#include <spdlog/spdlog.h>
 
 #include <iomanip>
 #include <sstream>
 #include <stdexcept>
 #include <unordered_set>
 
-UserService::UserService(std::shared_ptr<IUserRepository> repository)
-    : repository_(std::move(repository))
+UserService::UserService(std::shared_ptr<IUserRepository> repository, std::shared_ptr<IPasswordHasher> passwordHasher)
+    : repository_(std::move(repository)), passwordHasher_(std::move(passwordHasher))
 {
 }
 
@@ -57,7 +57,7 @@ bool UserService::createUser(const std::string& username, const std::string& pas
 
     User user;
     user.username            = username;
-    user.passwordHash        = hashPassword(password);
+    user.passwordHash        = passwordHasher_->hashPassword(password);
     user.role                = role;
     user.email               = email;
     user.fullName            = fullName;
@@ -87,7 +87,7 @@ bool UserService::resetPassword(int id, const std::string& newPassword, bool for
         return false;
     }
 
-    const bool passwordUpdated = repository_->updatePassword(id, hashPassword(newPassword));
+    const bool passwordUpdated = repository_->updatePassword(id, passwordHasher_->hashPassword(newPassword));
     if (!passwordUpdated)
     {
         return false;
@@ -96,33 +96,7 @@ bool UserService::resetPassword(int id, const std::string& newPassword, bool for
     return repository_->setForcePasswordChange(id, forcePasswordChange);
 }
 
-std::string UserService::hashPassword(const std::string& password) const
-{
-    unsigned char digest[EVP_MAX_MD_SIZE];
-    unsigned int  digestLength = 0;
-    EVP_MD_CTX*   context      = EVP_MD_CTX_new();
-    if (context == nullptr)
-    {
-        throw std::runtime_error("Failed to create OpenSSL message digest context");
-    }
 
-    if (EVP_DigestInit_ex(context, EVP_sha256(), nullptr) != 1 ||
-        EVP_DigestUpdate(context, password.data(), password.size()) != 1 ||
-        EVP_DigestFinal_ex(context, digest, &digestLength) != 1)
-    {
-        EVP_MD_CTX_free(context);
-        throw std::runtime_error("Failed to compute password hash");
-    }
-    EVP_MD_CTX_free(context);
-
-    std::ostringstream oss;
-    oss << std::hex << std::setfill('0');
-    for (unsigned int i = 0; i < digestLength; ++i)
-    {
-        oss << std::setw(2) << static_cast<int>(digest[i]);
-    }
-    return oss.str();
-}
 
 bool UserService::assignManager(int userId, int managerId)
 {

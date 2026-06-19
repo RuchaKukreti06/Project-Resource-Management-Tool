@@ -2,6 +2,7 @@
 #include <memory>
 #include <string>
 
+#include "services/PasswordHasher.h"
 #include "services/UserService.h"
 #include "mocks/MockUserRepository.h"
 
@@ -11,7 +12,8 @@ protected:
     void SetUp() override
     {
         mockRepo = std::make_shared<MockUserRepository>();
-        userService = std::make_unique<UserService>(mockRepo);
+        auto hasher = std::make_shared<PasswordHasher>();
+        userService = std::make_unique<UserService>(mockRepo, hasher);
     }
 
     std::shared_ptr<MockUserRepository> mockRepo;

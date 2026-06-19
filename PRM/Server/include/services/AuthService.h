@@ -10,12 +10,14 @@
 #include "repositories/IUserRepository.h"
 #include "services/AuthConfig.h"
 #include "services/interfaces/IAuthService.h"
+#include "services/interfaces/IPasswordHasher.h"
 
 class AuthService : public IAuthService
 {
    public:
     explicit AuthService(std::shared_ptr<IUserRepository> repository,
-                     AuthConfig config);
+                         std::shared_ptr<IPasswordHasher> passwordHasher,
+                         const AuthConfig& config);
     ~AuthService();
 
     nlohmann::json login(const std::string& username, const std::string& password) override;
@@ -27,13 +29,12 @@ class AuthService : public IAuthService
     bool validateToken(const std::string& token) const override;
 
    private:
-    std::string hashPassword(const std::string& password);
-    bool verifyPassword(const std::string& password, const std::string& hash);
     std::string generateToken(const User& user);
 
     std::shared_ptr<IUserRepository> repository_;
-    std::optional<std::string> token_;
-    AuthConfig config_;
+    std::shared_ptr<IPasswordHasher> passwordHasher_;
+    std::optional<std::string>       token_;
+    AuthConfig                       config_;
 };
 
 #endif
