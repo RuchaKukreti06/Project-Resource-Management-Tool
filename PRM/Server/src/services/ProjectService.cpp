@@ -69,18 +69,14 @@ std::vector<Project> ProjectService::getManagerProjects(int managerUserId)
 
 bool ProjectService::addMilestone(const Milestone& milestone, std::string& message)
 {
-    static const std::unordered_set<std::string> validStatus = {
-        "NOT_STARTED", "IN_PROGRESS", "DONE"};
-
     Milestone createInput = milestone;
     if (createInput.status.empty())
     {
         createInput.status = "NOT_STARTED";
     }
 
-    if (validStatus.find(createInput.status) == validStatus.end())
+    if (!projectValidator_.validateMilestoneStatus(createInput.status, message))
     {
-        message = "Invalid milestone status.";
         return false;
     }
 
@@ -92,12 +88,8 @@ bool ProjectService::addMilestone(const Milestone& milestone, std::string& messa
 bool ProjectService::updateMilestoneStatus(int milestoneId, const std::string& status,
                                            std::string& message)
 {
-    static const std::unordered_set<std::string> validStatus = {
-        "NOT_STARTED", "IN_PROGRESS", "DONE"};
-
-    if (validStatus.find(status) == validStatus.end())
+    if (!projectValidator_.validateMilestoneStatus(status, message))
     {
-        message = "Invalid milestone status.";
         return false;
     }
 

@@ -9,6 +9,7 @@
 #include "repositories/IEmployeeRepository.h"
 #include "repositories/IProjectRepository.h"
 #include "services/interfaces/IAllocationService.h"
+#include "validators/AllocationValidator.h"
 
 class AllocationService : public IAllocationService
 {
@@ -26,6 +27,7 @@ class AllocationService : public IAllocationService
     bool isProjectAllocatable(const Project& project) const;
 
     std::shared_ptr<IAllocationRepository> allocationRepository_;
-    std::shared_ptr<IEmployeeRepository> employeeRepository_;
-    std::shared_ptr<IProjectRepository> projectRepository_;
+    std::shared_ptr<IEmployeeRepository>   employeeRepository_;
+    std::shared_ptr<IProjectRepository>    projectRepository_;
+    AllocationValidator                    allocationValidator_;
 };

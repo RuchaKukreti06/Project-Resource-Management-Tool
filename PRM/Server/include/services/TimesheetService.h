@@ -9,6 +9,7 @@
 #include "repositories/ITimesheetRepository.h"
 #include "services/interfaces/INotificationService.h"
 #include "services/interfaces/ITimesheetService.h"
+#include "validators/TimesheetValidator.h"
 
 class TimesheetService : public ITimesheetService
 {
@@ -30,8 +31,9 @@ class TimesheetService : public ITimesheetService
    private:
     std::string computeWeekEndDate(const std::string& weekStartDate) const;
 
-    std::shared_ptr<ITimesheetRepository> timesheetRepository_;
-    std::shared_ptr<IEmployeeRepository> employeeRepository_;
+    std::shared_ptr<ITimesheetRepository>  timesheetRepository_;
+    std::shared_ptr<IEmployeeRepository>   employeeRepository_;
     std::shared_ptr<IAllocationRepository> allocationRepository_;
-    std::shared_ptr<INotificationService> notificationService_;
+    std::shared_ptr<INotificationService>  notificationService_;
+    TimesheetValidator                     timesheetValidator_;
 };

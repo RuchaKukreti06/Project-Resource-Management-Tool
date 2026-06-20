@@ -10,6 +10,7 @@
 #include "repositories/IEmployeeRepository.h"
 #include "repositories/IUserRepository.h"
 #include "services/interfaces/IEmployeeService.h"
+#include "validators/EmployeeValidator.h"
 
 class EmployeeService : public IEmployeeService
 {
@@ -36,7 +37,8 @@ class EmployeeService : public IEmployeeService
     std::vector<EmployeeSkillView> getSkills(int employeeId) override;
 
    private:
-    std::shared_ptr<IEmployeeRepository> employeeRepository_;
-    std::shared_ptr<IUserRepository> userRepository_;
+    std::shared_ptr<IEmployeeRepository>  employeeRepository_;
+    std::shared_ptr<IUserRepository>      userRepository_;
     std::shared_ptr<IAllocationRepository> allocationRepository_;
+    EmployeeValidator                     employeeValidator_;
 };

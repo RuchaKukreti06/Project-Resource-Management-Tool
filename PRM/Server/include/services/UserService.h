@@ -9,6 +9,7 @@
 #include "repositories/IUserRepository.h"
 #include "services/interfaces/IUserService.h"
 #include "services/interfaces/IPasswordHasher.h"
+#include "validators/UserValidator.h"
 
 class UserService : public IUserService
 {
@@ -33,4 +34,5 @@ class UserService : public IUserService
    private:
     std::shared_ptr<IUserRepository> repository_;
     std::shared_ptr<IPasswordHasher> passwordHasher_;
+    UserValidator                    userValidator_;
 };

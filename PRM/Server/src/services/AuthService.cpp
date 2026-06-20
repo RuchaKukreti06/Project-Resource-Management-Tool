@@ -1,6 +1,5 @@
 #include "services/AuthService.h"
 
-
 #include <spdlog/spdlog.h>
 
 #include <chrono>
@@ -55,6 +54,14 @@ nlohmann::json AuthService::registerUser(const std::string& username,
                                          const std::string& fullName)
 {
     nlohmann::json response;
+
+    std::string validationMessage;
+    if (!userValidator_.validateUsername(username, validationMessage))
+    {
+        response["success"] = false;
+        response["message"] = validationMessage;
+        return response;
+    }
 
     if (repository_->getUserByUsername(username).username.empty())
     {
@@ -111,7 +118,3 @@ bool AuthService::validateToken(const std::string& token) const
 {
     return tokenService_->validateToken(token);
 }
-
-
-
-

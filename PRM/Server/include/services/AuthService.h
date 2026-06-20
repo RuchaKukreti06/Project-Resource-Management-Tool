@@ -1,16 +1,16 @@
-#ifndef SERVER_AUTH_SERVICE_H
-#define SERVER_AUTH_SERVICE_H
+#pragma once
 
 #include <memory>
-#include <nlohmann/json.hpp>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "models/User.h"
 #include "repositories/IUserRepository.h"
 #include "services/interfaces/IAuthService.h"
 #include "services/interfaces/IPasswordHasher.h"
 #include "services/interfaces/ITokenService.h"
+#include "validators/UserValidator.h"
 
 class AuthService : public IAuthService
 {
@@ -33,6 +33,5 @@ class AuthService : public IAuthService
     std::shared_ptr<IPasswordHasher> passwordHasher_;
     std::shared_ptr<ITokenService>   tokenService_;
     std::optional<std::string>       token_;
+    UserValidator                    userValidator_;
 };
-
-#endif

@@ -10,6 +10,7 @@
 #include "repositories/IProjectRepository.h"
 #include "repositories/IUserRepository.h"
 #include "services/interfaces/IProjectService.h"
+#include "validators/ProjectValidator.h"
 
 class ProjectService : public IProjectService
 {
@@ -32,5 +33,6 @@ class ProjectService : public IProjectService
     bool isValidManager(int managerUserId) const;
 
     std::shared_ptr<IProjectRepository> projectRepository_;
-    std::shared_ptr<IUserRepository> userRepository_;
+    std::shared_ptr<IUserRepository>    userRepository_;
+    ProjectValidator                    projectValidator_;
 };

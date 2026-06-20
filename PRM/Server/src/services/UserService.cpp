@@ -5,9 +5,9 @@
 #include <iomanip>
 #include <sstream>
 #include <stdexcept>
-#include <unordered_set>
 
-UserService::UserService(std::shared_ptr<IUserRepository> repository, std::shared_ptr<IPasswordHasher> passwordHasher)
+UserService::UserService(std::shared_ptr<IUserRepository> repository,
+                         std::shared_ptr<IPasswordHasher> passwordHasher)
     : repository_(std::move(repository)), passwordHasher_(std::move(passwordHasher))
 {
 }
@@ -37,12 +37,10 @@ bool UserService::createUser(const std::string& username, const std::string& pas
                              const std::string& fullName, const std::string& department,
                              const std::string& designation, bool forcePasswordChange)
 {
-    static const std::unordered_set<std::string> validRoles = {"ADMIN", "MANAGER", "EMPLOYEE"};
-
-    if (username.empty() || password.empty() || email.empty() || fullName.empty() ||
-        validRoles.find(role) == validRoles.end())
+    std::string message;
+    if (!userValidator_.validateCreate(username, password, role, email, fullName, message))
     {
-        throw std::runtime_error("Invalid user input. Check roles and mandatory fields.");
+        throw std::runtime_error(message);
     }
 
     if (!repository_->getUserByUsername(username).username.empty())
@@ -82,7 +80,8 @@ bool UserService::reactivateUser(int id)
 
 bool UserService::resetPassword(int id, const std::string& newPassword, bool forcePasswordChange)
 {
-    if (newPassword.empty())
+    std::string message;
+    if (!userValidator_.validateNewPassword(newPassword, message))
     {
         return false;
     }
@@ -96,12 +95,13 @@ bool UserService::resetPassword(int id, const std::string& newPassword, bool for
     return repository_->setForcePasswordChange(id, forcePasswordChange);
 }
 
-
-
 bool UserService::assignManager(int userId, int managerId)
 {
-    if (userId <= 0)
+    std::string message;
+    if (!userValidator_.validateId(userId, message))
+    {
         return false;
+    }
     // managerId == 0 means "unassign manager", which the repo handles by setting NULL
     return repository_->assignManager(userId, managerId);
 }

@@ -1,25 +1,6 @@
 #include "services/AllocationService.h"
 
-#include <ctime>
-
-namespace
-{
-
-std::string currentDateIso()
-{
-    std::time_t now = std::time(nullptr);
-    std::tm local = {};
-#ifdef _WIN32
-    localtime_s(&local, &now);
-#else
-    local = *std::localtime(&now);
-#endif
-    char buffer[11] = {0};
-    std::strftime(buffer, sizeof(buffer), "%Y-%m-%d", &local);
-    return buffer;
-}
-
-}
+#include "utils/DateUtils.h"
 
 AllocationService::AllocationService(std::shared_ptr<IAllocationRepository> allocationRepository,
                                      std::shared_ptr<IEmployeeRepository> employeeRepository,
@@ -38,11 +19,8 @@ bool AllocationService::isProjectAllocatable(const Project& project) const
 bool AllocationService::createAllocation(const Allocation& allocation, int createdByUserId,
                                          std::string& message)
 {
-    if (allocation.employeeId <= 0 || allocation.projectId <= 0 ||
-        allocation.utilizationPercentage <= 0 || allocation.utilizationPercentage > 100 ||
-        allocation.fromDate.empty() || allocation.toDate.empty())
+    if (!allocationValidator_.validateCreate(allocation, message))
     {
-        message = "Invalid allocation payload.";
         return false;
     }
 
@@ -96,7 +74,7 @@ std::vector<Allocation> AllocationService::getProjectAllocations(int projectId)
 
 bool AllocationService::recomputeEmployeeStatus(int employeeId, const std::string& todayDate)
 {
-    const std::string effectiveDate = todayDate.empty() ? currentDateIso() : todayDate;
+    const std::string effectiveDate = todayDate.empty() ? utils::currentDateIso() : todayDate;
     const int utilization = allocationRepository_->getCurrentUtilization(employeeId, effectiveDate);
     return employeeRepository_->setEmployeeStatus(employeeId,
                                                   utilization > 0 ? "ALLOCATED" : "BENCH");

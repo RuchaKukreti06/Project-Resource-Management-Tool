@@ -1,26 +1,6 @@
 #include "services/EmployeeService.h"
 
-#include <ctime>
-#include <unordered_set>
-
-namespace
-{
-
-std::string currentDateIso()
-{
-    std::time_t now = std::time(nullptr);
-    std::tm local = {};
-#ifdef _WIN32
-    localtime_s(&local, &now);
-#else
-    local = *std::localtime(&now);
-#endif
-    char buffer[11] = {0};
-    std::strftime(buffer, sizeof(buffer), "%Y-%m-%d", &local);
-    return buffer;
-}
-
-}
+#include "utils/DateUtils.h"
 
 EmployeeService::EmployeeService(std::shared_ptr<IEmployeeRepository> employeeRepository,
                                  std::shared_ptr<IUserRepository> userRepository,
@@ -57,13 +37,13 @@ bool EmployeeService::createEmployeeProfile(int userId, const std::string& fullN
     }
 
     Employee employee;
-    employee.user_id = userId;
-    employee.fullName = fullName;
-    employee.email = email;
-    employee.department = department;
+    employee.user_id     = userId;
+    employee.fullName    = fullName;
+    employee.email       = email;
+    employee.department  = department;
     employee.designation = designation;
-    employee.status = "BENCH";
-    employee.isActive = true;
+    employee.status      = "BENCH";
+    employee.isActive    = true;
 
     const bool ok = employeeRepository_->createEmployee(employee);
     message = ok ? "Profile created." : "Failed to create profile.";
@@ -72,9 +52,8 @@ bool EmployeeService::createEmployeeProfile(int userId, const std::string& fullN
 
 bool EmployeeService::updateEmployeeProfile(const Employee& employee, std::string& message)
 {
-    if (employee.id <= 0)
+    if (!employeeValidator_.validateId(employee.id, message))
     {
-        message = "Invalid employee id.";
         return false;
     }
 
@@ -93,7 +72,7 @@ bool EmployeeService::deactivateEmployee(int employeeId, const std::string& toda
         return false;
     }
 
-    const std::string effectiveDate = todayDate.empty() ? currentDateIso() : todayDate;
+    const std::string effectiveDate = todayDate.empty() ? utils::currentDateIso() : todayDate;
 
     if (!allocationRepository_->endActiveAllocationsByEmployee(employeeId, effectiveDate))
     {
@@ -142,15 +121,8 @@ bool EmployeeService::addSkill(int employeeId, const std::string& skillName,
                                const std::string& category, const std::string& proficiency,
                                std::string& message)
 {
-    static const std::unordered_set<std::string> validCategories = {
-        "BACKEND", "FRONTEND", "DEVOPS", "QA", "OTHER"};
-    static const std::unordered_set<std::string> validProficiency = {
-        "BEGINNER", "INTERMEDIATE", "ADVANCED"};
-
-    if (validCategories.find(category) == validCategories.end() ||
-        validProficiency.find(proficiency) == validProficiency.end())
+    if (!employeeValidator_.validateSkill(category, proficiency, message))
     {
-        message = "Invalid skill category or proficiency.";
         return false;
     }
 

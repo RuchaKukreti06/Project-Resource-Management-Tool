@@ -27,7 +27,7 @@ std::string TimesheetService::computeWeekEndDate(const std::string& weekStartDat
 
     std::tm tm = {};
     tm.tm_year = year - 1900;
-    tm.tm_mon = month - 1;
+    tm.tm_mon  = month - 1;
     tm.tm_mday = day;
     tm.tm_mday += 6;
     std::mktime(&tm);
@@ -41,6 +41,11 @@ bool TimesheetService::submitTimesheet(int employeeId, const std::string& weekSt
                                        const std::vector<TimesheetLineInput>& lines,
                                        int maxWeeklyHours, std::string& message)
 {
+    if (!timesheetValidator_.validateSubmit(employeeId, weekStartDate, lines, maxWeeklyHours, message))
+    {
+        return false;
+    }
+
     const auto employee = employeeRepository_->getEmployeeById(employeeId);
     if (employee.id == 0 || !employee.isActive)
     {
@@ -75,7 +80,7 @@ bool TimesheetService::submitTimesheet(int employeeId, const std::string& weekSt
     for (const auto& allocation : allocations)
     {
         const int allowed = (allocation.utilizationPercentage * maxWeeklyHours) / 100;
-        const auto found = maxProjectHours.find(allocation.projectId);
+        const auto found  = maxProjectHours.find(allocation.projectId);
         if (found == maxProjectHours.end() || found->second < allowed)
         {
             maxProjectHours[allocation.projectId] = allowed;
@@ -132,4 +137,3 @@ std::vector<int> TimesheetService::getMissedTimesheetEmployeeIds(const std::stri
 {
     return timesheetRepository_->getEmployeesWithMissedTimesheets(weekStartDate);
 }
-

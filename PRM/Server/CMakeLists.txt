@@ -20,7 +20,7 @@ find_package(httplib CONFIG REQUIRED)
 find_package(GTest CONFIG REQUIRED)
 
 # ── Sources ───────────────────────────────────────────────────
-file(GLOB_RECURSE SERVER_SOURCES "src/*.cpp")
+file(GLOB_RECURSE SERVER_SOURCES CONFIGURE_DEPENDS "src/*.cpp")
 list(REMOVE_ITEM SERVER_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp)
 
 # ── Library ───────────────────────────────────────────────────

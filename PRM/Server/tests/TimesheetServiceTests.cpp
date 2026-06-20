@@ -36,7 +36,7 @@ TEST_F(TimesheetServiceTests, SubmitTimesheet_AlreadyExists_Fails)
     EXPECT_CALL(*mockTimesheetRepo, existsTimesheetForWeek(1, "2024-01-01")).WillOnce(Return(true));
 
     std::string message;
-    std::vector<TimesheetLineInput> lines;
+    std::vector<TimesheetLineInput> lines = { {1, 40, {"tag"}} };
     bool result = timesheetService->submitTimesheet(1, "2024-01-01", lines, 40, message);
     EXPECT_FALSE(result);
     EXPECT_EQ(message, "Timesheet already exists for this week.");
