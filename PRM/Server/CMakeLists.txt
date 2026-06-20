@@ -15,6 +15,7 @@ find_package(mysql-concpp CONFIG REQUIRED)
 find_package(jwt-cpp CONFIG REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(CURL REQUIRED)
+find_package(unofficial-argon2 CONFIG REQUIRED)
 
 find_package(httplib CONFIG REQUIRED)
 find_package(GTest CONFIG REQUIRED)
@@ -52,6 +53,7 @@ target_link_libraries(prm-server-lib PUBLIC
     OpenSSL::Crypto
     CURL::libcurl
     httplib::httplib
+    unofficial::argon2::libargon2
 )
 
 target_compile_definitions(prm-server-lib PUBLIC CPPHTTPLIB_OPENSSL_SUPPORT)

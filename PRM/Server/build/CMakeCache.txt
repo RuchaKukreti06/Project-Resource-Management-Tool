@@ -331,6 +331,9 @@ protobuf_VERBOSE:BOOL=OFF
 //The directory containing a CMake configuration file for spdlog.
 spdlog_DIR:PATH=C:/vcpkg/installed/x64-windows/share/spdlog
 
+//The directory containing a CMake configuration file for unofficial-argon2.
+unofficial-argon2_DIR:PATH=C:/vcpkg/installed/x64-windows/share/unofficial-argon2
+
 //The directory containing a CMake configuration file for unofficial-brotli.
 unofficial-brotli_DIR:PATH=C:/vcpkg/installed/x64-windows/share/unofficial-brotli
 
