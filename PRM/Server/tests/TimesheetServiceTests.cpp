@@ -7,6 +7,7 @@
 #include "mocks/MockTimesheetRepository.h"
 #include "mocks/MockEmployeeRepository.h"
 #include "mocks/MockAllocationRepository.h"
+#include "exceptions/Exceptions.h"
 
 using ::testing::_;
 using ::testing::Return;
@@ -35,11 +36,10 @@ TEST_F(TimesheetServiceTests, SubmitTimesheet_AlreadyExists_Fails)
     mockEmployeeRepo->employees[1] = mockEmp;
     EXPECT_CALL(*mockTimesheetRepo, existsTimesheetForWeek(1, "2024-01-01")).WillOnce(Return(true));
 
-    std::string message;
     SubmitTimesheetRequest req{1, "2024-01-01", { {1, 40, {"tag"}} }, 40};
-    bool result = timesheetService->submitTimesheet(req, message);
-    EXPECT_FALSE(result);
-    EXPECT_EQ(message, "Timesheet already exists for this week.");
+    EXPECT_THROW({
+        timesheetService->submitTimesheet(req);
+    }, exceptions::ConflictException);
 }
 
 TEST_F(TimesheetServiceTests, SubmitTimesheet_ExceedsMaxHours_Fails)
@@ -52,11 +52,10 @@ TEST_F(TimesheetServiceTests, SubmitTimesheet_ExceedsMaxHours_Fails)
     std::vector<Allocation> allocs = { alloc };
     EXPECT_CALL(*mockTimesheetRepo, getActiveAllocationsForWeek(1, "2024-01-01", _)).WillOnce(Return(allocs));
 
-    std::string message;
     SubmitTimesheetRequest req{1, "2024-01-01", { {1, 50, {"tag"}} }, 40};
-    bool result = timesheetService->submitTimesheet(req, message);
-    EXPECT_FALSE(result);
-    EXPECT_EQ(message, "Project hours exceed allowed allocation limit.");
+    EXPECT_THROW({
+        timesheetService->submitTimesheet(req);
+    }, exceptions::ValidationException);
 }
 
 TEST_F(TimesheetServiceTests, SubmitTimesheet_Success)
@@ -71,9 +70,8 @@ TEST_F(TimesheetServiceTests, SubmitTimesheet_Success)
     
     EXPECT_CALL(*mockTimesheetRepo, createTimesheetWithLines(1, "2024-01-01", _)).WillOnce(Return(true));
 
-    std::string message;
     SubmitTimesheetRequest req{1, "2024-01-01", { {1, 40, {"tag"}} }, 40};
-    bool result = timesheetService->submitTimesheet(req, message);
-    EXPECT_TRUE(result);
-    EXPECT_EQ(message, "Timesheet submitted.");
+    EXPECT_NO_THROW({
+        timesheetService->submitTimesheet(req);
+    });
 }

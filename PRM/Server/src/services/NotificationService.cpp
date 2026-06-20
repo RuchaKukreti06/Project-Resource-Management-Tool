@@ -3,6 +3,7 @@
 #include <spdlog/spdlog.h>
 
 #include <sstream>
+#include "exceptions/Exceptions.h"
 
 NotificationService::NotificationService(
     std::shared_ptr<INotificationRepository> notificationRepository,
@@ -150,23 +151,22 @@ void NotificationService::processMissedTimesheetNotifications(
     }
 }
 
-bool NotificationService::restoreTimesheetAccess(int userId, const std::string& weekStartDate,
-                                                 std::string& message)
+void NotificationService::restoreTimesheetAccess(int userId, const std::string& weekStartDate)
 {
     if (!notificationRepository_)
     {
-        message = "Notification repository is unavailable.";
-        return false;
+        throw exceptions::DatabaseException("Notification repository is unavailable.");
     }
     if (userId <= 0 || weekStartDate.empty())
     {
-        message = "user_id and week_start_date are required.";
-        return false;
+        throw exceptions::ValidationException("user_id and week_start_date are required.");
     }
 
     const bool ok = notificationRepository_->restoreTimesheetAccess(userId, weekStartDate);
-    message = ok ? "Timesheet access restored." : "Failed to restore timesheet access.";
-    return ok;
+    if (!ok)
+    {
+        throw exceptions::DatabaseException("Failed to restore timesheet access.");
+    }
 }
 
 bool NotificationService::isTimesheetAccessLocked(int userId) const

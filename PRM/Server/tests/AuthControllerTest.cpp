@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 
 #include <memory>
+#include <thread>
+#include <chrono>
 
 #include "AuthController.h"
 #include "AuthService.h"
@@ -9,6 +11,8 @@
 #include "MockUserRepository.h"
 #include "services/PasswordHasher.h"
 #include "services/JwtTokenService.h"
+#include "exceptions/Exceptions.h"
+#include "utils/GlobalExceptionHandler.h"
 
 static std::filesystem::path getTestConfigPath()
 {
@@ -35,96 +39,113 @@ class AuthControllerTest : public ::testing::Test
             repo, hasher, tokenService);
 
         controller = std::make_unique<AuthController>(*authService);
+
+        serverThread = std::thread([this]() {
+            controller->registerRoutes(server);
+            utils::GlobalExceptionHandler::registerGlobalExceptionHandler(server);
+            server.listen("localhost", 8090);
+        });
+        
+        // Wait for server to start
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
-    httplib::Request req;
-    httplib::Response res;
+    void TearDown() override
+    {
+        server.stop();
+        if (serverThread.joinable())
+        {
+            serverThread.join();
+        }
+    }
+
+    httplib::Server server;
+    std::thread serverThread;
 
     std::shared_ptr<MockUserRepository> repo;
-
     std::unique_ptr<AuthService> authService;
-
     std::unique_ptr<AuthController> controller;
 };
 
 TEST_F(AuthControllerTest, RegisterSuccess)
 {
-    req.body =
-        R"({
-            "username":"alice",
-            "password":"Password123",
-            "email":"alice@example.com",
-            "full_name":"Alice Smith"
-        })";
+    httplib::Client cli("localhost", 8090);
+    std::string body = R"({
+        "username":"alice",
+        "password":"Password123",
+        "email":"alice@example.com",
+        "full_name":"Alice Smith"
+    })";
 
-    controller->handleRegister(req, res);
+    auto res = cli.Post("/auth/register", body, "application/json");
 
-    auto json = nlohmann::json::parse(res.body);
+    ASSERT_TRUE(res);
+    EXPECT_EQ(res->status, 200);
 
-    EXPECT_EQ(res.status, 200);
-
+    auto json = nlohmann::json::parse(res->body);
     EXPECT_TRUE(json["success"].get<bool>());
 }
 
 TEST_F(AuthControllerTest, RegisterDuplicateUser)
 {
-    req.body =
-        R"({
-            "username":"alice",
-            "password":"Password123",
-            "email":"alice@example.com",
-            "full_name":"Alice Smith"
-        })";
+    httplib::Client cli("localhost", 8090);
+    std::string body = R"({
+        "username":"alice",
+        "password":"Password123",
+        "email":"alice@example.com",
+        "full_name":"Alice Smith"
+    })";
 
-    controller->handleRegister(req, res);
+    auto res1 = cli.Post("/auth/register", body, "application/json");
+    ASSERT_TRUE(res1);
+    EXPECT_EQ(res1->status, 200);
 
-    httplib::Response secondRes;
+    auto res2 = cli.Post("/auth/register", body, "application/json");
+    ASSERT_TRUE(res2);
+    EXPECT_EQ(res2->status, 409);
 
-    controller->handleRegister(req, secondRes);
-
-    auto json = nlohmann::json::parse(secondRes.body);
-
+    auto json = nlohmann::json::parse(res2->body);
     EXPECT_FALSE(json["success"].get<bool>());
-
-    EXPECT_EQ(json["message"], "Username already exists.");
+    EXPECT_EQ(json["code"].get<int>(), 409);
+    EXPECT_NE(json["error"].get<std::string>(), "");
 }
 
 TEST_F(AuthControllerTest, RegisterMissingUsername)
 {
-    req.body =
-        R"({
-            "password":"Password123",
-            "email":"alice@example.com",
-            "full_name":"Alice Smith"
-        })";
+    httplib::Client cli("localhost", 8090);
+    std::string body = R"({
+        "password":"Password123",
+        "email":"alice@example.com",
+        "full_name":"Alice Smith"
+    })";
 
-    controller->handleRegister(req, res);
+    auto res = cli.Post("/auth/register", body, "application/json");
+    
+    ASSERT_TRUE(res);
+    EXPECT_EQ(res->status, 400);
 
-    EXPECT_EQ(res.status, 400);
-
-    auto json = nlohmann::json::parse(res.body);
-
+    auto json = nlohmann::json::parse(res->body);
     EXPECT_FALSE(json["success"].get<bool>());
+    EXPECT_EQ(json["code"].get<int>(), 400);
 }
 
 TEST_F(AuthControllerTest, LoginSuccess)
 {
     authService->registerUser({"bob", "Password123", "bob@example.com", "Bob Jones"});
 
-    req.body =
-        R"({
-            "username":"bob",
-            "password":"Password123"
-        })";
+    httplib::Client cli("localhost", 8090);
+    std::string body = R"({
+        "username":"bob",
+        "password":"Password123"
+    })";
 
-    controller->handleLogin(req, res);
+    auto res = cli.Post("/auth/login", body, "application/json");
 
-    auto json = nlohmann::json::parse(res.body);
+    ASSERT_TRUE(res);
+    EXPECT_EQ(res->status, 200);
 
-    EXPECT_EQ(res.status, 200);
-
+    auto json = nlohmann::json::parse(res->body);
     EXPECT_TRUE(json["success"].get<bool>());
-
     EXPECT_TRUE(json.contains("token"));
 }
 
@@ -132,32 +153,35 @@ TEST_F(AuthControllerTest, LoginWrongPassword)
 {
     authService->registerUser({"bob", "Password123", "bob@example.com", "Bob Jones"});
 
-    req.body =
-        R"({
-            "username":"bob",
-            "password":"WrongPassword"
-        })";
+    httplib::Client cli("localhost", 8090);
+    std::string body = R"({
+        "username":"bob",
+        "password":"WrongPassword"
+    })";
 
-    controller->handleLogin(req, res);
+    auto res = cli.Post("/auth/login", body, "application/json");
 
-    auto json = nlohmann::json::parse(res.body);
+    ASSERT_TRUE(res);
+    EXPECT_EQ(res->status, 401);
 
+    auto json = nlohmann::json::parse(res->body);
     EXPECT_FALSE(json["success"].get<bool>());
-
-    EXPECT_EQ(json["message"], "Invalid username or password.");
+    EXPECT_EQ(json["code"].get<int>(), 401);
 }
 
 TEST_F(AuthControllerTest, LoginInvalidJson)
 {
-    req.body = "{invalid json";
+    httplib::Client cli("localhost", 8090);
+    std::string body = "{invalid json";
 
-    controller->handleLogin(req, res);
+    auto res = cli.Post("/auth/login", body, "application/json");
 
-    EXPECT_EQ(res.status, 400);
+    ASSERT_TRUE(res);
+    EXPECT_EQ(res->status, 400);
 
-    auto json = nlohmann::json::parse(res.body);
-
+    auto json = nlohmann::json::parse(res->body);
     EXPECT_FALSE(json["success"].get<bool>());
+    EXPECT_EQ(json["code"].get<int>(), 400);
 }
 
 TEST_F(AuthControllerTest, ChangePasswordSuccess)
@@ -166,26 +190,29 @@ TEST_F(AuthControllerTest, ChangePasswordSuccess)
 
     User user = repo->getUserByUsername("john");
 
-    req.body = nlohmann::json{{"userId", user.id}, {"newPassword", "NewPassword"}}.dump();
+    httplib::Client cli("localhost", 8090);
+    std::string body = nlohmann::json{{"userId", user.id}, {"newPassword", "NewPassword"}}.dump();
 
-    controller->handleChangePassword(req, res);
+    auto res = cli.Post("/auth/change-password", body, "application/json");
 
-    auto json = nlohmann::json::parse(res.body);
+    ASSERT_TRUE(res);
+    EXPECT_EQ(res->status, 200);
 
-    EXPECT_EQ(res.status, 200);
-
+    auto json = nlohmann::json::parse(res->body);
     EXPECT_TRUE(json["success"].get<bool>());
 }
 
 TEST_F(AuthControllerTest, ChangePasswordUnknownUser)
 {
-    req.body = nlohmann::json{{"userId", 9999}, {"newPassword", "NewPassword"}}.dump();
+    httplib::Client cli("localhost", 8090);
+    std::string body = nlohmann::json{{"userId", 9999}, {"newPassword", "NewPassword"}}.dump();
 
-    controller->handleChangePassword(req, res);
+    auto res = cli.Post("/auth/change-password", body, "application/json");
 
-    auto json = nlohmann::json::parse(res.body);
+    ASSERT_TRUE(res);
+    EXPECT_EQ(res->status, 404);
 
-    EXPECT_EQ(res.status, 500);
-
+    auto json = nlohmann::json::parse(res->body);
     EXPECT_FALSE(json["success"].get<bool>());
+    EXPECT_EQ(json["code"].get<int>(), 404);
 }

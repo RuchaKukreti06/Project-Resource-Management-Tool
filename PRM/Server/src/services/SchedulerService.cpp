@@ -106,8 +106,15 @@ void SchedulerService::recomputeProjectHealth(const std::string& todayDate)
         const std::string health = computeProjectHealth(project.id, todayDate);
         if (health != project.healthStatus)
         {
-            projectService_->updateProjectHealth(project.id, health);
-            spdlog::info("Scheduler: project {} health updated to {}", project.id, health);
+            try
+            {
+                projectService_->updateProjectHealth(project.id, health);
+                spdlog::info("Scheduler: project {} health updated to {}", project.id, health);
+            }
+            catch (const std::exception& e)
+            {
+                spdlog::error("Scheduler: Failed to update project {} health: {}", project.id, e.what());
+            }
         }
     }
 }

@@ -8,6 +8,6 @@
 class MockNotificationService : public INotificationService {
 public:
     MOCK_METHOD(void, processMissedTimesheetNotifications, (const std::string& weekStartDate, const std::vector<int>& missedUserIds), (override));
-    MOCK_METHOD(bool, restoreTimesheetAccess, (int userId, const std::string& weekStartDate, std::string& message), (override));
+    MOCK_METHOD(void, restoreTimesheetAccess, (int userId, const std::string& weekStartDate), (override));
     MOCK_METHOD(bool, isTimesheetAccessLocked, (int userId), (const, override));
 };

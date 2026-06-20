@@ -19,7 +19,7 @@ class TimesheetService : public ITimesheetService
                      std::shared_ptr<IAllocationRepository> allocationRepository,
                      std::shared_ptr<INotificationService> notificationService = nullptr);
 
-    bool submitTimesheet(const SubmitTimesheetRequest& req, std::string& message) override;
+    void submitTimesheet(const SubmitTimesheetRequest& req) override;
     std::vector<TimesheetResponse> getEmployeeTimesheets(int employeeId) override;
     std::vector<TeamTimesheetResponse> getTeamTimesheets(int managerUserId,
                                                       const std::string& weekStartDate) override;

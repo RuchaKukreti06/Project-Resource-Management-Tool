@@ -17,13 +17,13 @@
 class IProjectService {
 public:
     virtual ~IProjectService() = default;
-    virtual bool createProject(const ProjectCreateRequest& req, std::string& message) = 0;
+    virtual void createProject(const ProjectCreateRequest& req) = 0;
     virtual std::optional<ProjectResponse> getProjectById(int projectId) = 0;
     virtual std::vector<ProjectResponse> getAllProjects() = 0;
     virtual std::vector<ProjectResponse> getManagerProjects(int managerUserId) = 0;
-    virtual bool updateProject(const UpdateProjectRequest& req, std::string& message) = 0;
-    virtual bool addMilestone(const AddMilestoneRequest& req, std::string& message) = 0;
-    virtual bool updateMilestoneStatus(const UpdateMilestoneStatusRequest& req, std::string& message) = 0;
+    virtual void updateProject(const UpdateProjectRequest& req) = 0;
+    virtual void addMilestone(const AddMilestoneRequest& req) = 0;
+    virtual void updateMilestoneStatus(const UpdateMilestoneStatusRequest& req) = 0;
     virtual std::vector<MilestoneResponse> getProjectMilestones(int projectId) = 0;
-    virtual bool updateProjectHealth(int projectId, const std::string& health) = 0;
+    virtual void updateProjectHealth(int projectId, const std::string& health) = 0;
 };

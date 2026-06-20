@@ -20,67 +20,44 @@ void TimesheetController::registerRoutes(httplib::Server& server) const
     server.Post("/timesheets",
                 [&](const httplib::Request& req, httplib::Response& res)
                 {
-                    try
-                    {
-                        const auto body = nlohmann::json::parse(req.body);
-                        SubmitTimesheetRequest request;
-                        request.employeeId = body.at("employee_id").get<int>();
-                        request.weekStartDate = body.at("week_start_date").get<std::string>();
-                        request.maxWeeklyHours = body.value("max_weekly_hours", 40);
+                    const auto body = nlohmann::json::parse(req.body);
+                    SubmitTimesheetRequest request;
+                    request.employeeId = body.at("employee_id").get<int>();
+                    request.weekStartDate = body.at("week_start_date").get<std::string>();
+                    request.maxWeeklyHours = body.value("max_weekly_hours", 40);
 
-                        for (const auto& lineJson : body.at("lines"))
+                    for (const auto& lineJson : body.at("lines"))
+                    {
+                        TimesheetLineDto input;
+                        input.projectId = lineJson.at("project_id").get<int>();
+                        input.hoursWorked = lineJson.at("hours_worked").get<int>();
+                        for (const auto& tag : lineJson.value("tags", nlohmann::json::array()))
                         {
-                            TimesheetLineDto input;
-                            input.projectId = lineJson.at("project_id").get<int>();
-                            input.hoursWorked = lineJson.at("hours_worked").get<int>();
-                            for (const auto& tag : lineJson.value("tags", nlohmann::json::array()))
-                            {
-                                input.tags.push_back(tag.get<std::string>());
-                            }
-                            request.lines.push_back(input);
+                            input.tags.push_back(tag.get<std::string>());
                         }
-
-                        std::string message;
-                        const bool ok = timesheetService_.submitTimesheet(request, message);
-
-                        res.status = ok ? 201 : 400;
-                        res.set_content(
-                            nlohmann::json({{"success", ok}, {"message", message}}).dump(),
-                            "application/json");
+                        request.lines.push_back(input);
                     }
-                    catch (const std::exception& e)
-                    {
-                        res.status = 400;
-                        res.set_content(
-                            nlohmann::json({{"success", false}, {"message", e.what()}}).dump(),
-                            "application/json");
-                    }
+
+                    timesheetService_.submitTimesheet(request);
+
+                    res.status = 201;
+                    res.set_content(
+                        nlohmann::json({{"success", true}, {"message", "Timesheet submitted."}}).dump(),
+                        "application/json");
                 });
 
     server.Put("/timesheets/access/restore",
                [&](const httplib::Request& req, httplib::Response& res)
                {
-                   try
-                   {
-                       const auto body = nlohmann::json::parse(req.body);
-                       std::string message;
-                       const bool ok = notificationService_.restoreTimesheetAccess(
-                           body.at("user_id").get<int>(),
-                           body.at("week_start_date").get<std::string>(),
-                           message);
+                   const auto body = nlohmann::json::parse(req.body);
+                   notificationService_.restoreTimesheetAccess(
+                       body.at("user_id").get<int>(),
+                       body.at("week_start_date").get<std::string>());
 
-                       res.status = ok ? 200 : 400;
-                       res.set_content(
-                           nlohmann::json({{"success", ok}, {"message", message}}).dump(),
-                           "application/json");
-                   }
-                   catch (const std::exception& e)
-                   {
-                       res.status = 400;
-                       res.set_content(
-                           nlohmann::json({{"success", false}, {"message", e.what()}}).dump(),
-                           "application/json");
-                   }
+                   res.status = 200;
+                   res.set_content(
+                       nlohmann::json({{"success", true}, {"message", "Timesheet access restored."}}).dump(),
+                       "application/json");
                });
 
     server.Get(R"(/employees/(\d+)/timesheets)",

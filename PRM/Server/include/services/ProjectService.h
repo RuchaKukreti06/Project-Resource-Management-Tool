@@ -18,15 +18,15 @@ class ProjectService : public IProjectService
     ProjectService(std::shared_ptr<IProjectRepository> projectRepository,
                    std::shared_ptr<IUserRepository> userRepository);
 
-    bool createProject(const ProjectCreateRequest& req, std::string& message) override;
+    void createProject(const ProjectCreateRequest& req) override;
     std::optional<ProjectResponse> getProjectById(int projectId) override;
     std::vector<ProjectResponse> getAllProjects() override;
     std::vector<ProjectResponse> getManagerProjects(int managerUserId) override;
-    bool updateProject(const UpdateProjectRequest& req, std::string& message) override;
-    bool addMilestone(const AddMilestoneRequest& req, std::string& message) override;
-    bool updateMilestoneStatus(const UpdateMilestoneStatusRequest& req, std::string& message) override;
+    void updateProject(const UpdateProjectRequest& req) override;
+    void addMilestone(const AddMilestoneRequest& req) override;
+    void updateMilestoneStatus(const UpdateMilestoneStatusRequest& req) override;
     std::vector<MilestoneResponse> getProjectMilestones(int projectId) override;
-    bool updateProjectHealth(int projectId, const std::string& health) override;
+    void updateProjectHealth(int projectId, const std::string& health) override;
 
    private:
     bool isValidManager(int managerUserId) const;

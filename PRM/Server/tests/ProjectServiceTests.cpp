@@ -3,6 +3,7 @@
 #include <string>
 
 #include "services/ProjectService.h"
+#include "exceptions/Exceptions.h"
 #include "mocks/MockProjectRepository.h"
 #include "mocks/MockUserRepository.h"
 
@@ -30,10 +31,9 @@ TEST_F(ProjectServiceTests, CreateProject_ValidManager_Success)
     req.name = "Project Alpha";
     req.managerId = 1;
     req.status = "PLANNED";
-    std::string message;
-    bool result = projectService->createProject(req, message);
-    EXPECT_TRUE(result);
-    EXPECT_EQ(message, "Project created.");
+    EXPECT_NO_THROW({
+        projectService->createProject(req);
+    });
 }
 
 TEST_F(ProjectServiceTests, CreateProject_InvalidManager_Fails)
@@ -42,10 +42,9 @@ TEST_F(ProjectServiceTests, CreateProject_InvalidManager_Fails)
     req.managerId = 2; // User doesn't exist
     req.name = "Test Project";
 
-    std::string message;
-    bool result = projectService->createProject(req, message);
-    EXPECT_FALSE(result);
-    EXPECT_EQ(message, "Invalid manager id.");
+    EXPECT_THROW({
+        projectService->createProject(req);
+    }, exceptions::ValidationException);
 }
 
 TEST_F(ProjectServiceTests, GetAllProjects_ReturnsList)
@@ -65,9 +64,8 @@ TEST_F(ProjectServiceTests, AddMilestone_Success)
     m.projectId = 1;
     m.title = "Milestone 1";
     
-    std::string message;
-    bool result = projectService->addMilestone(m, message);
-    EXPECT_TRUE(result);
-    EXPECT_EQ(message, "Milestone added.");
+    EXPECT_NO_THROW({
+        projectService->addMilestone(m);
+    });
 }
 

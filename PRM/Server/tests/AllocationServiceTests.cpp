@@ -10,6 +10,7 @@
 #include "repositories/IEmployeeRepository.h"
 #include "repositories/IProjectRepository.h"
 #include "services/AllocationService.h"
+#include "exceptions/Exceptions.h"
 
 class AllocationServiceTest : public ::testing::Test
 {
@@ -49,22 +50,18 @@ TEST_F(AllocationServiceTest, CreateAllocationSuccess)
     req.utilizationPercentage = 100;
     req.fromDate = "2024-01-01";
     req.toDate = "2024-12-31";
-    std::string message;
-
-    EXPECT_TRUE(service->createAllocation(req, 10, message));
-
-    EXPECT_EQ(message, "Allocation created.");
+    EXPECT_NO_THROW({
+        service->createAllocation(req, 10);
+    });
 }
 
 TEST_F(AllocationServiceTest, CreateAllocationInvalidPayload)
 {
     AllocationCreateRequest req;
 
-    std::string message;
-
-    EXPECT_FALSE(service->createAllocation(req, 1, message));
-
-    EXPECT_EQ(message, "Invalid allocation payload.");
+    EXPECT_THROW({
+        service->createAllocation(req, 1);
+    }, exceptions::ValidationException);
 }
 
 TEST_F(AllocationServiceTest, CreateAllocationEmployeeNotFound)
@@ -78,11 +75,9 @@ TEST_F(AllocationServiceTest, CreateAllocationEmployeeNotFound)
     req.fromDate = "2026-01-01";
     req.toDate = "2026-02-01";
 
-    std::string message;
-
-    EXPECT_FALSE(service->createAllocation(req, 1, message));
-
-    EXPECT_EQ(message, "Employee not active or not found.");
+    EXPECT_THROW({
+        service->createAllocation(req, 1);
+    }, exceptions::ValidationException);
 }
 
 TEST_F(AllocationServiceTest, CreateAllocationProjectClosed)
@@ -96,11 +91,9 @@ TEST_F(AllocationServiceTest, CreateAllocationProjectClosed)
     req.fromDate = "2026-01-01";
     req.toDate = "2026-02-01";
 
-    std::string message;
-
-    EXPECT_FALSE(service->createAllocation(req, 1, message));
-
-    EXPECT_EQ(message, "Project not found or not allocatable.");
+    EXPECT_THROW({
+        service->createAllocation(req, 1);
+    }, exceptions::ValidationException);
 }
 
 TEST_F(AllocationServiceTest, CreateAllocationExceedsUtilization)
@@ -114,11 +107,9 @@ TEST_F(AllocationServiceTest, CreateAllocationExceedsUtilization)
     req.fromDate = "2026-01-01";
     req.toDate = "2026-02-01";
 
-    std::string message;
-
-    EXPECT_FALSE(service->createAllocation(req, 1, message));
-
-    EXPECT_EQ(message, "Total utilization exceeds 100% in overlapping date range.");
+    EXPECT_THROW({
+        service->createAllocation(req, 1);
+    }, exceptions::ValidationException);
 }
 
 TEST_F(AllocationServiceTest, CreateAllocationRepositoryFailure)
@@ -132,31 +123,25 @@ TEST_F(AllocationServiceTest, CreateAllocationRepositoryFailure)
     req.fromDate = "2026-01-01";
     req.toDate = "2026-02-01";
 
-    std::string message;
-
-    EXPECT_FALSE(service->createAllocation(req, 1, message));
-
-    EXPECT_EQ(message, "Failed to create allocation.");
+    EXPECT_THROW({
+        service->createAllocation(req, 1);
+    }, exceptions::DatabaseException);
 }
 
 TEST_F(AllocationServiceTest, EndAllocationSuccess)
 {
-    std::string message;
-
-    EXPECT_TRUE(service->endAllocation({1, "2026-06-10"}, message));
-
-    EXPECT_EQ(message, "Allocation ended.");
+    EXPECT_NO_THROW({
+        service->endAllocation({1, "2026-06-10"});
+    });
 }
 
 TEST_F(AllocationServiceTest, EndAllocationFailure)
 {
     allocationRepo->endResult = false;
 
-    std::string message;
-
-    EXPECT_FALSE(service->endAllocation({1, "2026-06-10"}, message));
-
-    EXPECT_EQ(message, "Failed to end allocation.");
+    EXPECT_THROW({
+        service->endAllocation({1, "2026-06-10"});
+    }, exceptions::DatabaseException);
 }
 
 TEST_F(AllocationServiceTest, CreateAllocationInactiveEmployee)
@@ -170,9 +155,7 @@ TEST_F(AllocationServiceTest, CreateAllocationInactiveEmployee)
     req.fromDate = "2026-01-01";
     req.toDate = "2026-02-01";
 
-    std::string message;
-
-    EXPECT_FALSE(service->createAllocation(req, 1, message));
-
-    EXPECT_EQ(message, "Employee not active or not found.");
+    EXPECT_THROW({
+        service->createAllocation(req, 1);
+    }, exceptions::ValidationException);
 }

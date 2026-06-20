@@ -1,6 +1,6 @@
 #include "services/TimesheetService.h"
 #include "dto/DTOMapper.h"
-
+#include "exceptions/Exceptions.h"
 #include <cstdio>
 #include <ctime>
 #include <unordered_map>
@@ -38,7 +38,7 @@ std::string TimesheetService::computeWeekEndDate(const std::string& weekStartDat
     return buffer;
 }
 
-bool TimesheetService::submitTimesheet(const SubmitTimesheetRequest& req, std::string& message)
+void TimesheetService::submitTimesheet(const SubmitTimesheetRequest& req)
 {
     std::vector<TimesheetLineInput> lines;
     for (const auto& dtoLine : req.lines)
@@ -50,29 +50,27 @@ bool TimesheetService::submitTimesheet(const SubmitTimesheetRequest& req, std::s
         lines.push_back(input);
     }
 
+    std::string message;
     if (!timesheetValidator_.validateSubmit(req.employeeId, req.weekStartDate, lines, req.maxWeeklyHours, message))
     {
-        return false;
+        throw exceptions::ValidationException(message);
     }
 
     const auto employee = employeeRepository_->getEmployeeById(req.employeeId);
     if (employee.id == 0 || !employee.isActive)
     {
-        message = "Employee not found or inactive.";
-        return false;
+        throw exceptions::ValidationException("Employee not found or inactive.");
     }
 
     if (notificationService_ && employee.user_id > 0 &&
         notificationService_->isTimesheetAccessLocked(employee.user_id))
     {
-        message = "Timesheet submission access is temporarily restricted.";
-        return false;
+        throw exceptions::AuthorizationException("Timesheet submission access is temporarily restricted.");
     }
 
     if (timesheetRepository_->existsTimesheetForWeek(req.employeeId, req.weekStartDate))
     {
-        message = "Timesheet already exists for this week.";
-        return false;
+        throw exceptions::ConflictException("Timesheet already exists for this week.");
     }
 
     const std::string weekEndDate = computeWeekEndDate(req.weekStartDate);
@@ -81,8 +79,7 @@ bool TimesheetService::submitTimesheet(const SubmitTimesheetRequest& req, std::s
 
     if (allocations.empty())
     {
-        message = "No active allocations for this week.";
-        return false;
+        throw exceptions::ValidationException("No active allocations for this week.");
     }
 
     std::unordered_map<int, int> maxProjectHours;
@@ -102,14 +99,12 @@ bool TimesheetService::submitTimesheet(const SubmitTimesheetRequest& req, std::s
         const auto limitIt = maxProjectHours.find(line.projectId);
         if (limitIt == maxProjectHours.end())
         {
-            message = "Hours cannot be logged for unallocated project.";
-            return false;
+            throw exceptions::ValidationException("Hours cannot be logged for unallocated project.");
         }
 
         if (line.hoursWorked > limitIt->second)
         {
-            message = "Project hours exceed allowed allocation limit.";
-            return false;
+            throw exceptions::ValidationException("Project hours exceed allowed allocation limit.");
         }
 
         total += line.hoursWorked;
@@ -117,13 +112,14 @@ bool TimesheetService::submitTimesheet(const SubmitTimesheetRequest& req, std::s
 
     if (total > req.maxWeeklyHours)
     {
-        message = "Total hours exceed weekly maximum.";
-        return false;
+        throw exceptions::ValidationException("Total hours exceed weekly maximum.");
     }
 
     const bool ok = timesheetRepository_->createTimesheetWithLines(req.employeeId, req.weekStartDate, lines);
-    message = ok ? "Timesheet submitted." : "Failed to submit timesheet.";
-    return ok;
+    if (!ok)
+    {
+        throw exceptions::DatabaseException("Failed to submit timesheet.");
+    }
 }
 
 std::vector<TimesheetResponse> TimesheetService::getEmployeeTimesheets(int employeeId)

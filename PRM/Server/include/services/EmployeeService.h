@@ -19,17 +19,16 @@ class EmployeeService : public IEmployeeService
                     std::shared_ptr<IUserRepository> userRepository,
                     std::shared_ptr<IAllocationRepository> allocationRepository);
 
-    bool createEmployeeProfile(const EmployeeCreateRequest& req, std::string& message) override;
-    bool updateEmployeeProfile(const Employee& employee, std::string& message) override;
-    bool deactivateEmployee(int employeeId, const std::string& todayDate,
-                            std::string& message) override;
+    void createEmployeeProfile(const EmployeeCreateRequest& req) override;
+    void updateEmployeeProfile(const Employee& employee) override;
+    void deactivateEmployee(int employeeId, const std::string& todayDate) override;
     std::vector<EmployeeResponse> getAllEmployees() override;
     std::vector<EmployeeResponse> getTeamEmployees(int managerId) override;
     std::optional<Employee> getEmployeeById(int employeeId) override;
 
-    bool addSkill(const AddSkillRequest& req, std::string& message) override;
-    bool updateSkill(const UpdateSkillRequest& req, std::string& message) override;
-    bool removeSkill(int employeeId, int skillId, std::string& message) override;
+    void addSkill(const AddSkillRequest& req) override;
+    void updateSkill(const UpdateSkillRequest& req) override;
+    void removeSkill(int employeeId, int skillId) override;
     std::vector<EmployeeSkillResponse> getSkills(int employeeId) override;
 
    private:

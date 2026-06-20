@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <memory>
 #include <nlohmann/json.hpp>
+#include "exceptions/Exceptions.h"
 
 #include "BackgroundScheduler.h"
 #include "DatabaseConnectionConfig.h"
@@ -35,6 +36,7 @@
 #include "services/SchedulerService.h"
 #include "services/TimesheetService.h"
 #include "services/UserService.h"
+#include "utils/GlobalExceptionHandler.h"
 #include "utils/ConfigLoader.h"
 
 Application::Application()
@@ -112,6 +114,9 @@ bool Application::run()
         AIController         aiController(aiService, systemConfigRepository);
 
         httplib::Server server;
+
+        // ── Global Exception Handler ──────────────────────────────────────────
+        utils::GlobalExceptionHandler::registerGlobalExceptionHandler(server);
         authController.registerRoutes(server);
         userController.registerRoutes(server);
         employeeController.registerRoutes(server);

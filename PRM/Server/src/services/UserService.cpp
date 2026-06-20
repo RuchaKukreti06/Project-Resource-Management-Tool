@@ -6,6 +6,7 @@
 #include <iomanip>
 #include <sstream>
 #include <stdexcept>
+#include "exceptions/Exceptions.h"
 
 UserService::UserService(std::shared_ptr<IUserRepository> repository,
                          std::shared_ptr<IPasswordHasher> passwordHasher)
@@ -39,17 +40,17 @@ bool UserService::createUser(const UserCreateRequest& req)
     std::string message;
     if (!userValidator_.validateCreate(req.username, req.password, req.role, req.email, req.fullName, message))
     {
-        throw std::runtime_error(message);
+        throw exceptions::ValidationException(message);
     }
 
     if (!repository_->getUserByUsername(req.username).username.empty())
     {
-        throw std::runtime_error(std::string("Username '") + req.username + "' already exists.");
+        throw exceptions::ConflictException(std::string("Username '") + req.username + "' already exists.");
     }
 
     if (!repository_->getUserByEmail(req.email).email.empty())
     {
-        throw std::runtime_error(std::string("Email '") + req.email + "' is already registered.");
+        throw exceptions::ConflictException(std::string("Email '") + req.email + "' is already registered.");
     }
 
     User user;
@@ -64,17 +65,29 @@ bool UserService::createUser(const UserCreateRequest& req)
     user.isActive            = true;
     user.forcePasswordChange = req.forcePasswordChange;
 
-    return repository_->createUser(user);
+    if (!repository_->createUser(user))
+    {
+        throw exceptions::DatabaseException("Failed to create user in database.");
+    }
+    return true;
 }
 
 bool UserService::deactivateUser(int id)
 {
-    return repository_->setUserStatus(id, "INACTIVE");
+    if (!repository_->setUserStatus(id, "INACTIVE"))
+    {
+        throw exceptions::NotFoundException("Failed to deactivate user. User not found.");
+    }
+    return true;
 }
 
 bool UserService::reactivateUser(int id)
 {
-    return repository_->setUserStatus(id, "ACTIVE");
+    if (!repository_->setUserStatus(id, "ACTIVE"))
+    {
+        throw exceptions::NotFoundException("Failed to reactivate user. User not found.");
+    }
+    return true;
 }
 
 bool UserService::resetPassword(int id, const std::string& newPassword, bool forcePasswordChange)
@@ -82,16 +95,20 @@ bool UserService::resetPassword(int id, const std::string& newPassword, bool for
     std::string message;
     if (!userValidator_.validateNewPassword(newPassword, message))
     {
-        return false;
+        throw exceptions::ValidationException(message);
     }
 
     const bool passwordUpdated = repository_->updatePassword(id, passwordHasher_->hashPassword(newPassword));
     if (!passwordUpdated)
     {
-        return false;
+        throw exceptions::NotFoundException("Failed to update password. User not found.");
     }
 
-    return repository_->setForcePasswordChange(id, forcePasswordChange);
+    if (!repository_->setForcePasswordChange(id, forcePasswordChange))
+    {
+        throw exceptions::DatabaseException("Failed to set force password change flag.");
+    }
+    return true;
 }
 
 bool UserService::assignManager(int userId, int managerId)
@@ -99,8 +116,12 @@ bool UserService::assignManager(int userId, int managerId)
     std::string message;
     if (!userValidator_.validateId(userId, message))
     {
-        return false;
+        throw exceptions::ValidationException(message);
     }
     // managerId == 0 means "unassign manager", which the repo handles by setting NULL
-    return repository_->assignManager(userId, managerId);
+    if (!repository_->assignManager(userId, managerId))
+    {
+        throw exceptions::NotFoundException("Failed to assign manager. User or manager not found.");
+    }
+    return true;
 }

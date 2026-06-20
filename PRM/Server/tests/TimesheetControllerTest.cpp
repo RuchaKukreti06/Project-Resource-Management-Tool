@@ -11,8 +11,9 @@
 
 using ::testing::_;
 using ::testing::Return;
-using ::testing::SetArgReferee;
-using ::testing::DoAll;
+using ::testing::Throw;
+#include "exceptions/Exceptions.h"
+#include "utils/GlobalExceptionHandler.h"
 
 class TimesheetControllerTest : public ::testing::Test
 {
@@ -25,6 +26,7 @@ protected:
         
         serverThread = std::thread([this]() {
             controller->registerRoutes(server);
+            utils::GlobalExceptionHandler::registerGlobalExceptionHandler(server);
             server.listen("localhost", 8089);
         });
         
@@ -49,8 +51,7 @@ protected:
 
 TEST_F(TimesheetControllerTest, RestoreTimesheetAccess_Success)
 {
-    EXPECT_CALL(*mockNotificationService, restoreTimesheetAccess(123, "2024-01-01", _))
-        .WillOnce(DoAll(SetArgReferee<2>("Timesheet access restored."), Return(true)));
+    EXPECT_CALL(*mockNotificationService, restoreTimesheetAccess(123, "2024-01-01"));
 
     httplib::Client cli("localhost", 8089);
     std::string body = R"({"user_id": 123, "week_start_date": "2024-01-01"})";
@@ -65,8 +66,8 @@ TEST_F(TimesheetControllerTest, RestoreTimesheetAccess_Success)
 
 TEST_F(TimesheetControllerTest, RestoreTimesheetAccess_Failure)
 {
-    EXPECT_CALL(*mockNotificationService, restoreTimesheetAccess(123, "2024-01-01", _))
-        .WillOnce(DoAll(SetArgReferee<2>("Failed to restore."), Return(false)));
+    EXPECT_CALL(*mockNotificationService, restoreTimesheetAccess(123, "2024-01-01"))
+        .WillOnce(Throw(exceptions::ValidationException("Failed to restore.")));
 
     httplib::Client cli("localhost", 8089);
     std::string body = R"({"user_id": 123, "week_start_date": "2024-01-01"})";
@@ -76,5 +77,5 @@ TEST_F(TimesheetControllerTest, RestoreTimesheetAccess_Failure)
     ASSERT_TRUE(res);
     EXPECT_EQ(res->status, 400);
     EXPECT_NE(res->body.find("\"success\":false"), std::string::npos);
-    EXPECT_NE(res->body.find("\"message\":\"Failed to restore.\""), std::string::npos);
+    EXPECT_NE(res->body.find("\"error\":\"Failed to restore.\""), std::string::npos);
 }

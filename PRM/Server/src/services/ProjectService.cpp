@@ -1,6 +1,6 @@
 #include "services/ProjectService.h"
 #include "dto/DTOMapper.h"
-
+#include "exceptions/Exceptions.h"
 #include <unordered_set>
 
 ProjectService::ProjectService(std::shared_ptr<IProjectRepository> projectRepository,
@@ -16,12 +16,11 @@ bool ProjectService::isValidManager(int managerUserId) const
            manager.status == "ACTIVE";
 }
 
-bool ProjectService::createProject(const ProjectCreateRequest& req, std::string& message)
+void ProjectService::createProject(const ProjectCreateRequest& req)
 {
     if (!isValidManager(req.managerId))
     {
-        message = "Invalid manager id.";
-        return false;
+        throw exceptions::ValidationException("Invalid manager id.");
     }
 
     Project created;
@@ -34,12 +33,13 @@ bool ProjectService::createProject(const ProjectCreateRequest& req, std::string&
     created.healthStatus = req.healthStatus.empty() ? "ON_TRACK" : req.healthStatus;
     created.managerId = req.managerId;
 
-    const bool ok = projectRepository_->createProject(created);
-    message = ok ? "Project created." : "Failed to create project.";
-    return ok;
+    if (!projectRepository_->createProject(created))
+    {
+        throw exceptions::DatabaseException("Failed to create project.");
+    }
 }
 
-bool ProjectService::updateProject(const UpdateProjectRequest& req, std::string& message)
+void ProjectService::updateProject(const UpdateProjectRequest& req)
 {
     Project project;
     project.id = req.id;
@@ -54,13 +54,13 @@ bool ProjectService::updateProject(const UpdateProjectRequest& req, std::string&
 
     if (!isValidManager(project.managerId))
     {
-        message = "Invalid manager id.";
-        return false;
+        throw exceptions::ValidationException("Invalid manager id.");
     }
 
-    const bool ok = projectRepository_->updateProject(project);
-    message = ok ? "Project updated." : "Failed to update project.";
-    return ok;
+    if (!projectRepository_->updateProject(project))
+    {
+        throw exceptions::DatabaseException("Failed to update project.");
+    }
 }
 
 std::optional<ProjectResponse> ProjectService::getProjectById(int projectId)
@@ -80,7 +80,7 @@ std::vector<ProjectResponse> ProjectService::getManagerProjects(int managerUserI
     return DTOMapper::mapToProjectResponse(projectRepository_->getProjectsByManager(managerUserId));
 }
 
-bool ProjectService::addMilestone(const AddMilestoneRequest& req, std::string& message)
+void ProjectService::addMilestone(const AddMilestoneRequest& req)
 {
     Milestone createInput;
     createInput.projectId = req.projectId;
@@ -90,26 +90,30 @@ bool ProjectService::addMilestone(const AddMilestoneRequest& req, std::string& m
     createInput.status = req.status.empty() ? "NOT_STARTED" : req.status;
     createInput.healthFlag = req.healthFlag.empty() ? "NORMAL" : req.healthFlag;
 
+    std::string message;
     if (!projectValidator_.validateMilestoneStatus(createInput.status, message))
     {
-        return false;
+        throw exceptions::ValidationException(message);
     }
 
-    const bool ok = projectRepository_->addMilestone(createInput);
-    message = ok ? "Milestone added." : "Failed to add milestone.";
-    return ok;
+    if (!projectRepository_->addMilestone(createInput))
+    {
+        throw exceptions::DatabaseException("Failed to add milestone.");
+    }
 }
 
-bool ProjectService::updateMilestoneStatus(const UpdateMilestoneStatusRequest& req, std::string& message)
+void ProjectService::updateMilestoneStatus(const UpdateMilestoneStatusRequest& req)
 {
+    std::string message;
     if (!projectValidator_.validateMilestoneStatus(req.status, message))
     {
-        return false;
+        throw exceptions::ValidationException(message);
     }
 
-    const bool ok = projectRepository_->updateMilestoneStatus(req.milestoneId, req.status);
-    message = ok ? "Milestone updated." : "Failed to update milestone.";
-    return ok;
+    if (!projectRepository_->updateMilestoneStatus(req.milestoneId, req.status))
+    {
+        throw exceptions::DatabaseException("Failed to update milestone.");
+    }
 }
 
 std::vector<MilestoneResponse> ProjectService::getProjectMilestones(int projectId)
@@ -118,7 +122,10 @@ std::vector<MilestoneResponse> ProjectService::getProjectMilestones(int projectI
     return DTOMapper::mapToMilestoneResponse(milestones);
 }
 
-bool ProjectService::updateProjectHealth(int projectId, const std::string& health)
+void ProjectService::updateProjectHealth(int projectId, const std::string& health)
 {
-    return projectRepository_->updateProjectHealth(projectId, health);
+    if (!projectRepository_->updateProjectHealth(projectId, health))
+    {
+        throw exceptions::DatabaseException("Failed to update project health.");
+    }
 }

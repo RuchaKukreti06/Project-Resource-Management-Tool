@@ -6,6 +6,7 @@
 #include "services/NotificationService.h"
 #include "mocks/MockNotificationRepository.h"
 #include "mocks/MockUserRepository.h"
+#include "exceptions/Exceptions.h"
 
 using ::testing::_;
 using ::testing::Return;
@@ -28,10 +29,9 @@ protected:
 
 TEST_F(NotificationServiceTests, RestoreTimesheetAccess_InvalidInput_ReturnsFalse)
 {
-    std::string message;
-    bool result = service->restoreTimesheetAccess(-1, "2024-01-01", message);
-    EXPECT_FALSE(result);
-    EXPECT_EQ(message, "user_id and week_start_date are required.");
+    EXPECT_THROW({
+        service->restoreTimesheetAccess(-1, "2024-01-01");
+    }, exceptions::ValidationException);
 }
 
 TEST_F(NotificationServiceTests, RestoreTimesheetAccess_RepositoryFails_ReturnsFalse)
@@ -39,10 +39,9 @@ TEST_F(NotificationServiceTests, RestoreTimesheetAccess_RepositoryFails_ReturnsF
     EXPECT_CALL(*mockRepo, restoreTimesheetAccess(1, "2024-01-01"))
         .WillOnce(Return(false));
 
-    std::string message;
-    bool result = service->restoreTimesheetAccess(1, "2024-01-01", message);
-    EXPECT_FALSE(result);
-    EXPECT_EQ(message, "Failed to restore timesheet access.");
+    EXPECT_THROW({
+        service->restoreTimesheetAccess(1, "2024-01-01");
+    }, exceptions::DatabaseException);
 }
 
 TEST_F(NotificationServiceTests, RestoreTimesheetAccess_RepositorySucceeds_ReturnsTrue)
@@ -50,8 +49,7 @@ TEST_F(NotificationServiceTests, RestoreTimesheetAccess_RepositorySucceeds_Retur
     EXPECT_CALL(*mockRepo, restoreTimesheetAccess(1, "2024-01-01"))
         .WillOnce(Return(true));
 
-    std::string message;
-    bool result = service->restoreTimesheetAccess(1, "2024-01-01", message);
-    EXPECT_TRUE(result);
-    EXPECT_EQ(message, "Timesheet access restored.");
+    EXPECT_NO_THROW({
+        service->restoreTimesheetAccess(1, "2024-01-01");
+    });
 }

@@ -19,8 +19,7 @@ class NotificationService : public INotificationService
 
     void processMissedTimesheetNotifications(const std::string& weekStartDate,
                                              const std::vector<int>& missedUserIds) override;
-    bool restoreTimesheetAccess(int userId, const std::string& weekStartDate,
-                                std::string& message) override;
+    void restoreTimesheetAccess(int userId, const std::string& weekStartDate) override;
     bool isTimesheetAccessLocked(int userId) const override;
 
    private:

@@ -6,6 +6,7 @@
 #include <iomanip>
 #include <sstream>
 #include <stdexcept>
+#include "exceptions/Exceptions.h"
 
 AuthService::AuthService(std::shared_ptr<IUserRepository> repository,
                          std::shared_ptr<IPasswordHasher> passwordHasher,
@@ -20,24 +21,21 @@ AuthService::~AuthService()
 
 LoginResponse AuthService::login(const LoginRequest& req)
 {
-    LoginResponse response;
-    response.success = false;
-
     User user = repository_->getUserByUsername(req.username);
 
     if (user.username.empty() || !passwordHasher_->verifyPassword(req.password, user.passwordHash))
     {
-        response.message = "Invalid username or password.";
-        return response;
+        throw exceptions::AuthenticationException("Invalid username or password.");
     }
 
     if (user.status != "ACTIVE")
     {
-        response.message = "Account is not active.";
-        return response;
+        throw exceptions::AuthenticationException("Account is not active.");
     }
 
     const std::string token = tokenService_->generateToken(user);
+    
+    LoginResponse response;
     response.success = true;
     response.token   = token;
     response.userId  = user.id;
@@ -50,42 +48,35 @@ LoginResponse AuthService::login(const LoginRequest& req)
 
 RegisterResponse AuthService::registerUser(const RegisterRequest& req)
 {
-    RegisterResponse response;
-    response.success = false;
-
     std::string validationMessage;
     if (!userValidator_.validateUsername(req.username, validationMessage))
     {
-        response.message = validationMessage;
-        return response;
+        throw exceptions::ValidationException(validationMessage);
     }
 
-    if (repository_->getUserByUsername(req.username).username.empty())
+    if (!repository_->getUserByUsername(req.username).username.empty())
     {
-        User newUser;
-        newUser.username            = req.username;
-        newUser.passwordHash        = passwordHasher_->hashPassword(req.password);
-        newUser.role                = "EMPLOYEE";
-        newUser.email               = req.email;
-        newUser.fullName            = req.fullName;
-        newUser.isActive            = true;
-        newUser.status              = "ACTIVE";
-        newUser.forcePasswordChange = true;
+        throw exceptions::ConflictException("Username already exists.");
+    }
 
-        if (repository_->createUser(newUser))
-        {
-            response.success = true;
-            response.message = "Registration successful.";
-        }
-        else
-        {
-            response.message = "Failed to create user. Email may already be in use.";
-        }
-    }
-    else
+    User newUser;
+    newUser.username            = req.username;
+    newUser.passwordHash        = passwordHasher_->hashPassword(req.password);
+    newUser.role                = "EMPLOYEE";
+    newUser.email               = req.email;
+    newUser.fullName            = req.fullName;
+    newUser.isActive            = true;
+    newUser.status              = "ACTIVE";
+    newUser.forcePasswordChange = true;
+
+    if (!repository_->createUser(newUser))
     {
-        response.message = "Username already exists.";
+        throw exceptions::DatabaseException("Failed to create user. Email may already be in use.");
     }
+    
+    RegisterResponse response;
+    response.success = true;
+    response.message = "Registration successful.";
     return response;
 }
 
@@ -104,9 +95,14 @@ bool AuthService::changePassword(const ResetPasswordRequest& req)
     const std::string newHash = passwordHasher_->hashPassword(req.newPassword);
     if (!repository_->updatePassword(req.userId, newHash))
     {
-        return false;
+        throw exceptions::NotFoundException("Failed to change password. User not found.");
     }
-    return repository_->setForcePasswordChange(req.userId, false);
+    
+    if (!repository_->setForcePasswordChange(req.userId, false))
+    {
+        throw exceptions::DatabaseException("Failed to update password force change status.");
+    }
+    return true;
 }
 
 bool AuthService::validateToken(const std::string& token) const

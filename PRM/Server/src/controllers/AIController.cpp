@@ -3,6 +3,7 @@
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 #include "utils/ConfigLoader.h"
+#include "exceptions/Exceptions.h"
 
 namespace
 {
@@ -63,126 +64,90 @@ void AIController::registerRoutes(httplib::Server& server)
 
 void AIController::handleSkillMatch(const httplib::Request& req, httplib::Response& res)
 {
-    try
+    const auto body        = nlohmann::json::parse(req.body);
+    const auto requirement = body.at("requirement").get<std::string>();
+
+    auto cfg = configRepo_->getConfig();
+    const auto apiKey  = cfg.llmApiKey;
+    const auto provider = cfg.llmProvider;
+    const int maxHrs   = cfg.maxWeeklyHours;
+
+    const std::string result = aiService_->skillMatch(requirement, maxHrs, apiKey, provider);
+
+    if (result.empty())
     {
-        const auto body        = nlohmann::json::parse(req.body);
-        const auto requirement = body.at("requirement").get<std::string>();
-
-        auto cfg = configRepo_->getConfig();
-        const auto apiKey  = cfg.llmApiKey;
-        const auto provider = cfg.llmProvider;
-        const int maxHrs   = cfg.maxWeeklyHours;
-
-        const std::string result = aiService_->skillMatch(requirement, maxHrs, apiKey, provider);
-
-        if (result.empty())
-        {
-            spdlog::error("AI skill-match: LLM returned empty response (check API key/provider)");
-            res.status = 500;
-            res.set_content(makeResponse(false, "AI service returned no response. Please verify the API key in System Configuration.").dump(),
-                            "application/json");
-            return;
-        }
-
-        nlohmann::json parsed = parseLLMResponse(result);
-
-        res.status = 200;
-        res.set_content(nlohmann::json({{"success", true}, {"data", parsed}}).dump(),
-                        "application/json");
+        spdlog::error("AI skill-match: LLM returned empty response (check API key/provider)");
+        throw exceptions::AppException("AI service returned no response. Please verify the API key in System Configuration.");
     }
-    catch (const std::exception& e)
-    {
-        spdlog::error("AI skill-match failed: {}", e.what());
-        res.status = 500;
-        res.set_content(makeResponse(false, e.what()).dump(), "application/json");
-    }
+
+    nlohmann::json parsed = parseLLMResponse(result);
+
+    res.status = 200;
+    res.set_content(nlohmann::json({{"success", true}, {"data", parsed}}).dump(),
+                    "application/json");
 }
 
 void AIController::handleRiskSummary(const httplib::Request& req, httplib::Response& res)
 {
-    try
+    const auto body      = nlohmann::json::parse(req.body);
+    const int  projectId = body.at("project_id").get<int>();
+    const auto today     = body.value("today_date", std::string(""));
+
+    auto cfg = configRepo_->getConfig();
+    const auto apiKey  = cfg.llmApiKey;
+    const auto provider = cfg.llmProvider;
+
+    // Compute today's date if not provided
+    std::string effectiveDate = today;
+    if (effectiveDate.empty())
     {
-        const auto body      = nlohmann::json::parse(req.body);
-        const int  projectId = body.at("project_id").get<int>();
-        const auto today     = body.value("today_date", std::string(""));
-
-        auto cfg = configRepo_->getConfig();
-        const auto apiKey  = cfg.llmApiKey;
-        const auto provider = cfg.llmProvider;
-
-        // Compute today's date if not provided
-        std::string effectiveDate = today;
-        if (effectiveDate.empty())
-        {
-            std::time_t now = std::time(nullptr);
-            std::tm tm      = {};
+        std::time_t now = std::time(nullptr);
+        std::tm tm      = {};
 #ifdef _WIN32
-            localtime_s(&tm, &now);
+        localtime_s(&tm, &now);
 #else
-            tm = *std::localtime(&now);
+        tm = *std::localtime(&now);
 #endif
-            char buf[11] = {};
-            std::strftime(buf, sizeof(buf), "%Y-%m-%d", &tm);
-            effectiveDate = buf;
-        }
-
-        const std::string summary =
-            aiService_->riskSummary(projectId, effectiveDate, apiKey, provider);
-
-        if (summary.empty())
-        {
-            spdlog::error("AI risk-summary: LLM returned empty response (check API key/provider)");
-            res.status = 500;
-            res.set_content(makeResponse(false, "AI service returned no response. Please verify the API key in System Configuration.").dump(),
-                            "application/json");
-            return;
-        }
-
-        res.status = 200;
-        res.set_content(
-            nlohmann::json({{"success", true}, {"data", {{"summary", summary}}}}).dump(),
-            "application/json");
+        char buf[11] = {};
+        std::strftime(buf, sizeof(buf), "%Y-%m-%d", &tm);
+        effectiveDate = buf;
     }
-    catch (const std::exception& e)
+
+    const std::string summary =
+        aiService_->riskSummary(projectId, effectiveDate, apiKey, provider);
+
+    if (summary.empty())
     {
-        spdlog::error("AI risk-summary failed: {}", e.what());
-        res.status = 500;
-        res.set_content(makeResponse(false, e.what()).dump(), "application/json");
+        spdlog::error("AI risk-summary: LLM returned empty response (check API key/provider)");
+        throw exceptions::AppException("AI service returned no response. Please verify the API key in System Configuration.");
     }
+
+    res.status = 200;
+    res.set_content(
+        nlohmann::json({{"success", true}, {"data", {{"summary", summary}}}}).dump(),
+        "application/json");
 }
 
 void AIController::handleTeamBuilder(const httplib::Request& req, httplib::Response& res)
 {
-    try
+    const auto body        = nlohmann::json::parse(req.body);
+    const auto requirement = body.at("requirement").get<std::string>();
+
+    auto cfg = configRepo_->getConfig();
+    const auto apiKey  = cfg.llmApiKey;
+    const auto provider = cfg.llmProvider;
+
+    const std::string result = aiService_->teamBuilder(requirement, apiKey, provider);
+
+    if (result.empty())
     {
-        const auto body        = nlohmann::json::parse(req.body);
-        const auto requirement = body.at("requirement").get<std::string>();
-
-        auto cfg = configRepo_->getConfig();
-        const auto apiKey  = cfg.llmApiKey;
-        const auto provider = cfg.llmProvider;
-
-        const std::string result = aiService_->teamBuilder(requirement, apiKey, provider);
-
-        if (result.empty())
-        {
-            spdlog::error("AI team-builder: LLM returned empty response");
-            res.status = 500;
-            res.set_content(makeResponse(false, "AI service returned no response. Please verify the API key in System Configuration.").dump(),
-                            "application/json");
-            return;
-        }
-
-        nlohmann::json parsed = parseLLMResponse(result);
-
-        res.status = 200;
-        res.set_content(nlohmann::json({{"success", true}, {"data", parsed}}).dump(),
-                        "application/json");
+        spdlog::error("AI team-builder: LLM returned empty response");
+        throw exceptions::AppException("AI service returned no response. Please verify the API key in System Configuration.");
     }
-    catch (const std::exception& e)
-    {
-        spdlog::error("AI team-builder failed: {}", e.what());
-        res.status = 500;
-        res.set_content(makeResponse(false, e.what()).dump(), "application/json");
-    }
+
+    nlohmann::json parsed = parseLLMResponse(result);
+
+    res.status = 200;
+    res.set_content(nlohmann::json({{"success", true}, {"data", parsed}}).dump(),
+                    "application/json");
 }

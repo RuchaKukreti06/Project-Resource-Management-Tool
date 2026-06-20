@@ -11,8 +11,8 @@
 class IAllocationService {
 public:
     virtual ~IAllocationService() = default;
-    virtual bool createAllocation(const AllocationCreateRequest& req, int createdByUserId, std::string& message) = 0;
-    virtual bool endAllocation(const EndAllocationRequest& req, std::string& message) = 0;
+    virtual void createAllocation(const AllocationCreateRequest& req, int createdByUserId) = 0;
+    virtual void endAllocation(const EndAllocationRequest& req) = 0;
     virtual std::vector<AllocationResponse> getProjectAllocations(int projectId) = 0;
-    virtual bool recomputeEmployeeStatus(int employeeId, const std::string& todayDate) = 0;
+    virtual void recomputeEmployeeStatus(int employeeId, const std::string& todayDate) = 0;
 };

@@ -15,14 +15,14 @@
 class IEmployeeService {
 public:
     virtual ~IEmployeeService() = default;
-    virtual bool createEmployeeProfile(const EmployeeCreateRequest& req, std::string& message) = 0;
-    virtual bool updateEmployeeProfile(const Employee& employee, std::string& message) = 0;
-    virtual bool deactivateEmployee(int employeeId, const std::string& todayDate, std::string& message) = 0;
+    virtual void createEmployeeProfile(const EmployeeCreateRequest& req) = 0;
+    virtual void updateEmployeeProfile(const Employee& employee) = 0;
+    virtual void deactivateEmployee(int employeeId, const std::string& todayDate) = 0;
     virtual std::vector<EmployeeResponse> getAllEmployees() = 0;
     virtual std::vector<EmployeeResponse> getTeamEmployees(int managerUserId) = 0;
     virtual std::optional<Employee> getEmployeeById(int employeeId) = 0;
-    virtual bool addSkill(const AddSkillRequest& req, std::string& message) = 0;
-    virtual bool updateSkill(const UpdateSkillRequest& req, std::string& message) = 0;
-    virtual bool removeSkill(int employeeId, int skillId, std::string& message) = 0;
+    virtual void addSkill(const AddSkillRequest& req) = 0;
+    virtual void updateSkill(const UpdateSkillRequest& req) = 0;
+    virtual void removeSkill(int employeeId, int skillId) = 0;
     virtual std::vector<EmployeeSkillResponse> getSkills(int employeeId) = 0;
 };

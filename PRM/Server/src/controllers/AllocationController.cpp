@@ -31,74 +31,44 @@ void AllocationController::registerRoutes(httplib::Server& server)
 void AllocationController::handleCreateAllocation(const httplib::Request& req,
                                                   httplib::Response& res)
 {
-    try
-    {
-        const auto body = nlohmann::json::parse(req.body);
-        AllocationCreateRequest request;
-        request.employeeId = body.at("employee_id").get<int>();
-        request.projectId = body.at("project_id").get<int>();
-        request.utilizationPercentage = body.at("utilization_percentage").get<int>();
-        request.fromDate = body.at("from_date").get<std::string>();
-        request.toDate = body.at("to_date").get<std::string>();
+    const auto body = nlohmann::json::parse(req.body);
+    AllocationCreateRequest request;
+    request.employeeId = body.at("employee_id").get<int>();
+    request.projectId = body.at("project_id").get<int>();
+    request.utilizationPercentage = body.at("utilization_percentage").get<int>();
+    request.fromDate = body.at("from_date").get<std::string>();
+    request.toDate = body.at("to_date").get<std::string>();
 
-        std::string message;
-        const bool ok =
-            allocationService_.createAllocation(request, /*createdByUserId=*/0, message);
+    allocationService_.createAllocation(request, /*createdByUserId=*/0);
 
-        res.status = ok ? 201 : 400;
-        res.set_content(nlohmann::json({{"success", ok}, {"message", message}}).dump(),
-                        "application/json");
-    }
-    catch (const std::exception& e)
-    {
-        res.status = 400;
-        res.set_content(nlohmann::json({{"success", false}, {"message", e.what()}}).dump(),
-                        "application/json");
-    }
+    res.status = 201;
+    res.set_content(nlohmann::json({{"success", true}, {"message", "Allocation created."}}).dump(),
+                    "application/json");
 }
 
 void AllocationController::handleEndAllocation(const httplib::Request& req, httplib::Response& res)
 {
-    try
-    {
-        const auto body = nlohmann::json::parse(req.body);
-        EndAllocationRequest request;
-        request.allocationId = std::stoi(req.matches[1]);
-        request.endDate = body.at("end_date").get<std::string>();
+    const auto body = nlohmann::json::parse(req.body);
+    EndAllocationRequest request;
+    request.allocationId = std::stoi(req.matches[1]);
+    request.endDate = body.at("end_date").get<std::string>();
 
-        std::string message;
-        const bool ok = allocationService_.endAllocation(request, message);
+    allocationService_.endAllocation(request);
 
-        res.status = ok ? 200 : 400;
-        res.set_content(nlohmann::json({{"success", ok}, {"message", message}}).dump(),
-                        "application/json");
-    }
-    catch (const std::exception& e)
-    {
-        res.status = 400;
-        res.set_content(nlohmann::json({{"success", false}, {"message", e.what()}}).dump(),
-                        "application/json");
-    }
+    res.status = 200;
+    res.set_content(nlohmann::json({{"success", true}, {"message", "Allocation ended."}}).dump(),
+                    "application/json");
 }
 
 void AllocationController::handleGetProjectAllocations(const httplib::Request& req,
                                                        httplib::Response& res)
 {
-    try
-    {
-        const int projectId = std::stoi(req.matches[1]);
-        const auto allocations = allocationService_.getProjectAllocations(projectId);
+    const int projectId = std::stoi(req.matches[1]);
+    const auto allocations = allocationService_.getProjectAllocations(projectId);
 
-        nlohmann::json response;
-        response["success"] = true;
-        response["data"] = allocations;
-        res.status = 200;
-        res.set_content(response.dump(), "application/json");
-    }
-    catch (const std::exception& e)
-    {
-        res.status = 400;
-        res.set_content(nlohmann::json({{"success", false}, {"message", e.what()}}).dump(),
-                        "application/json");
-    }
+    nlohmann::json response;
+    response["success"] = true;
+    response["data"] = allocations;
+    res.status = 200;
+    res.set_content(response.dump(), "application/json");
 }

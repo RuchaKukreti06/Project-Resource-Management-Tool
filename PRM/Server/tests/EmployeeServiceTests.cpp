@@ -37,18 +37,16 @@ TEST_F(EmployeeServiceTests, GetTeamEmployees_ReturnsEmployees)
 
 TEST_F(EmployeeServiceTests, AddSkill_Success)
 {
-    std::string message;
-    bool result = employeeService->addSkill({1, "C++", "BACKEND", "INTERMEDIATE"}, message);
-    EXPECT_TRUE(result);
-    EXPECT_EQ(message, "Skill added.");
+    EXPECT_NO_THROW({
+        employeeService->addSkill({1, "C++", "BACKEND", "INTERMEDIATE"});
+    });
 }
 
 TEST_F(EmployeeServiceTests, RemoveSkill_Success)
 {
-    std::string message;
-    bool result = employeeService->removeSkill(1, 10, message);
-    EXPECT_TRUE(result);
-    EXPECT_EQ(message, "Skill removed.");
+    EXPECT_NO_THROW({
+        employeeService->removeSkill(1, 10);
+    });
 }
 
 TEST_F(EmployeeServiceTests, GetEmployeeById_ValidId_ReturnsEmployee)

@@ -1,6 +1,6 @@
 #include "services/AllocationService.h"
 #include "dto/DTOMapper.h"
-
+#include "exceptions/Exceptions.h"
 #include "utils/DateUtils.h"
 
 AllocationService::AllocationService(std::shared_ptr<IAllocationRepository> allocationRepository,
@@ -17,8 +17,7 @@ bool AllocationService::isProjectAllocatable(const Project& project) const
     return project.status == "ACTIVE" || project.status == "PLANNED";
 }
 
-bool AllocationService::createAllocation(const AllocationCreateRequest& req, int createdByUserId,
-                                         std::string& message)
+void AllocationService::createAllocation(const AllocationCreateRequest& req, int createdByUserId)
 {
     Allocation allocation;
     allocation.employeeId = req.employeeId;
@@ -27,23 +26,22 @@ bool AllocationService::createAllocation(const AllocationCreateRequest& req, int
     allocation.fromDate = req.fromDate;
     allocation.toDate = req.toDate;
 
+    std::string message;
     if (!allocationValidator_.validateCreate(allocation, message))
     {
-        return false;
+        throw exceptions::ValidationException(message);
     }
 
     const auto employee = employeeRepository_->getEmployeeById(allocation.employeeId);
     if (employee.id == 0 || !employee.isActive)
     {
-        message = "Employee not active or not found.";
-        return false;
+        throw exceptions::ValidationException("Employee not active or not found.");
     }
 
     const auto project = projectRepository_->getProjectById(allocation.projectId);
     if (project.id == 0 || !isProjectAllocatable(project))
     {
-        message = "Project not found or not allocatable.";
-        return false;
+        throw exceptions::ValidationException("Project not found or not allocatable.");
     }
 
     const int overlapUtilization = allocationRepository_->getOverlappingUtilization(
@@ -51,27 +49,25 @@ bool AllocationService::createAllocation(const AllocationCreateRequest& req, int
 
     if (overlapUtilization + allocation.utilizationPercentage > 100)
     {
-        message = "Total utilization exceeds 100% in overlapping date range.";
-        return false;
+        throw exceptions::ValidationException("Total utilization exceeds 100% in overlapping date range.");
     }
 
     const bool created = allocationRepository_->createAllocation(allocation, createdByUserId);
     if (!created)
     {
-        message = "Failed to create allocation.";
-        return false;
+        throw exceptions::DatabaseException("Failed to create allocation.");
     }
 
     recomputeEmployeeStatus(allocation.employeeId, allocation.fromDate);
-    message = "Allocation created.";
-    return true;
 }
 
-bool AllocationService::endAllocation(const EndAllocationRequest& req, std::string& message)
+void AllocationService::endAllocation(const EndAllocationRequest& req)
 {
     const bool ended = allocationRepository_->endAllocation(req.allocationId, req.endDate);
-    message = ended ? "Allocation ended." : "Failed to end allocation.";
-    return ended;
+    if (!ended)
+    {
+        throw exceptions::DatabaseException("Failed to end allocation.");
+    }
 }
 
 std::vector<AllocationResponse> AllocationService::getProjectAllocations(int projectId)
@@ -79,10 +75,13 @@ std::vector<AllocationResponse> AllocationService::getProjectAllocations(int pro
     return DTOMapper::mapToAllocationResponse(allocationRepository_->getActiveAllocationsByProject(projectId));
 }
 
-bool AllocationService::recomputeEmployeeStatus(int employeeId, const std::string& todayDate)
+void AllocationService::recomputeEmployeeStatus(int employeeId, const std::string& todayDate)
 {
     const std::string effectiveDate = todayDate.empty() ? utils::currentDateIso() : todayDate;
     const int utilization = allocationRepository_->getCurrentUtilization(employeeId, effectiveDate);
-    return employeeRepository_->setEmployeeStatus(employeeId,
-                                                  utilization > 0 ? "ALLOCATED" : "BENCH");
+    if (!employeeRepository_->setEmployeeStatus(employeeId,
+                                                utilization > 0 ? "ALLOCATED" : "BENCH"))
+    {
+        throw exceptions::DatabaseException("Failed to set employee status.");
+    }
 }

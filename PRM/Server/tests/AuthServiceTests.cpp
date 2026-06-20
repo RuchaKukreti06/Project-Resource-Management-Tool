@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "AuthService.h"
+#include "exceptions/Exceptions.h"
 #include "AuthConfig.h"
 #include "IUserRepository.h"
 #include "MockUserRepository.h"
@@ -43,9 +44,9 @@ TEST_F(AuthServiceTest, RegisterNewUser_Succeeds)
 TEST_F(AuthServiceTest, RegisterDuplicateUser_Fails)
 {
     auth_->registerUser({"alice", "Password123", "alice@example.com", "Alice Smith"});
-    auto duplicate = auth_->registerUser({"alice", "Password123", "alice2@example.com", "Alice Smith"});
-    EXPECT_FALSE(duplicate.success);
-    EXPECT_EQ(duplicate.message, "Username already exists.");
+    EXPECT_THROW({
+        auth_->registerUser({"alice", "Password123", "alice2@example.com", "Alice Smith"});
+    }, exceptions::ConflictException);
 }
 
 // ─────────────────────────────────────────────
@@ -55,18 +56,18 @@ TEST_F(AuthServiceTest, RegisterDuplicateUser_Fails)
 TEST_F(AuthServiceTest, Login_UnknownUser_Fails)
 {
     LoginRequest req; req.username = "nobody"; req.password = "Secret1";
-    auto result = auth_->login(req);
-    EXPECT_FALSE(result.success);
-    EXPECT_EQ(result.message, "Invalid username or password.");
+    EXPECT_THROW({
+        auth_->login(req);
+    }, exceptions::AuthenticationException);
 }
 
 TEST_F(AuthServiceTest, Login_WrongPassword_Fails)
 {
     auth_->registerUser({"bob", "Secret1", "bob@example.com", "Bob Jones"});
     LoginRequest req; req.username = "bob"; req.password = "WrongSecret";
-    auto result = auth_->login(req);
-    EXPECT_FALSE(result.success);
-    EXPECT_EQ(result.message, "Invalid username or password.");
+    EXPECT_THROW({
+        auth_->login(req);
+    }, exceptions::AuthenticationException);
 }
 
 TEST_F(AuthServiceTest, Login_InactiveAccount_Fails)
@@ -78,9 +79,9 @@ TEST_F(AuthServiceTest, Login_InactiveAccount_Fails)
     repo_->updateUser(inactive);
 
     LoginRequest req; req.username = "carol"; req.password = "Secret1";
-    auto result = auth_->login(req);
-    EXPECT_FALSE(result.success);
-    EXPECT_EQ(result.message, "Account is not active.");
+    EXPECT_THROW({
+        auth_->login(req);
+    }, exceptions::AuthenticationException);
 }
 
 TEST_F(AuthServiceTest, ChangePassword_UpdatesStoredHash)
