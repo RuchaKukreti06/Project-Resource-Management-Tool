@@ -2,16 +2,20 @@
 
 #include <vector>
 #include <string>
-#include "models/Timesheet.h"
+#include <vector>
+
+#include "dto/request/SubmitTimesheetRequest.h"
+#include "dto/response/TimesheetResponse.h"
+#include "dto/response/TeamTimesheetResponse.h"
+#include "dto/response/TimesheetDetailResponse.h"
 #include "repositories/ITimesheetRepository.h"
 
 class ITimesheetService {
 public:
     virtual ~ITimesheetService() = default;
-    virtual bool submitTimesheet(int employeeId, const std::string& weekStartDate,
-                                 const std::vector<TimesheetLineInput>& lines, int maxWeeklyHours, std::string& message) = 0;
-    virtual std::vector<Timesheet> getEmployeeTimesheets(int employeeId) = 0;
-    virtual std::vector<TeamTimesheetRow> getTeamTimesheets(int managerUserId, const std::string& weekStartDate) = 0;
-    virtual std::vector<TimesheetDetailRow> getTimesheetDetails(int timesheetId) = 0;
+    virtual bool submitTimesheet(const SubmitTimesheetRequest& req, std::string& message) = 0;
+    virtual std::vector<TimesheetResponse> getEmployeeTimesheets(int employeeId) = 0;
+    virtual std::vector<TeamTimesheetResponse> getTeamTimesheets(int managerUserId, const std::string& weekStartDate) = 0;
+    virtual std::vector<TimesheetDetailResponse> getTimesheetDetails(int timesheetId) = 0;
     virtual std::vector<int> getMissedTimesheetEmployeeIds(const std::string& weekStartDate) = 0;
 };

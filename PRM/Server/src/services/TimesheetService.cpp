@@ -1,4 +1,5 @@
 #include "services/TimesheetService.h"
+#include "dto/DTOMapper.h"
 
 #include <cstdio>
 #include <ctime>
@@ -37,16 +38,24 @@ std::string TimesheetService::computeWeekEndDate(const std::string& weekStartDat
     return buffer;
 }
 
-bool TimesheetService::submitTimesheet(int employeeId, const std::string& weekStartDate,
-                                       const std::vector<TimesheetLineInput>& lines,
-                                       int maxWeeklyHours, std::string& message)
+bool TimesheetService::submitTimesheet(const SubmitTimesheetRequest& req, std::string& message)
 {
-    if (!timesheetValidator_.validateSubmit(employeeId, weekStartDate, lines, maxWeeklyHours, message))
+    std::vector<TimesheetLineInput> lines;
+    for (const auto& dtoLine : req.lines)
+    {
+        TimesheetLineInput input;
+        input.projectId = dtoLine.projectId;
+        input.hoursWorked = dtoLine.hoursWorked;
+        input.tags = dtoLine.tags;
+        lines.push_back(input);
+    }
+
+    if (!timesheetValidator_.validateSubmit(req.employeeId, req.weekStartDate, lines, req.maxWeeklyHours, message))
     {
         return false;
     }
 
-    const auto employee = employeeRepository_->getEmployeeById(employeeId);
+    const auto employee = employeeRepository_->getEmployeeById(req.employeeId);
     if (employee.id == 0 || !employee.isActive)
     {
         message = "Employee not found or inactive.";
@@ -60,15 +69,15 @@ bool TimesheetService::submitTimesheet(int employeeId, const std::string& weekSt
         return false;
     }
 
-    if (timesheetRepository_->existsTimesheetForWeek(employeeId, weekStartDate))
+    if (timesheetRepository_->existsTimesheetForWeek(req.employeeId, req.weekStartDate))
     {
         message = "Timesheet already exists for this week.";
         return false;
     }
 
-    const std::string weekEndDate = computeWeekEndDate(weekStartDate);
+    const std::string weekEndDate = computeWeekEndDate(req.weekStartDate);
     const auto allocations =
-        timesheetRepository_->getActiveAllocationsForWeek(employeeId, weekStartDate, weekEndDate);
+        timesheetRepository_->getActiveAllocationsForWeek(req.employeeId, req.weekStartDate, weekEndDate);
 
     if (allocations.empty())
     {
@@ -79,7 +88,7 @@ bool TimesheetService::submitTimesheet(int employeeId, const std::string& weekSt
     std::unordered_map<int, int> maxProjectHours;
     for (const auto& allocation : allocations)
     {
-        const int allowed = (allocation.utilizationPercentage * maxWeeklyHours) / 100;
+        const int allowed = (allocation.utilizationPercentage * req.maxWeeklyHours) / 100;
         const auto found  = maxProjectHours.find(allocation.projectId);
         if (found == maxProjectHours.end() || found->second < allowed)
         {
@@ -106,31 +115,33 @@ bool TimesheetService::submitTimesheet(int employeeId, const std::string& weekSt
         total += line.hoursWorked;
     }
 
-    if (total > maxWeeklyHours)
+    if (total > req.maxWeeklyHours)
     {
         message = "Total hours exceed weekly maximum.";
         return false;
     }
 
-    const bool ok = timesheetRepository_->createTimesheetWithLines(employeeId, weekStartDate, lines);
+    const bool ok = timesheetRepository_->createTimesheetWithLines(req.employeeId, req.weekStartDate, lines);
     message = ok ? "Timesheet submitted." : "Failed to submit timesheet.";
     return ok;
 }
 
-std::vector<Timesheet> TimesheetService::getEmployeeTimesheets(int employeeId)
+std::vector<TimesheetResponse> TimesheetService::getEmployeeTimesheets(int employeeId)
 {
-    return timesheetRepository_->getTimesheetsByEmployee(employeeId);
+    return DTOMapper::mapToTimesheetResponse(timesheetRepository_->getTimesheetsByEmployee(employeeId));
 }
 
-std::vector<TeamTimesheetRow> TimesheetService::getTeamTimesheets(int managerUserId,
-                                                                   const std::string& weekStartDate)
+std::vector<TeamTimesheetResponse> TimesheetService::getTeamTimesheets(int managerUserId,
+                                                                 const std::string& weekStartDate)
 {
-    return timesheetRepository_->getTeamTimesheets(managerUserId, weekStartDate);
+    auto rows = timesheetRepository_->getTeamTimesheets(managerUserId, weekStartDate);
+    return DTOMapper::mapToTeamTimesheetResponse(rows);
 }
 
-std::vector<TimesheetDetailRow> TimesheetService::getTimesheetDetails(int timesheetId)
+std::vector<TimesheetDetailResponse> TimesheetService::getTimesheetDetails(int timesheetId)
 {
-    return timesheetRepository_->getTimesheetDetails(timesheetId);
+    auto details = timesheetRepository_->getTimesheetDetails(timesheetId);
+    return DTOMapper::mapToTimesheetDetailResponse(details);
 }
 
 std::vector<int> TimesheetService::getMissedTimesheetEmployeeIds(const std::string& weekStartDate)

@@ -36,8 +36,8 @@ TEST_F(TimesheetServiceTests, SubmitTimesheet_AlreadyExists_Fails)
     EXPECT_CALL(*mockTimesheetRepo, existsTimesheetForWeek(1, "2024-01-01")).WillOnce(Return(true));
 
     std::string message;
-    std::vector<TimesheetLineInput> lines = { {1, 40, {"tag"}} };
-    bool result = timesheetService->submitTimesheet(1, "2024-01-01", lines, 40, message);
+    SubmitTimesheetRequest req{1, "2024-01-01", { {1, 40, {"tag"}} }, 40};
+    bool result = timesheetService->submitTimesheet(req, message);
     EXPECT_FALSE(result);
     EXPECT_EQ(message, "Timesheet already exists for this week.");
 }
@@ -53,8 +53,8 @@ TEST_F(TimesheetServiceTests, SubmitTimesheet_ExceedsMaxHours_Fails)
     EXPECT_CALL(*mockTimesheetRepo, getActiveAllocationsForWeek(1, "2024-01-01", _)).WillOnce(Return(allocs));
 
     std::string message;
-    std::vector<TimesheetLineInput> lines = { {1, 50, {"tag"}} };
-    bool result = timesheetService->submitTimesheet(1, "2024-01-01", lines, 40, message);
+    SubmitTimesheetRequest req{1, "2024-01-01", { {1, 50, {"tag"}} }, 40};
+    bool result = timesheetService->submitTimesheet(req, message);
     EXPECT_FALSE(result);
     EXPECT_EQ(message, "Project hours exceed allowed allocation limit.");
 }
@@ -72,8 +72,8 @@ TEST_F(TimesheetServiceTests, SubmitTimesheet_Success)
     EXPECT_CALL(*mockTimesheetRepo, createTimesheetWithLines(1, "2024-01-01", _)).WillOnce(Return(true));
 
     std::string message;
-    std::vector<TimesheetLineInput> lines = { {1, 40, {"tag"}} };
-    bool result = timesheetService->submitTimesheet(1, "2024-01-01", lines, 40, message);
+    SubmitTimesheetRequest req{1, "2024-01-01", { {1, 40, {"tag"}} }, 40};
+    bool result = timesheetService->submitTimesheet(req, message);
     EXPECT_TRUE(result);
     EXPECT_EQ(message, "Timesheet submitted.");
 }

@@ -26,24 +26,24 @@ TEST_F(ProjectServiceTests, CreateProject_ValidManager_Success)
     User mockManager; mockManager.id = 1; mockManager.username = "manager"; mockManager.role = "MANAGER"; mockManager.status = "ACTIVE"; mockManager.isActive = true;
     mockUserRepo->createUser(mockManager);
 
-    Project p;
-    p.managerId = 1;
-    p.name = "Test Project";
-    
+    ProjectCreateRequest req;
+    req.name = "Project Alpha";
+    req.managerId = 1;
+    req.status = "PLANNED";
     std::string message;
-    bool result = projectService->createProject(p, message);
+    bool result = projectService->createProject(req, message);
     EXPECT_TRUE(result);
     EXPECT_EQ(message, "Project created.");
 }
 
 TEST_F(ProjectServiceTests, CreateProject_InvalidManager_Fails)
 {
-    Project p;
-    p.managerId = 2; // User doesn't exist
-    p.name = "Test Project";
+    ProjectCreateRequest req;
+    req.managerId = 2; // User doesn't exist
+    req.name = "Test Project";
 
     std::string message;
-    bool result = projectService->createProject(p, message);
+    bool result = projectService->createProject(req, message);
     EXPECT_FALSE(result);
     EXPECT_EQ(message, "Invalid manager id.");
 }
@@ -61,7 +61,7 @@ TEST_F(ProjectServiceTests, GetAllProjects_ReturnsList)
 
 TEST_F(ProjectServiceTests, AddMilestone_Success)
 {
-    Milestone m;
+    AddMilestoneRequest m;
     m.projectId = 1;
     m.title = "Milestone 1";
     

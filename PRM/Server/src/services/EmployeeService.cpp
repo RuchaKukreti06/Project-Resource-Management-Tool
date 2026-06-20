@@ -1,4 +1,5 @@
 #include "services/EmployeeService.h"
+#include "dto/DTOMapper.h"
 
 #include "utils/DateUtils.h"
 
@@ -11,13 +12,9 @@ EmployeeService::EmployeeService(std::shared_ptr<IEmployeeRepository> employeeRe
 {
 }
 
-bool EmployeeService::createEmployeeProfile(int userId, const std::string& fullName,
-                                            const std::string& email,
-                                            const std::string& department,
-                                            const std::string& designation,
-                                            std::string& message)
+bool EmployeeService::createEmployeeProfile(const EmployeeCreateRequest& req, std::string& message)
 {
-    const User user = userRepository_->getUserById(userId);
+    const User user = userRepository_->getUserById(req.userId);
     if (user.id == 0)
     {
         message = "User ID not found.";
@@ -30,18 +27,18 @@ bool EmployeeService::createEmployeeProfile(int userId, const std::string& fullN
         return false;
     }
 
-    if (employeeRepository_->getEmployeeByUserId(userId).id != 0)
+    if (employeeRepository_->getEmployeeByUserId(req.userId).id != 0)
     {
         message = "Profile already linked to this user ID.";
         return false;
     }
 
     Employee employee;
-    employee.user_id     = userId;
-    employee.fullName    = fullName;
-    employee.email       = email;
-    employee.department  = department;
-    employee.designation = designation;
+    employee.user_id     = req.userId;
+    employee.fullName    = req.fullName;
+    employee.email       = req.email;
+    employee.department  = req.department;
+    employee.designation = req.designation;
     employee.status      = "BENCH";
     employee.isActive    = true;
 
@@ -97,14 +94,14 @@ bool EmployeeService::deactivateEmployee(int employeeId, const std::string& toda
     return true;
 }
 
-std::vector<Employee> EmployeeService::getAllEmployees()
+std::vector<EmployeeResponse> EmployeeService::getAllEmployees()
 {
-    return employeeRepository_->getAllEmployees();
+    return DTOMapper::mapToEmployeeResponse(employeeRepository_->getAllEmployees());
 }
 
-std::vector<Employee> EmployeeService::getTeamEmployees(int managerUserId)
+std::vector<EmployeeResponse> EmployeeService::getTeamEmployees(int managerUserId)
 {
-    return employeeRepository_->getEmployeesByManager(managerUserId);
+    return DTOMapper::mapToEmployeeResponse(employeeRepository_->getEmployeesByManager(managerUserId));
 }
 
 std::optional<Employee> EmployeeService::getEmployeeById(int employeeId)
@@ -117,31 +114,28 @@ std::optional<Employee> EmployeeService::getEmployeeById(int employeeId)
     return employee;
 }
 
-bool EmployeeService::addSkill(int employeeId, const std::string& skillName,
-                               const std::string& category, const std::string& proficiency,
-                               std::string& message)
+bool EmployeeService::addSkill(const AddSkillRequest& req, std::string& message)
 {
-    if (!employeeValidator_.validateSkill(category, proficiency, message))
+    if (!employeeValidator_.validateSkill(req.category, req.proficiency, message))
     {
         return false;
     }
 
-    const int skillId = employeeRepository_->ensureSkill(skillName, category);
+    const int skillId = employeeRepository_->ensureSkill(req.skillName, req.category);
     if (skillId <= 0)
     {
         message = "Could not create/find skill.";
         return false;
     }
 
-    const bool ok = employeeRepository_->addEmployeeSkill(employeeId, skillId, proficiency);
+    const bool ok = employeeRepository_->addEmployeeSkill(req.employeeId, skillId, req.proficiency);
     message = ok ? "Skill added." : "Failed to add skill.";
     return ok;
 }
 
-bool EmployeeService::updateSkill(int employeeId, int skillId, const std::string& proficiency,
-                                  std::string& message)
+bool EmployeeService::updateSkill(const UpdateSkillRequest& req, std::string& message)
 {
-    const bool ok = employeeRepository_->updateEmployeeSkill(employeeId, skillId, proficiency);
+    const bool ok = employeeRepository_->updateEmployeeSkill(req.employeeId, req.skillId, req.proficiency);
     message = ok ? "Skill updated." : "Failed to update skill.";
     return ok;
 }
@@ -153,7 +147,8 @@ bool EmployeeService::removeSkill(int employeeId, int skillId, std::string& mess
     return ok;
 }
 
-std::vector<EmployeeSkillView> EmployeeService::getSkills(int employeeId)
+std::vector<EmployeeSkillResponse> EmployeeService::getSkills(int employeeId)
 {
-    return employeeRepository_->getEmployeeSkills(employeeId);
+    auto skills = employeeRepository_->getEmployeeSkills(employeeId);
+    return DTOMapper::mapToEmployeeSkillResponse(skills);
 }

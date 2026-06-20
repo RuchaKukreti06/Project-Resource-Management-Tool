@@ -10,26 +10,8 @@ nlohmann::json makeResponse(bool success, const std::string& message)
     return {{"success", success}, {"message", message}};
 }
 
-nlohmann::json employeeToJson(const Employee& e)
-{
-    return {{"id",                e.id},
-            {"user_id",          e.user_id},
-            {"full_name",        e.fullName},
-            {"email",            e.email},
-            {"department",       e.department},
-            {"designation",      e.designation},
-            {"status",           e.status},
-            {"is_active",        e.isActive},
-            {"total_utilisation",e.totalUtilisation}};  // D7
-}
+#include "dto/DTOMapper.h"
 
-nlohmann::json skillToJson(const EmployeeSkillView& s)
-{
-    return {{"skill_id", s.skillId},
-            {"skill_name", s.skillName},
-            {"category", s.category},
-            {"proficiency", s.proficiencyLevel}};
-}
 
 }  // namespace
 
@@ -79,11 +61,8 @@ void EmployeeController::handleGetAllEmployees(const httplib::Request&, httplib:
     {
         const auto employees = employeeService_.getAllEmployees();
 
-        nlohmann::json data = nlohmann::json::array();
-        for (const auto& e : employees) data.push_back(employeeToJson(e));
-
         res.status = 200;
-        res.set_content(nlohmann::json({{"success", true}, {"data", data}}).dump(),
+        res.set_content(nlohmann::json({{"success", true}, {"data", employees}}).dump(),
                         "application/json");
     }
     catch (const std::exception& e)
@@ -100,11 +79,8 @@ void EmployeeController::handleGetTeamEmployees(const httplib::Request& req, htt
         const int managerId = std::stoi(req.matches[1]);
         const auto employees = employeeService_.getTeamEmployees(managerId);
 
-        nlohmann::json data = nlohmann::json::array();
-        for (const auto& e : employees) data.push_back(employeeToJson(e));
-
         res.status = 200;
-        res.set_content(nlohmann::json({{"success", true}, {"data", data}}).dump(),
+        res.set_content(nlohmann::json({{"success", true}, {"data", employees}}).dump(),
                         "application/json");
     }
     catch (const std::exception& e)
@@ -120,15 +96,15 @@ void EmployeeController::handleCreateEmployee(const httplib::Request& req, httpl
     {
         const auto body = nlohmann::json::parse(req.body);
 
-        const int userId = body.at("user_id").get<int>();
-        const std::string fullName = body.at("full_name").get<std::string>();
-        const std::string email = body.at("email").get<std::string>();
-        const std::string department = body.value("department", "");
-        const std::string designation = body.value("designation", "");
+        EmployeeCreateRequest req;
+        req.userId = body.at("user_id").get<int>();
+        req.fullName = body.at("full_name").get<std::string>();
+        req.email = body.at("email").get<std::string>();
+        req.department = body.value("department", "");
+        req.designation = body.value("designation", "");
 
         std::string message;
-        const bool ok = employeeService_.createEmployeeProfile(userId, fullName, email, department,
-                                                               designation, message);
+        const bool ok = employeeService_.createEmployeeProfile(req, message);
 
         res.status = ok ? 201 : 400;
         res.set_content(makeResponse(ok, message).dump(), "application/json");
@@ -197,16 +173,14 @@ void EmployeeController::handleGetEmployeeSkills(const httplib::Request& req,
         const int employeeId = std::stoi(req.matches[1]);
         const auto skills = employeeService_.getSkills(employeeId);
 
-        nlohmann::json data = nlohmann::json::array();
-        for (const auto& s : skills) data.push_back(skillToJson(s));
-
         res.status = 200;
-        res.set_content(nlohmann::json({{"success", true}, {"data", data}}).dump(),
-                        "application/json");
+        res.set_content(
+            nlohmann::json({{"success", true}, {"data", skills}}).dump(),
+            "application/json");
     }
     catch (const std::exception& e)
     {
-        res.status = 400;
+        res.status = 500;
         res.set_content(makeResponse(false, e.what()).dump(), "application/json");
     }
 }
@@ -215,16 +189,16 @@ void EmployeeController::handleAddSkill(const httplib::Request& req, httplib::Re
 {
     try
     {
-        const int employeeId = std::stoi(req.matches[1]);
         const auto body = nlohmann::json::parse(req.body);
-
-        const std::string skillName = body.at("skill_name").get<std::string>();
-        const std::string category = body.at("category").get<std::string>();
-        const std::string proficiency = body.at("proficiency").get<std::string>();
+        AddSkillRequest request;
+        request.employeeId = std::stoi(req.matches[1]);
+        request.skillName = body.at("skill_name").get<std::string>();
+        request.category = body.at("category").get<std::string>();
+        request.proficiency = body.at("proficiency").get<std::string>();
 
         std::string message;
         const bool ok =
-            employeeService_.addSkill(employeeId, skillName, category, proficiency, message);
+            employeeService_.addSkill(request, message);
 
         res.status = ok ? 201 : 400;
         res.set_content(makeResponse(ok, message).dump(), "application/json");
@@ -240,14 +214,14 @@ void EmployeeController::handleUpdateSkill(const httplib::Request& req, httplib:
 {
     try
     {
-        const int employeeId = std::stoi(req.matches[1]);
-        const int skillId = std::stoi(req.matches[2]);
         const auto body = nlohmann::json::parse(req.body);
-
-        const std::string proficiency = body.at("proficiency").get<std::string>();
+        UpdateSkillRequest request;
+        request.employeeId = std::stoi(req.matches[1]);
+        request.skillId = std::stoi(req.matches[2]);
+        request.proficiency = body.at("proficiency").get<std::string>();
 
         std::string message;
-        const bool ok = employeeService_.updateSkill(employeeId, skillId, proficiency, message);
+        const bool ok = employeeService_.updateSkill(request, message);
 
         res.status = ok ? 200 : 400;
         res.set_content(makeResponse(ok, message).dump(), "application/json");

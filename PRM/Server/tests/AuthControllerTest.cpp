@@ -109,7 +109,7 @@ TEST_F(AuthControllerTest, RegisterMissingUsername)
 
 TEST_F(AuthControllerTest, LoginSuccess)
 {
-    authService->registerUser("bob", "Password123", "bob@example.com", "Bob Jones");
+    authService->registerUser({"bob", "Password123", "bob@example.com", "Bob Jones"});
 
     req.body =
         R"({
@@ -130,7 +130,7 @@ TEST_F(AuthControllerTest, LoginSuccess)
 
 TEST_F(AuthControllerTest, LoginWrongPassword)
 {
-    authService->registerUser("bob", "Password123", "bob@example.com", "Bob Jones");
+    authService->registerUser({"bob", "Password123", "bob@example.com", "Bob Jones"});
 
     req.body =
         R"({
@@ -162,7 +162,7 @@ TEST_F(AuthControllerTest, LoginInvalidJson)
 
 TEST_F(AuthControllerTest, ChangePasswordSuccess)
 {
-    authService->registerUser("john", "OldPassword", "john@example.com", "John Doe");
+    authService->registerUser({"john", "OldPassword", "john@example.com", "John Doe"});
 
     User user = repo->getUserByUsername("john");
 

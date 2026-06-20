@@ -1,5 +1,6 @@
 #include "controllers/AuthController.h"
 
+#include "dto/DTOMapper.h"
 #include <nlohmann/json.hpp>
 
 AuthController::AuthController(IAuthService& authService) : authService_(authService)
@@ -24,15 +25,15 @@ void AuthController::handleLogin(const httplib::Request& req, httplib::Response&
     {
         auto payload = nlohmann::json::parse(req.body);
 
-        auto username = payload.at("username").get<std::string>();
+        LoginRequest loginReq;
+        loginReq.username = payload.at("username").get<std::string>();
+        loginReq.password = payload.at("password").get<std::string>();
 
-        auto password = payload.at("password").get<std::string>();
-
-        auto response = authService_.login(username, password);
+        auto response = authService_.login(loginReq);
 
         res.status = 200;
 
-        res.set_content(response.dump(), "application/json");
+        res.set_content(nlohmann::json(response).dump(), "application/json");
     }
     catch (const std::exception& e)
     {
@@ -53,15 +54,16 @@ void AuthController::handleRegister(const httplib::Request& req, httplib::Respon
     {
         auto payload = nlohmann::json::parse(req.body);
 
-        auto username = payload.at("username").get<std::string>();
-        auto password = payload.at("password").get<std::string>();
-        auto email    = payload.at("email").get<std::string>();
-        auto fullName = payload.at("full_name").get<std::string>();
+        RegisterRequest registerReq;
+        registerReq.username = payload.at("username").get<std::string>();
+        registerReq.password = payload.at("password").get<std::string>();
+        registerReq.email    = payload.at("email").get<std::string>();
+        registerReq.fullName = payload.at("full_name").get<std::string>();
 
-        auto response = authService_.registerUser(username, password, email, fullName);
+        auto response = authService_.registerUser(registerReq);
 
         res.status = 200;
-        res.set_content(response.dump(), "application/json");
+        res.set_content(nlohmann::json(response).dump(), "application/json");
     }
     catch (const std::exception& e)
     {
@@ -80,19 +82,18 @@ void AuthController::handleChangePassword(const httplib::Request& req, httplib::
         auto payload = nlohmann::json::parse(req.body);
 
         // D12: Accept snake_case keys; fall back to camelCase for compatibility
-        int userId = 0;
+        ResetPasswordRequest request;
         if (payload.contains("user_id"))
-            userId = payload.at("user_id").get<int>();
+            request.userId = payload.at("user_id").get<int>();
         else
-            userId = payload.at("userId").get<int>();
+            request.userId = payload.at("userId").get<int>();
 
-        std::string newPassword;
         if (payload.contains("new_password"))
-            newPassword = payload.at("new_password").get<std::string>();
+            request.newPassword = payload.at("new_password").get<std::string>();
         else
-            newPassword = payload.at("newPassword").get<std::string>();
+            request.newPassword = payload.at("newPassword").get<std::string>();
 
-        bool success = authService_.changePassword(userId, newPassword);
+        bool success = authService_.changePassword(request);
 
         nlohmann::json response;
 

@@ -7,22 +7,7 @@
 namespace
 {
 
-// D2: Enriched to include email, full_name, department, designation, manager_id
-nlohmann::json userToJson(const User& user)
-{
-    return {{"id",                    user.id},
-            {"username",              user.username},
-            {"full_name",             user.fullName},
-            {"email",                 user.email},
-            {"role",                  user.role},
-            {"department",            user.department},
-            {"designation",           user.designation},
-            {"manager_id",            user.managerId},
-            {"status",                user.status},
-            {"force_password_change", user.forcePasswordChange},
-            {"created_at",            user.createdAt},
-            {"updated_at",            user.updatedAt}};
-}
+#include "dto/DTOMapper.h"
 
 int parseUserId(const httplib::Request& req)
 {
@@ -49,15 +34,9 @@ void UserController::registerRoutes(httplib::Server& server) const
                    {
                        const auto users = userService_.getAllUsers();
 
-                       nlohmann::json data = nlohmann::json::array();
-                       for (const auto& user : users)
-                       {
-                           data.push_back(userToJson(user));
-                       }
-
                        nlohmann::json response;
                        response["success"] = true;
-                       response["data"] = data;
+                       response["data"] = users;
                        res.set_content(response.dump(), "application/json");
                    }
                    catch (const std::exception& e)
@@ -90,7 +69,7 @@ void UserController::registerRoutes(httplib::Server& server) const
 
                        nlohmann::json response;
                        response["success"] = true;
-                       response["data"] = userToJson(*user);
+                       response["data"] = *user;
                        res.set_content(response.dump(), "application/json");
                    }
                    catch (const std::exception& e)
@@ -110,26 +89,24 @@ void UserController::registerRoutes(httplib::Server& server) const
                     try
                     {
                         const auto payload   = nlohmann::json::parse(req.body);
-                        const auto username  = payload.at("username").get<std::string>();
-                        const auto password  = payload.at("password").get<std::string>();
-                        const auto role      = payload.at("role").get<std::string>();
-                        const auto email     = payload.at("email").get<std::string>();
-                        const auto fullName  = payload.at("full_name").get<std::string>();
-                        const auto dept      = payload.value("department", std::string(""));
-                        const auto desig     = payload.value("designation", std::string(""));
-                        const auto forcePasswordChange =
-                            payload.value("force_password_change", true);
-                        const int managerId  = payload.value("manager_id", 0);
+                        UserCreateRequest request;
+                        request.username = payload.at("username").get<std::string>();
+                        request.password = payload.at("password").get<std::string>();
+                        request.role = payload.at("role").get<std::string>();
+                        request.email = payload.at("email").get<std::string>();
+                        request.fullName = payload.at("full_name").get<std::string>();
+                        request.department = payload.value("department", std::string(""));
+                        request.designation = payload.value("designation", std::string(""));
+                        request.forcePasswordChange = payload.value("force_password_change", true);
+                        request.managerId = payload.value("manager_id", 0);
 
-                        const bool created = userService_.createUser(
-                            username, password, role, email, fullName, dept, desig,
-                            forcePasswordChange);
+                        const bool created = userService_.createUser(request);
 
                         // If manager_id was provided and creation succeeded, assign it now
-                        if (created && managerId > 0)
+                        if (created && request.managerId > 0)
                         {
                             userService_.assignManager(
-                                userService_.getUserByUsername(username).id, managerId);
+                                userService_.getUserByUsername(request.username).id, request.managerId);
                         }
 
                         nlohmann::json response;

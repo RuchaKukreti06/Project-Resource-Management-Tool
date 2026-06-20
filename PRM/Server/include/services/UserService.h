@@ -16,15 +16,12 @@ class UserService : public IUserService
    public:
     explicit UserService(std::shared_ptr<IUserRepository> repository,
                          std::shared_ptr<IPasswordHasher> passwordHasher);
+    virtual ~UserService() = default;
 
-    std::vector<User> getAllUsers() override;
-    std::optional<User> getUserById(int id) override;
+    std::vector<UserResponse> getAllUsers() override;
+    std::optional<UserResponse> getUserById(int userId) override;
     User getUserByUsername(const std::string& username) override;
-    bool createUser(const std::string& username, const std::string& password,
-                    const std::string& role, const std::string& email,
-                    const std::string& fullName, const std::string& department = "",
-                    const std::string& designation = "",
-                    bool forcePasswordChange = true) override;
+    bool createUser(const UserCreateRequest& req) override;
     bool deactivateUser(int id) override;
     bool reactivateUser(int id) override;
     bool resetPassword(int id, const std::string& newPassword,

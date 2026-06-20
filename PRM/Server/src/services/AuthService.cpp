@@ -18,78 +18,73 @@ AuthService::~AuthService()
 {
 }
 
-nlohmann::json AuthService::login(const std::string& username, const std::string& password)
+LoginResponse AuthService::login(const LoginRequest& req)
 {
-    nlohmann::json response;
-    response["success"] = false;
+    LoginResponse response;
+    response.success = false;
 
-    User user = repository_->getUserByUsername(username);
+    User user = repository_->getUserByUsername(req.username);
 
-    if (user.username.empty() || !passwordHasher_->verifyPassword(password, user.passwordHash))
+    if (user.username.empty() || !passwordHasher_->verifyPassword(req.password, user.passwordHash))
     {
-        response["message"] = "Invalid username or password.";
+        response.message = "Invalid username or password.";
         return response;
     }
 
     if (user.status != "ACTIVE")
     {
-        response["message"] = "Account is not active.";
+        response.message = "Account is not active.";
         return response;
     }
 
     const std::string token = tokenService_->generateToken(user);
-    response["success"] = true;
-    response["token"]   = token;
-    response["user"]    = {{"id",                    user.id},
-                            {"username",              user.username},
-                            {"role",                  user.role},
-                            {"force_password_change", user.forcePasswordChange}};
-    response["message"] = "Login successful.";
+    response.success = true;
+    response.token   = token;
+    response.userId  = user.id;
+    response.username = user.username;
+    response.role = user.role;
+    response.forcePasswordChange = user.forcePasswordChange;
+    response.message = "Login successful.";
     return response;
 }
 
-nlohmann::json AuthService::registerUser(const std::string& username,
-                                         const std::string& password,
-                                         const std::string& email,
-                                         const std::string& fullName)
+RegisterResponse AuthService::registerUser(const RegisterRequest& req)
 {
-    nlohmann::json response;
+    RegisterResponse response;
+    response.success = false;
 
     std::string validationMessage;
-    if (!userValidator_.validateUsername(username, validationMessage))
+    if (!userValidator_.validateUsername(req.username, validationMessage))
     {
-        response["success"] = false;
-        response["message"] = validationMessage;
+        response.message = validationMessage;
         return response;
     }
 
-    if (repository_->getUserByUsername(username).username.empty())
+    if (repository_->getUserByUsername(req.username).username.empty())
     {
         User newUser;
-        newUser.username            = username;
-        newUser.passwordHash        = passwordHasher_->hashPassword(password);
+        newUser.username            = req.username;
+        newUser.passwordHash        = passwordHasher_->hashPassword(req.password);
         newUser.role                = "EMPLOYEE";
-        newUser.email               = email;
-        newUser.fullName            = fullName;
+        newUser.email               = req.email;
+        newUser.fullName            = req.fullName;
         newUser.isActive            = true;
         newUser.status              = "ACTIVE";
         newUser.forcePasswordChange = true;
 
         if (repository_->createUser(newUser))
         {
-            response["success"] = true;
-            response["message"] = "Registration successful.";
+            response.success = true;
+            response.message = "Registration successful.";
         }
         else
         {
-            response["success"] = false;
-            response["message"] = "Failed to create user. Email may already be in use.";
+            response.message = "Failed to create user. Email may already be in use.";
         }
     }
     else
     {
-        response["success"] = false;
-        response["message"] = "Username already exists.";
+        response.message = "Username already exists.";
     }
     return response;
 }
@@ -104,14 +99,14 @@ void AuthService::setToken(const std::string& token)
     token_ = token;
 }
 
-bool AuthService::changePassword(int userId, const std::string& newPassword)
+bool AuthService::changePassword(const ResetPasswordRequest& req)
 {
-    const std::string newHash = passwordHasher_->hashPassword(newPassword);
-    if (!repository_->updatePassword(userId, newHash))
+    const std::string newHash = passwordHasher_->hashPassword(req.newPassword);
+    if (!repository_->updatePassword(req.userId, newHash))
     {
         return false;
     }
-    return repository_->setForcePasswordChange(userId, false);
+    return repository_->setForcePasswordChange(req.userId, false);
 }
 
 bool AuthService::validateToken(const std::string& token) const

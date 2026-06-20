@@ -18,15 +18,14 @@ class ProjectService : public IProjectService
     ProjectService(std::shared_ptr<IProjectRepository> projectRepository,
                    std::shared_ptr<IUserRepository> userRepository);
 
-    bool createProject(const Project& project, std::string& message) override;
-    bool updateProject(const Project& project, std::string& message) override;
-    std::optional<Project> getProjectById(int projectId) override;
-    std::vector<Project> getAllProjects() override;
-    std::vector<Project> getManagerProjects(int managerUserId) override;
-
-    bool addMilestone(const Milestone& milestone, std::string& message) override;
-    bool updateMilestoneStatus(int milestoneId, const std::string& status, std::string& message) override;
-    std::vector<Milestone> getProjectMilestones(int projectId) override;
+    bool createProject(const ProjectCreateRequest& req, std::string& message) override;
+    std::optional<ProjectResponse> getProjectById(int projectId) override;
+    std::vector<ProjectResponse> getAllProjects() override;
+    std::vector<ProjectResponse> getManagerProjects(int managerUserId) override;
+    bool updateProject(const UpdateProjectRequest& req, std::string& message) override;
+    bool addMilestone(const AddMilestoneRequest& req, std::string& message) override;
+    bool updateMilestoneStatus(const UpdateMilestoneStatusRequest& req, std::string& message) override;
+    std::vector<MilestoneResponse> getProjectMilestones(int projectId) override;
     bool updateProjectHealth(int projectId, const std::string& health) override;
 
    private:

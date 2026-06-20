@@ -18,9 +18,10 @@ class AllocationService : public IAllocationService
                       std::shared_ptr<IEmployeeRepository> employeeRepository,
                       std::shared_ptr<IProjectRepository> projectRepository);
 
-    bool createAllocation(const Allocation& allocation, int createdByUserId, std::string& message) override;
-    bool endAllocation(int allocationId, const std::string& endDate, std::string& message) override;
-    std::vector<Allocation> getProjectAllocations(int projectId) override;
+    bool createAllocation(const AllocationCreateRequest& req, int createdByUserId,
+                          std::string& message) override;
+    bool endAllocation(const EndAllocationRequest& req, std::string& message) override;
+    std::vector<AllocationResponse> getProjectAllocations(int projectId) override;
     bool recomputeEmployeeStatus(int employeeId, const std::string& todayDate) override;
 
    private:

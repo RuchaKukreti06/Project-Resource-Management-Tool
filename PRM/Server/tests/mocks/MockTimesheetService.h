@@ -7,9 +7,9 @@
 
 class MockTimesheetService : public ITimesheetService {
 public:
-    MOCK_METHOD(bool, submitTimesheet, (int employeeId, const std::string& weekStartDate, const std::vector<TimesheetLineInput>& lines, int maxWeeklyHours, std::string& message), (override));
-    MOCK_METHOD(std::vector<Timesheet>, getEmployeeTimesheets, (int employeeId), (override));
-    MOCK_METHOD(std::vector<TeamTimesheetRow>, getTeamTimesheets, (int managerUserId, const std::string& weekStartDate), (override));
-    MOCK_METHOD(std::vector<TimesheetDetailRow>, getTimesheetDetails, (int timesheetId), (override));
+    MOCK_METHOD(bool, submitTimesheet, (const SubmitTimesheetRequest& req, std::string& message), (override));
+    MOCK_METHOD(std::vector<TimesheetResponse>, getEmployeeTimesheets, (int employeeId), (override));
+    MOCK_METHOD(std::vector<TeamTimesheetResponse>, getTeamTimesheets, (int managerUserId, const std::string& weekStartDate), (override));
+    MOCK_METHOD(std::vector<TimesheetDetailResponse>, getTimesheetDetails, (int timesheetId), (override));
     MOCK_METHOD(std::vector<int>, getMissedTimesheetEmployeeIds, (const std::string& weekStartDate), (override));
 };

@@ -43,28 +43,26 @@ class AllocationServiceTest : public ::testing::Test
 
 TEST_F(AllocationServiceTest, CreateAllocationSuccess)
 {
-    Allocation allocation;
-
-    allocation.employeeId = 1;
-    allocation.projectId = 1;
-    allocation.utilizationPercentage = 50;
-    allocation.fromDate = "2026-06-01";
-    allocation.toDate = "2026-06-30";
-
+    AllocationCreateRequest req;
+    req.employeeId = 1;
+    req.projectId = 1;
+    req.utilizationPercentage = 100;
+    req.fromDate = "2024-01-01";
+    req.toDate = "2024-12-31";
     std::string message;
 
-    EXPECT_TRUE(service->createAllocation(allocation, 10, message));
+    EXPECT_TRUE(service->createAllocation(req, 10, message));
 
     EXPECT_EQ(message, "Allocation created.");
 }
 
 TEST_F(AllocationServiceTest, CreateAllocationInvalidPayload)
 {
-    Allocation allocation;
+    AllocationCreateRequest req;
 
     std::string message;
 
-    EXPECT_FALSE(service->createAllocation(allocation, 1, message));
+    EXPECT_FALSE(service->createAllocation(req, 1, message));
 
     EXPECT_EQ(message, "Invalid allocation payload.");
 }
@@ -73,16 +71,16 @@ TEST_F(AllocationServiceTest, CreateAllocationEmployeeNotFound)
 {
     employeeRepo->employees.clear();
 
-    Allocation allocation;
-    allocation.employeeId = 1;
-    allocation.projectId = 1;
-    allocation.utilizationPercentage = 50;
-    allocation.fromDate = "2026-01-01";
-    allocation.toDate = "2026-02-01";
+    AllocationCreateRequest req;
+    req.employeeId = 1;
+    req.projectId = 1;
+    req.utilizationPercentage = 50;
+    req.fromDate = "2026-01-01";
+    req.toDate = "2026-02-01";
 
     std::string message;
 
-    EXPECT_FALSE(service->createAllocation(allocation, 1, message));
+    EXPECT_FALSE(service->createAllocation(req, 1, message));
 
     EXPECT_EQ(message, "Employee not active or not found.");
 }
@@ -91,16 +89,16 @@ TEST_F(AllocationServiceTest, CreateAllocationProjectClosed)
 {
     projectRepo->project.status = "COMPLETED";
 
-    Allocation allocation;
-    allocation.employeeId = 1;
-    allocation.projectId = 1;
-    allocation.utilizationPercentage = 50;
-    allocation.fromDate = "2026-01-01";
-    allocation.toDate = "2026-02-01";
+    AllocationCreateRequest req;
+    req.employeeId = 1;
+    req.projectId = 1;
+    req.utilizationPercentage = 50;
+    req.fromDate = "2026-01-01";
+    req.toDate = "2026-02-01";
 
     std::string message;
 
-    EXPECT_FALSE(service->createAllocation(allocation, 1, message));
+    EXPECT_FALSE(service->createAllocation(req, 1, message));
 
     EXPECT_EQ(message, "Project not found or not allocatable.");
 }
@@ -109,16 +107,16 @@ TEST_F(AllocationServiceTest, CreateAllocationExceedsUtilization)
 {
     allocationRepo->overlapUtilization = 60;
 
-    Allocation allocation;
-    allocation.employeeId = 1;
-    allocation.projectId = 1;
-    allocation.utilizationPercentage = 50;
-    allocation.fromDate = "2026-01-01";
-    allocation.toDate = "2026-02-01";
+    AllocationCreateRequest req;
+    req.employeeId = 1;
+    req.projectId = 1;
+    req.utilizationPercentage = 50;
+    req.fromDate = "2026-01-01";
+    req.toDate = "2026-02-01";
 
     std::string message;
 
-    EXPECT_FALSE(service->createAllocation(allocation, 1, message));
+    EXPECT_FALSE(service->createAllocation(req, 1, message));
 
     EXPECT_EQ(message, "Total utilization exceeds 100% in overlapping date range.");
 }
@@ -127,16 +125,16 @@ TEST_F(AllocationServiceTest, CreateAllocationRepositoryFailure)
 {
     allocationRepo->createResult = false;
 
-    Allocation allocation;
-    allocation.employeeId = 1;
-    allocation.projectId = 1;
-    allocation.utilizationPercentage = 50;
-    allocation.fromDate = "2026-01-01";
-    allocation.toDate = "2026-02-01";
+    AllocationCreateRequest req;
+    req.employeeId = 1;
+    req.projectId = 1;
+    req.utilizationPercentage = 50;
+    req.fromDate = "2026-01-01";
+    req.toDate = "2026-02-01";
 
     std::string message;
 
-    EXPECT_FALSE(service->createAllocation(allocation, 1, message));
+    EXPECT_FALSE(service->createAllocation(req, 1, message));
 
     EXPECT_EQ(message, "Failed to create allocation.");
 }
@@ -145,7 +143,7 @@ TEST_F(AllocationServiceTest, EndAllocationSuccess)
 {
     std::string message;
 
-    EXPECT_TRUE(service->endAllocation(1, "2026-06-10", message));
+    EXPECT_TRUE(service->endAllocation({1, "2026-06-10"}, message));
 
     EXPECT_EQ(message, "Allocation ended.");
 }
@@ -156,7 +154,7 @@ TEST_F(AllocationServiceTest, EndAllocationFailure)
 
     std::string message;
 
-    EXPECT_FALSE(service->endAllocation(1, "2026-06-10", message));
+    EXPECT_FALSE(service->endAllocation({1, "2026-06-10"}, message));
 
     EXPECT_EQ(message, "Failed to end allocation.");
 }
@@ -165,16 +163,16 @@ TEST_F(AllocationServiceTest, CreateAllocationInactiveEmployee)
 {
     employeeRepo->employees[1].isActive = false;
 
-    Allocation allocation;
-    allocation.employeeId = 1;
-    allocation.projectId = 1;
-    allocation.utilizationPercentage = 50;
-    allocation.fromDate = "2026-01-01";
-    allocation.toDate = "2026-02-01";
+    AllocationCreateRequest req;
+    req.employeeId = 1;
+    req.projectId = 1;
+    req.utilizationPercentage = 50;
+    req.fromDate = "2026-01-01";
+    req.toDate = "2026-02-01";
 
     std::string message;
 
-    EXPECT_FALSE(service->createAllocation(allocation, 1, message));
+    EXPECT_FALSE(service->createAllocation(req, 1, message));
 
     EXPECT_EQ(message, "Employee not active or not found.");
 }

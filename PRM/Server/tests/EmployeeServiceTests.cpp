@@ -38,7 +38,7 @@ TEST_F(EmployeeServiceTests, GetTeamEmployees_ReturnsEmployees)
 TEST_F(EmployeeServiceTests, AddSkill_Success)
 {
     std::string message;
-    bool result = employeeService->addSkill(1, "C++", "BACKEND", "INTERMEDIATE", message);
+    bool result = employeeService->addSkill({1, "C++", "BACKEND", "INTERMEDIATE"}, message);
     EXPECT_TRUE(result);
     EXPECT_EQ(message, "Skill added.");
 }

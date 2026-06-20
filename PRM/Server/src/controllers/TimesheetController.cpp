@@ -5,15 +5,7 @@
 namespace
 {
 
-nlohmann::json timesheetToJson(const Timesheet& timesheet)
-{
-    return {{"id", timesheet.id},
-            {"employee_id", timesheet.employeeId},
-            {"week_start_date", timesheet.weekStartDate},
-            {"submitted_at", timesheet.submittedAt},
-            {"status", timesheet.status},
-            {"total_hours", timesheet.totalHours}};
-}
+#include "dto/DTOMapper.h"
 
 }
 
@@ -31,25 +23,25 @@ void TimesheetController::registerRoutes(httplib::Server& server) const
                     try
                     {
                         const auto body = nlohmann::json::parse(req.body);
-                        std::vector<TimesheetLineInput> lines;
+                        SubmitTimesheetRequest request;
+                        request.employeeId = body.at("employee_id").get<int>();
+                        request.weekStartDate = body.at("week_start_date").get<std::string>();
+                        request.maxWeeklyHours = body.value("max_weekly_hours", 40);
 
                         for (const auto& lineJson : body.at("lines"))
                         {
-                            TimesheetLineInput input;
+                            TimesheetLineDto input;
                             input.projectId = lineJson.at("project_id").get<int>();
                             input.hoursWorked = lineJson.at("hours_worked").get<int>();
                             for (const auto& tag : lineJson.value("tags", nlohmann::json::array()))
                             {
                                 input.tags.push_back(tag.get<std::string>());
                             }
-                            lines.push_back(input);
+                            request.lines.push_back(input);
                         }
 
                         std::string message;
-                        const bool ok = timesheetService_.submitTimesheet(
-                            body.at("employee_id").get<int>(),
-                            body.at("week_start_date").get<std::string>(), lines,
-                            body.value("max_weekly_hours", 40), message);
+                        const bool ok = timesheetService_.submitTimesheet(request, message);
 
                         res.status = ok ? 201 : 400;
                         res.set_content(
@@ -97,15 +89,10 @@ void TimesheetController::registerRoutes(httplib::Server& server) const
                    const int employeeId = std::stoi(req.matches[1]);
                    const auto timesheets = timesheetService_.getEmployeeTimesheets(employeeId);
 
-                   nlohmann::json data = nlohmann::json::array();
-                   for (const auto& ts : timesheets)
-                   {
-                       data.push_back(timesheetToJson(ts));
-                   }
-
-                   res.set_content(
-                       nlohmann::json({{"success", true}, {"data", data}}).dump(),
-                       "application/json");
+                   nlohmann::json response;
+                   response["success"] = true;
+                   response["data"] = timesheets;
+                   res.set_content(response.dump(), "application/json");
                });
 
     server.Get(R"(/managers/(\d+)/timesheets)",
@@ -119,19 +106,8 @@ void TimesheetController::registerRoutes(httplib::Server& server) const
 
                    const auto rows = timesheetService_.getTeamTimesheets(managerId, weekStartDate);
 
-                   nlohmann::json data = nlohmann::json::array();
-                   for (const auto& row : rows)
-                   {
-                       data.push_back({{"employee_name", row.employeeName},
-                                       {"employee_id", row.employeeId},
-                                       {"project_id", row.projectId},
-                                       {"project_name", row.projectName},
-                                       {"hours", row.hours},
-                                       {"status", row.status}});
-                   }
-
                    res.set_content(
-                       nlohmann::json({{"success", true}, {"data", data}}).dump(),
+                       nlohmann::json({{"success", true}, {"data", rows}}).dump(),
                        "application/json");
                });
 
@@ -141,19 +117,8 @@ void TimesheetController::registerRoutes(httplib::Server& server) const
                    const int timesheetId = std::stoi(req.matches[1]);
                    const auto details = timesheetService_.getTimesheetDetails(timesheetId);
 
-                   nlohmann::json data = nlohmann::json::array();
-                   for (const auto& row : details)
-                   {
-                       data.push_back({
-                           {"project_id", row.projectId},
-                           {"project_name", row.projectName},
-                           {"hours", row.hours},
-                           {"tags", row.tags}
-                       });
-                   }
-
                    res.set_content(
-                       nlohmann::json({{"success", true}, {"data", data}}).dump(),
+                       nlohmann::json({{"success", true}, {"data", details}}).dump(),
                        "application/json");
                });
 }

@@ -1,4 +1,5 @@
 #include "services/AllocationService.h"
+#include "dto/DTOMapper.h"
 
 #include "utils/DateUtils.h"
 
@@ -16,9 +17,16 @@ bool AllocationService::isProjectAllocatable(const Project& project) const
     return project.status == "ACTIVE" || project.status == "PLANNED";
 }
 
-bool AllocationService::createAllocation(const Allocation& allocation, int createdByUserId,
+bool AllocationService::createAllocation(const AllocationCreateRequest& req, int createdByUserId,
                                          std::string& message)
 {
+    Allocation allocation;
+    allocation.employeeId = req.employeeId;
+    allocation.projectId = req.projectId;
+    allocation.utilizationPercentage = req.utilizationPercentage;
+    allocation.fromDate = req.fromDate;
+    allocation.toDate = req.toDate;
+
     if (!allocationValidator_.validateCreate(allocation, message))
     {
         return false;
@@ -59,17 +67,16 @@ bool AllocationService::createAllocation(const Allocation& allocation, int creat
     return true;
 }
 
-bool AllocationService::endAllocation(int allocationId, const std::string& endDate,
-                                      std::string& message)
+bool AllocationService::endAllocation(const EndAllocationRequest& req, std::string& message)
 {
-    const bool ended = allocationRepository_->endAllocation(allocationId, endDate);
+    const bool ended = allocationRepository_->endAllocation(req.allocationId, req.endDate);
     message = ended ? "Allocation ended." : "Failed to end allocation.";
     return ended;
 }
 
-std::vector<Allocation> AllocationService::getProjectAllocations(int projectId)
+std::vector<AllocationResponse> AllocationService::getProjectAllocations(int projectId)
 {
-    return allocationRepository_->getActiveAllocationsByProject(projectId);
+    return DTOMapper::mapToAllocationResponse(allocationRepository_->getActiveAllocationsByProject(projectId));
 }
 
 bool AllocationService::recomputeEmployeeStatus(int employeeId, const std::string& todayDate)

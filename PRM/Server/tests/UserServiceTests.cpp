@@ -43,7 +43,15 @@ TEST_F(UserServiceTests, GetUserById_ValidId_ReturnsUser)
 
 TEST_F(UserServiceTests, CreateUser_Success)
 {
-    bool result = userService->createUser("newuser", "password", "EMPLOYEE", "email@test.com", "New User", "Dept", "Desig");
+    UserCreateRequest req;
+    req.username = "newuser";
+    req.password = "password";
+    req.role = "EMPLOYEE";
+    req.email = "email@test.com";
+    req.fullName = "New User";
+    req.department = "Dept";
+    req.designation = "Desig";
+    bool result = userService->createUser(req);
     EXPECT_TRUE(result);
 }
 

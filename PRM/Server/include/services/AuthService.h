@@ -18,14 +18,13 @@ class AuthService : public IAuthService
     explicit AuthService(std::shared_ptr<IUserRepository> repository,
                          std::shared_ptr<IPasswordHasher> passwordHasher,
                          std::shared_ptr<ITokenService> tokenService);
-    ~AuthService();
+    virtual ~AuthService();
 
-    nlohmann::json login(const std::string& username, const std::string& password) override;
-    nlohmann::json registerUser(const std::string& username, const std::string& password,
-                                const std::string& email, const std::string& fullName) override;
+    LoginResponse login(const LoginRequest& req) override;
+    RegisterResponse registerUser(const RegisterRequest& req) override;
+    bool changePassword(const ResetPasswordRequest& req) override;
     bool isLoggedIn() const override;
     void setToken(const std::string& token) override;
-    bool changePassword(int userId, const std::string& newPassword) override;
     bool validateToken(const std::string& token) const override;
 
    private:
