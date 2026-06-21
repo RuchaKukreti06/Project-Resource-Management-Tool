@@ -45,7 +45,7 @@ TEST_F(UserServiceTests, CreateUser_Success)
 {
     UserCreateRequest req;
     req.username = "newuser";
-    req.password = "password";
+    req.password = "Valid!234";
     req.role = "EMPLOYEE";
     req.email = "email@test.com";
     req.fullName = "New User";

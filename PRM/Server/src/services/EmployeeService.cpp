@@ -20,6 +20,11 @@ void EmployeeService::createEmployeeProfile(const EmployeeCreateRequest& req)
         throw exceptions::NotFoundException("User ID not found.");
     }
 
+    if (user.status != "ACTIVE")
+    {
+        throw exceptions::ValidationException("Target user must be ACTIVE.");
+    }
+
     if (user.role != "EMPLOYEE" && user.role != "MANAGER")
     {
         throw exceptions::ValidationException("Target user must be EMPLOYEE or MANAGER.");
@@ -112,6 +117,15 @@ void EmployeeService::addSkill(const AddSkillRequest& req)
     if (!employeeValidator_.validateSkill(req.category, req.proficiency, message))
     {
         throw exceptions::ValidationException(message);
+    }
+
+    auto existingSkills = getSkills(req.employeeId);
+    for (const auto& skill : existingSkills)
+    {
+        if (skill.skillName == req.skillName && skill.category == req.category)
+        {
+            throw exceptions::ConflictException("Employee already has this skill.");
+        }
     }
 
     const int skillId = employeeRepository_->ensureSkill(req.skillName, req.category);

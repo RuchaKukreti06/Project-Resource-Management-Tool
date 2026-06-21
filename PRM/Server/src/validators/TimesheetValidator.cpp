@@ -26,5 +26,15 @@ bool TimesheetValidator::validateSubmit(int employeeId,
         message = "Max weekly hours must be positive.";
         return false;
     }
+
+    for (const auto& line : lines)
+    {
+        if (line.hoursWorked == 0 && line.tags.empty())
+        {
+            message = "Cannot submit 0 hours without a description.";
+            return false;
+        }
+    }
+
     return true;
 }

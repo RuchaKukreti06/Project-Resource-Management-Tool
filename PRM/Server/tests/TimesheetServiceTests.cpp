@@ -21,7 +21,7 @@ protected:
         mockTimesheetRepo = std::make_shared<MockTimesheetRepository>();
         mockEmployeeRepo = std::make_shared<MockEmployeeRepository>();
         mockAllocRepo = std::make_shared<MockAllocationRepository>();
-        timesheetService = std::make_unique<TimesheetService>(mockTimesheetRepo, mockEmployeeRepo, mockAllocRepo);
+        timesheetService = std::make_unique<TimesheetService>(mockTimesheetRepo, mockEmployeeRepo, mockAllocRepo, nullptr, nullptr);
     }
 
     std::shared_ptr<MockTimesheetRepository> mockTimesheetRepo;

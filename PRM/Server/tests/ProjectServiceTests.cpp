@@ -30,6 +30,7 @@ TEST_F(ProjectServiceTests, CreateProject_ValidManager_Success)
     ProjectCreateRequest req;
     req.name = "Project Alpha";
     req.managerId = 1;
+    req.totalStoryPoints = 100;
     req.status = "PLANNED";
     EXPECT_NO_THROW({
         projectService->createProject(req);

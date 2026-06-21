@@ -2,9 +2,12 @@
 
 #include <ctime>
 #include <spdlog/spdlog.h>
+#include <atomic>
 
 namespace
 {
+
+static std::atomic<bool> g_isSchedulerRunning{false};
 
 // Returns the Monday of the previous week as YYYY-MM-DD
 std::string previousMondayIso(const std::string& todayDate)
@@ -46,78 +49,41 @@ SchedulerService::SchedulerService(std::shared_ptr<IEmployeeService> employeeSer
 
 void SchedulerService::runRecomputationJob(const std::string& todayDate)
 {
-    spdlog::info("Scheduler: running utilisation recomputation for {}", todayDate);
-
-    // 1. Recompute employee bench/allocated status
-    const auto employees = employeeService_->getAllEmployees();
-    for (const auto& employee : employees)
+    bool expected = false;
+    if (!g_isSchedulerRunning.compare_exchange_strong(expected, true))
     {
-        allocationService_->recomputeEmployeeStatus(employee.id, todayDate);
+        spdlog::warn("Scheduler job is already running. Skipping execution.");
+        return;
     }
 
-    // 2. Recompute project health
-    recomputeProjectHealth(todayDate);
-
-    // 3. Flag missed timesheets for previous week
-    flagMissedTimesheets(previousMondayIso(todayDate));
-
-    spdlog::info("Scheduler: job complete.");
-}
-
-std::string SchedulerService::computeProjectHealth(int projectId, const std::string& todayDate)
-{
-    const auto milestones = projectService_->getProjectMilestones(projectId);
-
-    bool hasOverdue     = false;
-    bool hasInProgress  = false;
-
-    for (const auto& m : milestones)
+    try
     {
-        if (m.status == "DONE")
-            continue;
+        spdlog::info("Scheduler: running utilisation recomputation for {}", todayDate);
 
-        if (m.dueDate < todayDate)
+        // 1. Recompute employee bench/allocated status
+        const auto employees = employeeService_->getAllEmployees();
+        for (const auto& employee : employees)
         {
-            hasOverdue = true;
+            allocationService_->recomputeEmployeeStatus(employee.id, todayDate);
         }
-        if (m.status == "IN_PROGRESS")
-        {
-            hasInProgress = true;
-        }
+
+        // 2. Recompute project health
+        projectService_->recomputeProjectHealth(todayDate);
+
+        // 3. Flag missed timesheets for previous week
+        flagMissedTimesheets(previousMondayIso(todayDate));
+
+        spdlog::info("Scheduler: job complete.");
+        g_isSchedulerRunning = false;
     }
-
-    if (hasOverdue)
-        return "AT_RISK";
-    if (hasInProgress)
-        return "ATTENTION";
-    return "ON_TRACK";
-}
-
-void SchedulerService::recomputeProjectHealth(const std::string& todayDate)
-{
-    spdlog::info("Scheduler: recomputing project health for {}", todayDate);
-    const auto projects = projectService_->getAllProjects();
-
-    for (const auto& project : projects)
+    catch (...)
     {
-        if (project.status == "COMPLETED" || project.status == "ON_HOLD")
-            continue;
-
-        const std::string health = computeProjectHealth(project.id, todayDate);
-        if (health != project.healthStatus)
-        {
-            try
-            {
-                projectService_->updateProjectHealth(project.id, health);
-                spdlog::info("Scheduler: project {} health updated to {}", project.id, health);
-            }
-            catch (const std::exception& e)
-            {
-                spdlog::error("Scheduler: Failed to update project {} health: {}", project.id, e.what());
-            }
-        }
+        g_isSchedulerRunning = false;
+        throw;
     }
 }
+
+
 
 void SchedulerService::flagMissedTimesheets(const std::string& weekStartDate)
 {

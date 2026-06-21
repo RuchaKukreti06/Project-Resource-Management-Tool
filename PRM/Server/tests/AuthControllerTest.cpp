@@ -147,6 +147,13 @@ TEST_F(AuthControllerTest, LoginSuccess)
     auto json = nlohmann::json::parse(res->body);
     EXPECT_TRUE(json["success"].get<bool>());
     EXPECT_TRUE(json.contains("token"));
+    
+    // Verify generated JWT
+    std::string token = json["token"].get<std::string>();
+    EXPECT_FALSE(token.empty());
+    
+    JwtTokenService tokenService(AuthConfig{"test-jwt-secret", 60});
+    EXPECT_TRUE(tokenService.validateToken(token));
 }
 
 TEST_F(AuthControllerTest, LoginWrongPassword)
@@ -215,4 +222,47 @@ TEST_F(AuthControllerTest, ChangePasswordUnknownUser)
     auto json = nlohmann::json::parse(res->body);
     EXPECT_FALSE(json["success"].get<bool>());
     EXPECT_EQ(json["code"].get<int>(), 404);
+}
+
+TEST_F(AuthControllerTest, LoginDisabledUser)
+{
+    authService->registerUser({"disabled", "Password123", "disabled@example.com", "Disabled User"});
+    User user = repo->getUserByUsername("disabled");
+    repo->setUserStatus(user.id, "INACTIVE");
+
+    httplib::Client cli("localhost", 8090);
+    std::string body = R"({
+        "username":"disabled",
+        "password":"Password123"
+    })";
+
+    auto res = cli.Post("/auth/login", body, "application/json");
+
+    ASSERT_TRUE(res);
+    EXPECT_EQ(res->status, 401);
+
+    auto json = nlohmann::json::parse(res->body);
+    EXPECT_FALSE(json["success"].get<bool>());
+    EXPECT_EQ(json["code"].get<int>(), 401);
+}
+
+TEST_F(AuthControllerTest, TokenValidation)
+{
+    authService->registerUser({"charlie", "Password123", "charlie@example.com", "Charlie"});
+
+    httplib::Client cli("localhost", 8090);
+    std::string body = R"({
+        "username":"charlie",
+        "password":"Password123"
+    })";
+
+    auto res = cli.Post("/auth/login", body, "application/json");
+    ASSERT_TRUE(res);
+    EXPECT_EQ(res->status, 200);
+
+    auto json = nlohmann::json::parse(res->body);
+    std::string token = json["token"].get<std::string>();
+
+    EXPECT_TRUE(authService->validateToken(token));
+    EXPECT_FALSE(authService->validateToken("invalid.token.string"));
 }

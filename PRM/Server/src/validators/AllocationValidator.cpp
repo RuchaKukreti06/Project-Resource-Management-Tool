@@ -9,5 +9,10 @@ bool AllocationValidator::validateCreate(const Allocation& allocation, std::stri
         message = "Invalid allocation payload.";
         return false;
     }
+    if (allocation.fromDate.length() != 10 || allocation.toDate.length() != 10)
+    {
+        message = "Dates must be in YYYY-MM-DD format.";
+        return false;
+    }
     return true;
 }

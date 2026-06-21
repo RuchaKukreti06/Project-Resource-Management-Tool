@@ -7,7 +7,7 @@
 
 #include "repositories/INotificationRepository.h"
 #include "repositories/IUserRepository.h"
-#include "services/EmailService.h"
+#include "services/interfaces/IEmailService.h"
 #include "services/interfaces/INotificationService.h"
 
 class NotificationService : public INotificationService
@@ -15,7 +15,7 @@ class NotificationService : public INotificationService
    public:
     NotificationService(std::shared_ptr<INotificationRepository> notificationRepository,
                         std::shared_ptr<IUserRepository> userRepository,
-                        std::shared_ptr<EmailService> emailService);
+                        std::shared_ptr<IEmailService> emailService);
 
     void processMissedTimesheetNotifications(const std::string& weekStartDate,
                                              const std::vector<int>& missedUserIds) override;
@@ -32,7 +32,7 @@ class NotificationService : public INotificationService
 
     std::shared_ptr<INotificationRepository> notificationRepository_;
     std::shared_ptr<IUserRepository> userRepository_;
-    std::shared_ptr<EmailService> emailService_;
+    std::shared_ptr<IEmailService> emailService_;
 };
 
 #endif

@@ -1,5 +1,8 @@
 #include "services/NotificationService.h"
 
+#include "services/interfaces/IEmailService.h"
+#include "services/EmailService.h"
+
 #include <spdlog/spdlog.h>
 
 #include <sstream>
@@ -7,7 +10,7 @@
 
 NotificationService::NotificationService(
     std::shared_ptr<INotificationRepository> notificationRepository,
-    std::shared_ptr<IUserRepository> userRepository, std::shared_ptr<EmailService> emailService)
+    std::shared_ptr<IUserRepository> userRepository, std::shared_ptr<IEmailService> emailService)
     : notificationRepository_(std::move(notificationRepository)),
       userRepository_(std::move(userRepository)),
       emailService_(std::move(emailService))
@@ -20,6 +23,12 @@ bool NotificationService::sendEmail(const std::string& to, const std::string& su
     if (!emailService_)
     {
         spdlog::error("Email service dependency is missing.");
+        return false;
+    }
+
+    if (to.empty() || to.find('@') == std::string::npos || to.find('.') == std::string::npos)
+    {
+        spdlog::error("Invalid email format for recipient: {}", to);
         return false;
     }
 

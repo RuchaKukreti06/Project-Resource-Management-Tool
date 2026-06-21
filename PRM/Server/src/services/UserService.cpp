@@ -118,6 +118,20 @@ bool UserService::assignManager(int userId, int managerId)
     {
         throw exceptions::ValidationException(message);
     }
+
+    if (managerId != 0)
+    {
+        auto manager = repository_->getUserById(managerId);
+        if (manager.id == 0)
+        {
+            throw exceptions::NotFoundException("Manager user not found.");
+        }
+        if (manager.role != "MANAGER" && manager.role != "ADMIN")
+        {
+            throw exceptions::ValidationException("User assigned as manager must have MANAGER or ADMIN role.");
+        }
+    }
+
     // managerId == 0 means "unassign manager", which the repo handles by setting NULL
     if (!repository_->assignManager(userId, managerId))
     {

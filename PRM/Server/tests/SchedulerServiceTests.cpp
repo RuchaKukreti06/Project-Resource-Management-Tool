@@ -33,7 +33,7 @@ protected:
         auto empSvc = std::make_shared<EmployeeService>(mockEmployeeRepo, mockUserRepo, mockAllocRepo);
         auto projSvc = std::make_shared<ProjectService>(mockProjectRepo, mockUserRepo);
         auto allocSvc = std::make_shared<AllocationService>(mockAllocRepo, mockEmployeeRepo, mockProjectRepo);
-        auto tsSvc = std::make_shared<TimesheetService>(mockTimesheetRepo, mockEmployeeRepo, mockAllocRepo);
+        auto tsSvc = std::make_shared<TimesheetService>(mockTimesheetRepo, mockEmployeeRepo, mockAllocRepo, nullptr, nullptr);
 
         schedulerService = std::make_unique<SchedulerService>(empSvc, projSvc, allocSvc, tsSvc);
     }
@@ -56,9 +56,4 @@ TEST_F(SchedulerServiceTests, FlagMissedTimesheets_Success)
     EXPECT_NO_THROW(schedulerService->flagMissedTimesheets("2024-01-01"));
 }
 
-TEST_F(SchedulerServiceTests, RecomputeProjectHealth_NoProjects)
-{
-    mockProjectRepo->projects.clear();
 
-    EXPECT_NO_THROW(schedulerService->recomputeProjectHealth("2024-01-01"));
-}

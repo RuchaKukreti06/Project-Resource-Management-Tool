@@ -5,6 +5,8 @@
 #include <memory>
 #include <string>
 
+#include "services/interfaces/IEmailService.h"
+
 #include "repositories/ISystemConfigRepository.h"
 
 struct EmailMessage
@@ -14,13 +16,13 @@ struct EmailMessage
     std::string body;
 };
 
-class EmailService
+class EmailService : public IEmailService
 {
    public:
     explicit EmailService(std::shared_ptr<ISystemConfigRepository> configRepository);
     ~EmailService();
 
-    bool sendEmail(const EmailMessage& message, std::string& errorMessage);
+    bool sendEmail(const EmailMessage& message, std::string& errorMessage) override;
 
    private:
     static size_t payloadSource(char* ptr, size_t size, size_t nmemb, void* userData);
