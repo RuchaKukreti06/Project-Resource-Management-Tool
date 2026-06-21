@@ -8,22 +8,8 @@
 #include <algorithm>
 #include <cctype>
 
-namespace
-{
-std::string currentDateIso()
-{
-    std::time_t now = std::time(nullptr);
-    std::tm local  = {};
-#ifdef _WIN32
-    localtime_s(&local, &now);
-#else
-    local = *std::localtime(&now);
-#endif
-    char buffer[11] = {0};
-    std::strftime(buffer, sizeof(buffer), "%Y-%m-%d", &local);
-    return buffer;
-}
-}  // namespace
+#include "utils/DateUtils.h"
+#include "utils/ConfigLoader.h"
 
 AIService::AIService(std::shared_ptr<IEmployeeRepository>   employeeRepo,
                      std::shared_ptr<IAllocationRepository> allocationRepo,
@@ -38,101 +24,135 @@ AIService::AIService(std::shared_ptr<IEmployeeRepository>   employeeRepo,
 
 // ─── LLM BACKENDS ────────────────────────────────────────────────────────────
 
-std::string AIService::callGemini(const std::string& prompt, const std::string& apiKey)
+nlohmann::json AIService::parseLLMResponse(const std::string& raw)
 {
-    httplib::SSLClient cli("generativelanguage.googleapis.com");
-    cli.set_connection_timeout(15);
-    cli.set_read_timeout(30);
-
-    nlohmann::json body = {
-        {"contents", {{{"parts", {{{"text", prompt}}}}}}}
-    };
-
-    const std::string path =
-        "/v1beta/models/gemini-1.5-flash:generateContent?key=" + apiKey;
-
-    auto res = cli.Post(path, body.dump(), "application/json");
-    if (!res || res->status != 200)
+    std::string cleaned = raw;
+    auto fence = cleaned.find("```");
+    if (fence != std::string::npos)
     {
-        spdlog::error("Gemini API call failed. Status: {}", res ? res->status : -1);
-        return "";
+        auto newline = cleaned.find('\n', fence);
+        if (newline != std::string::npos)
+            cleaned = cleaned.substr(newline + 1);
+        auto closing = cleaned.rfind("```");
+        if (closing != std::string::npos)
+            cleaned = cleaned.substr(0, closing);
+        while (!cleaned.empty() && (cleaned.front() == '\n' || cleaned.front() == '\r' || cleaned.front() == ' '))
+            cleaned.erase(cleaned.begin());
+        while (!cleaned.empty() && (cleaned.back() == '\n' || cleaned.back() == '\r' || cleaned.back() == ' '))
+            cleaned.pop_back();
     }
 
-    auto respJson = nlohmann::json::parse(res->body);
-    return respJson["candidates"][0]["content"]["parts"][0]["text"].get<std::string>();
+    try
+    {
+        return nlohmann::json::parse(cleaned);
+    }
+    catch (...)
+    {
+        spdlog::warn("AI JSON parse failed, returning raw text");
+        return {{"raw", raw}};
+    }
 }
 
-std::string AIService::callGroq(const std::string& prompt, const std::string& apiKey)
-{
-    httplib::SSLClient cli("api.groq.com");
-    cli.set_connection_timeout(15);
-    cli.set_read_timeout(30);
+class GeminiProvider : public ILLMProvider {
+public:
+    std::string query(const std::string& prompt, const std::string& apiKey) override {
+        httplib::SSLClient cli("generativelanguage.googleapis.com");
+        cli.set_connection_timeout(15);
+        cli.set_read_timeout(30);
 
-    nlohmann::json body = {
-        {"model",    "llama3-8b-8192"},
-        {"messages", {{{"role", "user"}, {"content", prompt}}}}
-    };
+        nlohmann::json body = {
+            {"contents", {{{"parts", {{{"text", prompt}}}}}}}
+        };
 
-    httplib::Headers headers = {{"Authorization", "Bearer " + apiKey}};
-    auto res = cli.Post("/openai/v1/chat/completions", headers, body.dump(), "application/json");
+        const std::string path =
+            "/v1beta/models/gemini-1.5-flash:generateContent?key=" + apiKey;
 
-    if (!res || res->status != 200)
-    {
-        spdlog::error("Groq API call failed. Status: {}", res ? res->status : -1);
-        return "";
+        auto res = cli.Post(path, body.dump(), "application/json");
+        if (!res || res->status != 200)
+        {
+            spdlog::error("Gemini API call failed. Status: {}", res ? res->status : -1);
+            return "";
+        }
+
+        auto respJson = nlohmann::json::parse(res->body);
+        return respJson["candidates"][0]["content"]["parts"][0]["text"].get<std::string>();
     }
+};
 
-    auto respJson = nlohmann::json::parse(res->body);
-    return respJson["choices"][0]["message"]["content"].get<std::string>();
-}
+class GroqProvider : public ILLMProvider {
+public:
+    std::string query(const std::string& prompt, const std::string& apiKey) override {
+        httplib::SSLClient cli("api.groq.com");
+        cli.set_connection_timeout(15);
+        cli.set_read_timeout(30);
 
-std::string AIService::callGemmaRemote(const std::string& prompt, const std::string& apiKey)
-{
-    httplib::Client cli("164.52.211.238");
-    cli.set_connection_timeout(15);
-    cli.set_read_timeout(60);
+        nlohmann::json body = {
+            {"model",    "llama3-8b-8192"},
+            {"messages", {{{"role", "user"}, {"content", prompt}}}}
+        };
 
-    httplib::Headers headers;
-    if (!apiKey.empty())
-    {
-        headers.emplace("apikey", apiKey);
+        httplib::Headers headers = {{"Authorization", "Bearer " + apiKey}};
+        auto res = cli.Post("/openai/v1/chat/completions", headers, body.dump(), "application/json");
+
+        if (!res || res->status != 200)
+        {
+            spdlog::error("Groq API call failed. Status: {}", res ? res->status : -1);
+            return "";
+        }
+
+        auto respJson = nlohmann::json::parse(res->body);
+        return respJson["choices"][0]["message"]["content"].get<std::string>();
     }
+};
 
-    nlohmann::json body = {
-        {"model", "gemma3:12b-it-q8_0"},
-        {"prompt", prompt},
-        {"stream", false}
-    };
+class GemmaRemoteProvider : public ILLMProvider {
+public:
+    std::string query(const std::string& prompt, const std::string& apiKey) override {
+        httplib::Client cli(utils::ConfigLoader::instance().gemmaIp());
+        cli.set_connection_timeout(15);
+        cli.set_read_timeout(60);
 
-    auto res = cli.Post("/api/generate", headers, body.dump(), "application/json");
+        httplib::Headers headers;
+        if (!apiKey.empty())
+        {
+            headers.emplace("apikey", apiKey);
+        }
 
-    if (!res || res->status != 200)
-    {
-        spdlog::error("Gemma (Remote) API call failed. Status: {}", res ? res->status : -1);
-        return "";
+        nlohmann::json body = {
+            {"model", "gemma3:12b-it-q8_0"},
+            {"prompt", prompt},
+            {"stream", false}
+        };
+
+        auto res = cli.Post("/api/generate", headers, body.dump(), "application/json");
+
+        if (!res || res->status != 200)
+        {
+            spdlog::error("Gemma (Remote) API call failed. Status: {}", res ? res->status : -1);
+            return "";
+        }
+
+        auto respJson = nlohmann::json::parse(res->body);
+        return respJson.value("response", "");
     }
+};
 
-    auto respJson = nlohmann::json::parse(res->body);
-    return respJson.value("response", "");
-}
-
-std::string AIService::callLLM(const std::string& prompt, const std::string& apiKey,
-                                const std::string& provider)
+std::shared_ptr<ILLMProvider> AIService::getProvider(const std::string& providerName)
 {
-    std::string provLower = provider;
+    std::string provLower = providerName;
     std::transform(provLower.begin(), provLower.end(), provLower.begin(), ::tolower);
 
     if (provLower == "gemma (remote)" || provLower == "ollama" || provLower == "ollama (gemma3)")
-        return callGemmaRemote(prompt, apiKey);
+        return std::make_shared<GemmaRemoteProvider>();
     else if (provLower == "groq")
-        return callGroq(prompt, apiKey);
+        return std::make_shared<GroqProvider>();
     
-    return callGemini(prompt, apiKey);
+    return std::make_shared<GeminiProvider>();
 }
 
 std::string AIService::buildEmployeeContextForLLM(bool includeFullyAllocated)
 {
-    const std::string today = currentDateIso();
+    const std::string today = utils::currentDateIso();
     const auto employees = employeeRepo_->getAllEmployees();
     std::ostringstream context;
 
@@ -174,10 +194,10 @@ std::string AIService::buildEmployeeContextForLLM(bool includeFullyAllocated)
 
 // ─── SKILL MATCH ─────────────────────────────────────────────────────────────
 
-std::string AIService::skillMatch(const std::string& requirement, int maxWeeklyHours,
+nlohmann::json AIService::skillMatch(const std::string& requirement, int maxWeeklyHours,
                                    const std::string& apiKey, const std::string& provider)
 {
-    const std::string today = currentDateIso();
+    const std::string today = utils::currentDateIso();
 
     // Gather all active employees
     const auto employees = employeeRepo_->getAllEmployees();
@@ -212,7 +232,8 @@ std::string AIService::skillMatch(const std::string& requirement, int maxWeeklyH
         return mock.dump();
     }
 
-    return callLLM(context.str(), apiKey, provider);
+    auto llm = getProvider(provider);
+    return parseLLMResponse(llm->query(context.str(), apiKey));
 }
 
 // ─── RISK SUMMARY ────────────────────────────────────────────────────────────
@@ -269,15 +290,16 @@ std::string AIService::riskSummary(int projectId, const std::string& todayDate,
         return summary;
     }
 
-    return callLLM(ctx.str(), apiKey, provider);
+    auto llm = getProvider(provider);
+    return llm->query(ctx.str(), apiKey);
 }
 
 // ─── TEAM BUILDER ────────────────────────────────────────────────────────────
 
-std::string AIService::teamBuilder(const std::string& requirement, const std::string& apiKey,
+nlohmann::json AIService::teamBuilder(const std::string& requirement, const std::string& apiKey,
                                    const std::string& provider)
 {
-    const std::string today = currentDateIso();
+    const std::string today = utils::currentDateIso();
     const auto employees = employeeRepo_->getAllEmployees();
 
     std::ostringstream context;
@@ -309,5 +331,6 @@ std::string AIService::teamBuilder(const std::string& requirement, const std::st
         return mock.dump();
     }
 
-    return callLLM(context.str(), apiKey, provider);
+    auto llm = getProvider(provider);
+    return parseLLMResponse(llm->query(context.str(), apiKey));
 }

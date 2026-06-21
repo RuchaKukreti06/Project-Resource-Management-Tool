@@ -1,6 +1,7 @@
 #include "services/ProjectService.h"
 #include "dto/DTOMapper.h"
 #include "exceptions/Exceptions.h"
+#include <spdlog/spdlog.h>
 #include <unordered_set>
 
 ProjectService::ProjectService(std::shared_ptr<IProjectRepository> projectRepository,
@@ -21,6 +22,11 @@ void ProjectService::createProject(const ProjectCreateRequest& req)
     if (!isValidManager(req.managerId))
     {
         throw exceptions::ValidationException("Invalid manager id.");
+    }
+
+    if (req.totalStoryPoints < 0 || req.totalStoryPoints > 10000)
+    {
+        throw exceptions::ValidationException("Total story points must be between 0 and 10000.");
     }
 
     Project created;
@@ -55,6 +61,11 @@ void ProjectService::updateProject(const UpdateProjectRequest& req)
     if (!isValidManager(project.managerId))
     {
         throw exceptions::ValidationException("Invalid manager id.");
+    }
+
+    if (project.totalStoryPoints < 0 || project.totalStoryPoints > 10000)
+    {
+        throw exceptions::ValidationException("Total story points must be between 0 and 10000.");
     }
 
     if (!projectRepository_->updateProject(project))
@@ -127,5 +138,60 @@ void ProjectService::updateProjectHealth(int projectId, const std::string& healt
     if (!projectRepository_->updateProjectHealth(projectId, health))
     {
         throw exceptions::DatabaseException("Failed to update project health.");
+    }
+}
+
+std::string ProjectService::computeProjectHealth(int projectId, const std::string& todayDate)
+{
+    const auto milestones = getProjectMilestones(projectId);
+
+    bool hasOverdue     = false;
+    bool hasInProgress  = false;
+
+    for (const auto& m : milestones)
+    {
+        if (m.status == "DONE")
+            continue;
+
+        if (m.dueDate < todayDate)
+        {
+            hasOverdue = true;
+        }
+        if (m.status == "IN_PROGRESS")
+        {
+            hasInProgress = true;
+        }
+    }
+
+    if (hasOverdue)
+        return "AT_RISK";
+    if (hasInProgress)
+        return "ATTENTION";
+    return "ON_TRACK";
+}
+
+void ProjectService::recomputeProjectHealth(const std::string& todayDate)
+{
+    spdlog::info("ProjectService: recomputing project health for {}", todayDate);
+    const auto projects = getAllProjects();
+
+    for (const auto& project : projects)
+    {
+        if (project.status == "COMPLETED" || project.status == "ON_HOLD")
+            continue;
+
+        const std::string health = computeProjectHealth(project.id, todayDate);
+        if (health != project.healthStatus)
+        {
+            try
+            {
+                updateProjectHealth(project.id, health);
+                spdlog::info("ProjectService: project {} health updated to {}", project.id, health);
+            }
+            catch (const std::exception& e)
+            {
+                spdlog::error("ProjectService: Failed to update project {} health: {}", project.id, e.what());
+            }
+        }
     }
 }

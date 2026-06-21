@@ -7,6 +7,7 @@
 #include "repositories/IAllocationRepository.h"
 #include "repositories/IEmployeeRepository.h"
 #include "repositories/ITimesheetRepository.h"
+#include "repositories/ISystemConfigRepository.h"
 #include "services/interfaces/INotificationService.h"
 #include "services/interfaces/ITimesheetService.h"
 #include "validators/TimesheetValidator.h"
@@ -17,7 +18,8 @@ class TimesheetService : public ITimesheetService
     TimesheetService(std::shared_ptr<ITimesheetRepository> timesheetRepository,
                      std::shared_ptr<IEmployeeRepository> employeeRepository,
                      std::shared_ptr<IAllocationRepository> allocationRepository,
-                     std::shared_ptr<INotificationService> notificationService = nullptr);
+                     std::shared_ptr<INotificationService> notificationService,
+                     std::shared_ptr<ISystemConfigRepository> systemConfigRepository = nullptr);
 
     void submitTimesheet(const SubmitTimesheetRequest& req) override;
     std::vector<TimesheetResponse> getEmployeeTimesheets(int employeeId) override;
@@ -33,5 +35,6 @@ class TimesheetService : public ITimesheetService
     std::shared_ptr<IEmployeeRepository>   employeeRepository_;
     std::shared_ptr<IAllocationRepository> allocationRepository_;
     std::shared_ptr<INotificationService>  notificationService_;
+    std::shared_ptr<ISystemConfigRepository> systemConfigRepository_;
     TimesheetValidator                     timesheetValidator_;
 };
