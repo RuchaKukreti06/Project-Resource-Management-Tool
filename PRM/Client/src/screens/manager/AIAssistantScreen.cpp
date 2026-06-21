@@ -3,6 +3,9 @@
 #include "AuthSession.h"
 #include <iomanip>
 #include <nlohmann/json.hpp>
+#include "dto/AiResponseDTO.h"
+#include "dto/ProjectDTO.h"
+#include "dto/ApiResponse.h"
 
 AIAssistantScreen::AIAssistantScreen()
 {
@@ -55,32 +58,20 @@ void AIAssistantScreen::skillMatch(ApiClient& apiClient)
     try
     {
         std::cout << "\n── Skill Match ────────────────────────────────\n\n";
-        std::string reqText =
-            ScreenUtils::readLine("Describe your project requirement in plain English");
+        std::string reqText = ScreenUtils::readLine("Type what kind of resource you need (e.g. 'Senior C++ dev')");
 
-        std::cout << "\nSearching... (calling AI)\n\n";
+        std::cout << "\nSearching... (AI matching in progress)\n";
 
-        nlohmann::json payload = {{"requirement", reqText}};
-        auto response          = apiClient.post("/ai/skill-match", payload);
+        AiSkillMatchRequest req;
+        req.requirement = reqText;
+        auto response = apiClient.post("/ai/skill-match", req.toJson());
 
-        if (!response.contains("success") || !response["success"].get<bool>())
+        AiSkillMatchResponse dto = AiSkillMatchResponse::fromJson(response);
+
+        if (dto.fallback_message.has_value())
         {
-            showError("AI service error. Please check the API key in System Configuration.");
-            return;
-        }
-
-        auto data = response["data"];
-
-        // Normalise: if LLM returned a JSON string in "raw", try to parse it as array
-        nlohmann::json candidates = nlohmann::json::array();
-        if (data.is_array())
-        {
-            candidates = data;
-        }
-        else if (data.contains("raw"))
-        {
-            try { candidates = nlohmann::json::parse(data["raw"].get<std::string>()); }
-            catch (...) {}
+            std::cout << "  (The AI service provided a plain text response)\n";
+            std::cout << "  " << dto.fallback_message.value() << "\n\n";
         }
 
         // ── Table header ──────────────────────────────────────────
@@ -99,12 +90,12 @@ void AIAssistantScreen::skillMatch(ApiClient& apiClient)
                   << "Reason\n";
         std::cout << divider << "\n";
 
-        if (candidates.is_array() && !candidates.empty())
+        if (!dto.candidates.empty())
         {
             int idx = 1;
-            for (const auto& item : candidates)
+            for (const auto& item : dto.candidates)
             {
-                std::string reason = item.value("reason", "");
+                std::string reason = item.reason;
 
                 // Word-wrap reason into lines of W_REASON chars
                 std::vector<std::string> reasonLines;
@@ -121,8 +112,8 @@ void AIAssistantScreen::skillMatch(ApiClient& apiClient)
                 // First line — print all columns
                 std::cout << std::left
                           << std::setw(W_NO)   << idx++
-                          << std::setw(W_ID)   << item.value("employee_id", 0)
-                          << std::setw(W_NAME) << item.value("name", "Unknown").substr(0, W_NAME - 1)
+                          << std::setw(W_ID)   << item.employee_id
+                          << std::setw(W_NAME) << item.name.substr(0, W_NAME - 1)
                           << reasonLines[0] << "\n";
 
                 // Continuation lines — indent to reason column
@@ -133,7 +124,7 @@ void AIAssistantScreen::skillMatch(ApiClient& apiClient)
                 std::cout << "\n";
             }
         }
-        else
+        else if (!dto.fallback_message.has_value())
         {
             std::cout << "  (No structured results returned by AI)\n\n";
         }
@@ -161,14 +152,14 @@ void AIAssistantScreen::riskSummary(ApiClient& apiClient)
         std::cout << "\n── Risk Summary ───────────────────────────────\n\n";
 
         int managerId  = api::AuthSession::instance().userId();
-        auto projResp  = apiClient.get("/managers/" + std::to_string(managerId) + "/projects");
-        if (!projResp["success"].get<bool>())
+        auto projResp  = ApiListResponse<ProjectDTO>::fromJson(apiClient.get("/managers/" + std::to_string(managerId) + "/projects"));
+        if (!projResp.success)
         {
             showError("Could not load projects.");
             return;
         }
 
-        auto projects = projResp["data"];
+        auto projects = projResp.data;
         if (projects.empty())
         {
             std::cout << "No projects found.\n\n";
@@ -179,32 +170,39 @@ void AIAssistantScreen::riskSummary(ApiClient& apiClient)
         int idx = 1;
         for (const auto& proj : projects)
         {
-            const std::string hs   = proj.value("health_status", "ON_TRACK");
+            const std::string hs   = proj.healthStatus.empty() ? "ON_TRACK" : proj.healthStatus;
             const std::string icon  = (hs == "AT_RISK") ? "🔴" : (hs == "ATTENTION") ? "🟡" : "🟢";
             std::cout << "  " << idx++ << ".  " << icon << " "
-                      << proj["name"].get<std::string>() << "\n";
+                      << proj.name << "\n";
         }
 
         std::cout << "\n";
         std::string pNum = ScreenUtils::readLine("Enter project number (or 0 to cancel)");
-        int selection    = std::stoi(pNum);
+        auto parsedSelection = ScreenUtils::safeParseInt(pNum);
+        if (!parsedSelection) throw std::invalid_argument("Invalid selection format");
+        int selection = parsedSelection.value();
         if (selection < 1 || selection > static_cast<int>(projects.size()))
             return;
 
-        const int projectId = projects[selection - 1]["id"].get<int>();
+        const int projectId = projects[selection - 1].id;
 
         std::cout << "\nGenerating AI summary...\n\n";
 
-        nlohmann::json payload = {{"project_id", projectId}};
-        auto response          = apiClient.post("/ai/risk-summary", payload);
+        AiRiskSummaryRequest req;
+        req.projectId = projectId;
+        auto response          = apiClient.post("/ai/risk-summary", req.toJson());
 
-        if (!response.contains("success") || !response["success"].get<bool>())
+        AiRiskSummaryResponse dto = AiRiskSummaryResponse::fromJson(response);
+
+        if (dto.fallback_message.has_value())
         {
-            showError("AI service error. Please check the API key in System Configuration.");
+            std::cout << "── AI Risk Summary (Fallback) ───────────────────\n\n";
+            std::cout << "  " << dto.fallback_message.value() << "\n\n";
+            std::cout << "  Note: AI service encountered an issue generating structured data.\n\n";
             return;
         }
 
-        const std::string summary = response["data"]["summary"].get<std::string>();
+        const std::string summary = dto.data.summary;
         std::cout << "── AI Risk Summary ──────────────────────────────\n\n";
         std::cout << "\"" << summary << "\"\n\n";
         std::cout << "  Note: AI-generated from current milestone and timesheet data.\n\n";
@@ -233,28 +231,16 @@ void AIAssistantScreen::teamBuilder(ApiClient& apiClient)
         nlohmann::json payload = {{"requirement", reqText}};
         auto response          = apiClient.post("/ai/team-builder", payload);
 
-        if (!response.contains("success") || !response["success"].get<bool>())
-        {
-            showError("AI service error. Please check the API key in System Configuration.");
-            return;
-        }
+        AiTeamBuilderResponse dto = AiTeamBuilderResponse::fromJson(response);
 
-        auto data = response["data"];
-
-        // Normalise
-        nlohmann::json team = nlohmann::json::array();
-        if (data.is_array())
+        if (dto.fallback_message.has_value())
         {
-            team = data;
-        }
-        else if (data.contains("raw"))
-        {
-            try { team = nlohmann::json::parse(data["raw"].get<std::string>()); }
-            catch (...) {}
+            std::cout << "  (The AI service provided a plain text response)\n";
+            std::cout << "  " << dto.fallback_message.value() << "\n\n";
         }
 
         // ── Output results ──────────────────────────────────────────
-        displayTeamMatchResults(team);
+        displayTeamMatchResults(dto);
 
         ScreenUtils::readLine("\nPress Enter to continue");
     }
@@ -264,7 +250,7 @@ void AIAssistantScreen::teamBuilder(ApiClient& apiClient)
     }
 }
 
-void AIAssistantScreen::displayTeamMatchResults(const nlohmann::json& team)
+void AIAssistantScreen::displayTeamMatchResults(const AiTeamBuilderResponse& dto)
 {
     const int W_ROLE   = 20;
     const int W_ID     = 6;
@@ -281,14 +267,14 @@ void AIAssistantScreen::displayTeamMatchResults(const nlohmann::json& team)
               << "Reason\n";
     std::cout << divider << "\n";
 
-    if (team.is_array() && !team.empty())
+    if (!dto.team.empty())
     {
-        for (const auto& item : team)
+        for (const auto& item : dto.team)
         {
-            std::string role   = item.value("role", "Unknown Role").substr(0, W_ROLE - 1);
-            std::string reason = item.value("reason", "");
-            int empId          = item.value("employee_id", 0);
-            std::string name   = item.value("name", "N/A").substr(0, W_NAME - 1);
+            std::string role   = item.role.substr(0, W_ROLE - 1);
+            std::string reason = item.reason;
+            int empId          = item.employee_id;
+            std::string name   = item.name.substr(0, W_NAME - 1);
 
             // Word-wrap reason
             std::vector<std::string> reasonLines;
@@ -315,7 +301,7 @@ void AIAssistantScreen::displayTeamMatchResults(const nlohmann::json& team)
             std::cout << "\n";
         }
     }
-    else
+    else if (!dto.fallback_message.has_value())
     {
         std::cout << "  (No structured results returned by AI)\n\n";
     }

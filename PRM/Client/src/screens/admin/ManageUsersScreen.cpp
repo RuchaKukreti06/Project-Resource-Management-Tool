@@ -1,5 +1,7 @@
 #include "admin/ManageUsersScreen.h"
 #include "AuthSession.h"
+#include "dto/ApiResponse.h"
+#include "dto/UserDTO.h"
 
 ManageUsersScreen::ManageUsersScreen()
 {
@@ -126,19 +128,20 @@ void ManageUsersScreen::createUser(ApiClient& apiClient)
             desg = ScreenUtils::readLine("Designation");
         }
 
-        // POST to /users — includes all fields required by the schema
-        auto response = apiClient.post("/users", {{"username", username},
-                                                  {"password", tempPassword},
-                                                  {"role", role},
-                                                  {"email", email},
-                                                  {"full_name", fullName},
-                                                  {"department", dept},
-                                                  {"designation", desg},
-                                                  {"force_password_change", true}});
+        auto response = ApiEmptyResponse::fromJson(apiClient.post("/users", {
+            {"username", username},
+            {"password", tempPassword},
+            {"role", role},
+            {"email", email},
+            {"full_name", fullName},
+            {"department", dept},
+            {"designation", desg},
+            {"force_password_change", true}
+        }));
 
-        if (!response["success"].get<bool>())
+        if (!response.success)
         {
-            showError(response["message"].get<std::string>());
+            showError(response.message);
             ScreenUtils::readLine("Press Enter to continue");
             return;
         }
@@ -157,15 +160,15 @@ void ManageUsersScreen::viewUsers(ApiClient& apiClient)
 {
     try
     {
-        auto response = apiClient.get("/users");
-        if (!response["success"].get<bool>())
+        auto response = ApiListResponse<UserDTO>::fromJson(apiClient.get("/users"));
+        if (!response.success)
         {
-            showError(response["message"].get<std::string>());
+            showError(response.message);
             ScreenUtils::readLine("Press Enter to continue");
             return;
         }
 
-        auto users = response["data"];
+        auto users = response.data;
         // clearScreen();
         std::cout << "\n================ ALL USERS ================\n";
         std::cout << std::left << std::setw(6) << "ID" << std::setw(20) << "Username"
@@ -177,12 +180,11 @@ void ManageUsersScreen::viewUsers(ApiClient& apiClient)
 
         for (const auto& user : users)
         {
-            std::string statusStr = user["status"].get<std::string>();
-            std::cout << std::left << std::setw(6) << user["id"].get<int>() << std::setw(20)
-                      << user["username"].get<std::string>() << std::setw(12)
-                      << user["role"].get<std::string>() << std::setw(12) << statusStr << "\n";
+            std::cout << std::left << std::setw(6) << user.id << std::setw(20)
+                      << user.username << std::setw(12)
+                      << user.role << std::setw(12) << user.status << "\n";
 
-            if (statusStr == "ACTIVE" || statusStr == "Active")
+            if (user.status == "ACTIVE" || user.status == "Active")
                 activeCount++;
             else
                 inactiveCount++;
@@ -196,14 +198,14 @@ void ManageUsersScreen::viewUsers(ApiClient& apiClient)
         if (act == "R" || act == "r")
         {
             std::string uId = ScreenUtils::readLine("Enter User ID to reactivate");
-            auto reactResponse = apiClient.put("/users/" + uId + "/reactivate", {});
-            if (reactResponse["success"].get<bool>())
+            auto reactResponse = ApiEmptyResponse::fromJson(apiClient.put("/users/" + uId + "/reactivate", {}));
+            if (reactResponse.success)
             {
                 showSuccess("Account reactivated. ✓");
             }
             else
             {
-                showError(reactResponse["message"].get<std::string>());
+                showError(reactResponse.message);
             }
             ScreenUtils::readLine("Press Enter to continue");
         }
@@ -223,17 +225,16 @@ void ManageUsersScreen::resetUserPassword(ApiClient& apiClient)
 
         // Find user to get ID if username was entered
         std::string userId = identifier;
-        auto usersResponse = apiClient.get("/users");
-        if (usersResponse["success"].get<bool>())
+        auto usersResponse = ApiListResponse<UserDTO>::fromJson(apiClient.get("/users"));
+        if (usersResponse.success)
         {
-            for (const auto& u : usersResponse["data"])
+            for (const auto& u : usersResponse.data)
             {
-                if (u["username"].get<std::string>() == identifier ||
-                    std::to_string(u["id"].get<int>()) == identifier)
+                if (u.username == identifier || std::to_string(u.id) == identifier)
                 {
-                    userId = std::to_string(u["id"].get<int>());
-                    std::cout << "\nUser found: " << u["username"].get<std::string>() << " ("
-                              << u["role"].get<std::string>() << ")\n";
+                    userId = std::to_string(u.id);
+                    std::cout << "\nUser found: " << u.username << " ("
+                              << u.role << ")\n";
                     break;
                 }
             }
@@ -248,13 +249,13 @@ void ManageUsersScreen::resetUserPassword(ApiClient& apiClient)
             return;
         }
 
-        auto response =
+        auto response = ApiEmptyResponse::fromJson(
             apiClient.put("/users/" + userId + "/reset-password",
-                          {{"new_password", newTempPwd}, {"force_password_change", true}});
+                          {{"new_password", newTempPwd}, {"force_password_change", true}}));
 
-        if (!response["success"].get<bool>())
+        if (!response.success)
         {
-            showError(response["message"].get<std::string>());
+            showError(response.message);
             ScreenUtils::readLine("Press Enter to continue");
             return;
         }
@@ -277,17 +278,16 @@ void ManageUsersScreen::deactivateUser(ApiClient& apiClient)
 
         // Find user to get ID if username was entered
         std::string userId = identifier;
-        auto usersResponse = apiClient.get("/users");
-        if (usersResponse["success"].get<bool>())
+        auto usersResponse = ApiListResponse<UserDTO>::fromJson(apiClient.get("/users"));
+        if (usersResponse.success)
         {
-            for (const auto& u : usersResponse["data"])
+            for (const auto& u : usersResponse.data)
             {
-                if (u["username"].get<std::string>() == identifier ||
-                    std::to_string(u["id"].get<int>()) == identifier)
+                if (u.username == identifier || std::to_string(u.id) == identifier)
                 {
-                    userId = std::to_string(u["id"].get<int>());
-                    std::cout << "\nUser found: " << u["username"].get<std::string>() << " ("
-                              << u["role"].get<std::string>() << ")\n";
+                    userId = std::to_string(u.id);
+                    std::cout << "\nUser found: " << u.username << " ("
+                              << u.role << ")\n";
                     break;
                 }
             }
@@ -295,7 +295,7 @@ void ManageUsersScreen::deactivateUser(ApiClient& apiClient)
 
         // Prevent admin from deactivating their own account
         int currentUserId = api::AuthSession::instance().userId();
-        if (!userId.empty() && std::stoi(userId) == currentUserId)
+        if (!userId.empty() && ScreenUtils::safeParseInt(userId).value_or(-1) == currentUserId)
         {
             showError("You cannot deactivate your own account.");
             ScreenUtils::readLine("Press Enter to continue");
@@ -307,10 +307,10 @@ void ManageUsersScreen::deactivateUser(ApiClient& apiClient)
         std::string choice = ScreenUtils::readLine("Choice");
         if (choice == "Y" || choice == "y")
         {
-            auto response = apiClient.put("/users/" + userId + "/deactivate", {});
-            if (!response["success"].get<bool>())
+            auto response = ApiEmptyResponse::fromJson(apiClient.put("/users/" + userId + "/deactivate", {}));
+            if (!response.success)
             {
-                showError(response["message"].get<std::string>());
+                showError(response.message);
                 ScreenUtils::readLine("Press Enter to continue");
                 return;
             }

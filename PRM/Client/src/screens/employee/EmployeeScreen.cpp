@@ -1,6 +1,12 @@
 #include "employee/EmployeeScreen.h"
 #include "employee/SubmitTimesheetScreen.h"
 #include "AuthSession.h"
+#include "dto/ApiResponse.h"
+#include "dto/EmployeeDTO.h"
+#include "dto/TimesheetDTO.h"
+#include "dto/ProjectDTO.h"
+#include "dto/AllocationDTO.h"
+#include "AuthSession.h"
 #include <iomanip>
 
 EmployeeScreen::EmployeeScreen()
@@ -29,14 +35,14 @@ void EmployeeScreen::show(ApiClient& apiClient)
     // Fetch Employee ID
     int userId = api::AuthSession::instance().userId();
     int empId = 0;
-    auto empRes = apiClient.get("/employees");
-    if (empRes["success"].get<bool>())
+    auto empRes = ApiListResponse<EmployeeDTO>::fromJson(apiClient.get("/employees"));
+    if (empRes.success)
     {
-        for (const auto& e : empRes["data"])
+        for (const auto& e : empRes.data)
         {
-            if (e["user_id"].get<int>() == userId)
+            if (e.userId == userId)
             {
-                empId = e["id"].get<int>();
+                empId = e.id;
                 break;
             }
         }
@@ -70,12 +76,12 @@ void EmployeeScreen::show(ApiClient& apiClient)
         hasMissingTimesheet_ = true;
         if (empId > 0)
         {
-            auto tsRes = apiClient.get("/employees/" + std::to_string(empId) + "/timesheets");
-            if (tsRes["success"].get<bool>())
+            auto tsRes = ApiListResponse<TimesheetDTO>::fromJson(apiClient.get("/employees/" + std::to_string(empId) + "/timesheets"));
+            if (tsRes.success)
             {
-                for (const auto& ts : tsRes["data"])
+                for (const auto& ts : tsRes.data)
                 {
-                    if (ts["week_start_date"].get<std::string>() == lastMondayIso && ts["status"].get<std::string>() == "SUBMITTED")
+                    if (ts.weekStartDate == lastMondayIso && ts.status == "SUBMITTED")
                     {
                         hasMissingTimesheet_ = false;
                         break;
@@ -128,14 +134,14 @@ void EmployeeScreen::viewMyTimesheets(ApiClient& apiClient)
         // Find Employee ID
         int userId = api::AuthSession::instance().userId();
         int empId = 0;
-        auto empRes = apiClient.get("/employees");
-        if (empRes["success"].get<bool>())
+        auto empRes = ApiListResponse<EmployeeDTO>::fromJson(apiClient.get("/employees"));
+        if (empRes.success)
         {
-            for (const auto& e : empRes["data"])
+            for (const auto& e : empRes.data)
             {
-                if (e["user_id"].get<int>() == userId)
+                if (e.userId == userId)
                 {
-                    empId = e["id"].get<int>();
+                    empId = e.id;
                     break;
                 }
             }
@@ -148,15 +154,15 @@ void EmployeeScreen::viewMyTimesheets(ApiClient& apiClient)
             return;
         }
 
-        auto response = apiClient.get("/employees/" + std::to_string(empId) + "/timesheets");
-        if (!response["success"].get<bool>())
+        auto response = ApiListResponse<TimesheetDTO>::fromJson(apiClient.get("/employees/" + std::to_string(empId) + "/timesheets"));
+        if (!response.success)
         {
-            showError(response["message"].get<std::string>());
+            showError(response.message);
             ScreenUtils::readLine("Press Enter to continue");
             return;
         }
 
-        auto timesheets = response["data"];
+        auto timesheets = response.data;
         // clearScreen();
         std::cout << "\n================ MY TIMESHEETS ================\n";
         std::cout << std::left << std::setw(15) << "Week Start"
@@ -164,12 +170,12 @@ void EmployeeScreen::viewMyTimesheets(ApiClient& apiClient)
                   << "Status\n";
         ScreenUtils::printDivider();
 
-        std::vector<nlohmann::json> tsList;
+        std::vector<TimesheetDTO> tsList;
         for (const auto& ts : timesheets)
         {
             tsList.push_back(ts);
             
-            std::string dateIso = ts["week_start_date"].get<std::string>();
+            std::string dateIso = ts.weekStartDate;
             int y, m, d;
             std::string dispDate = dateIso;
             if (std::sscanf(dateIso.c_str(), "%d-%d-%d", &y, &m, &d) == 3)
@@ -184,8 +190,8 @@ void EmployeeScreen::viewMyTimesheets(ApiClient& apiClient)
             }
 
             std::cout << std::left << std::setw(15) << dispDate
-                      << std::setw(15) << (std::to_string(ts.value("total_hours", 0)) + " hrs")
-                      << ts["status"].get<std::string>() << "\n";
+                      << std::setw(15) << (std::to_string(ts.totalHours) + " hrs")
+                      << ts.status << "\n";
         }
         ScreenUtils::printDivider();
         
@@ -211,10 +217,10 @@ void EmployeeScreen::viewMyTimesheets(ApiClient& apiClient)
                 std::string st = "";
                 for (const auto& ts : tsList)
                 {
-                    if (ts["week_start_date"].get<std::string>() == dateToView)
+                    if (ts.weekStartDate == dateToView)
                     {
-                        selectedId = ts["id"].get<int>();
-                        st = ts["status"].get<std::string>();
+                        selectedId = ts.id;
+                        st = ts.status;
                         break;
                     }
                 }
@@ -249,14 +255,14 @@ void EmployeeScreen::viewMyAllocations(ApiClient& apiClient)
         // Find Employee ID
         int userId = api::AuthSession::instance().userId();
         int empId = 0;
-        auto empRes = apiClient.get("/employees");
-        if (empRes["success"].get<bool>())
+        auto empRes = ApiListResponse<EmployeeDTO>::fromJson(apiClient.get("/employees"));
+        if (empRes.success)
         {
-            for (const auto& e : empRes["data"])
+            for (const auto& e : empRes.data)
             {
-                if (e["user_id"].get<int>() == userId)
+                if (e.userId == userId)
                 {
-                    empId = e["id"].get<int>();
+                    empId = e.id;
                     break;
                 }
             }
@@ -278,26 +284,26 @@ void EmployeeScreen::viewMyAllocations(ApiClient& apiClient)
                   << "Status\n";
         ScreenUtils::printDivider();
 
-        auto projRes = apiClient.get("/projects");
+        auto projRes = ApiListResponse<ProjectDTO>::fromJson(apiClient.get("/projects"));
         int count = 0;
         int totalUtil = 0;
-        if (projRes["success"].get<bool>())
+        if (projRes.success)
         {
-            for (const auto& proj : projRes["data"])
+            for (const auto& proj : projRes.data)
             {
-                int projId = proj["id"].get<int>();
-                auto allocs = apiClient.get("/projects/" + std::to_string(projId) + "/allocations");
-                if (!allocs.contains("data") || !allocs["data"].is_array()) continue;
-                for (const auto& alloc : allocs["data"])
+                int projId = proj.id;
+                auto allocs = ApiListResponse<AllocationDTO>::fromJson(apiClient.get("/projects/" + std::to_string(projId) + "/allocations"));
+                if (!allocs.success) continue;
+                for (const auto& alloc : allocs.data)
                 {
-                    if (alloc["employee_id"].get<int>() == empId)
+                    if (alloc.employeeId == empId)
                     {
-                        std::cout << std::left << std::setw(20) << proj["name"].get<std::string>().substr(0, 19)
-                                  << std::setw(8) << (std::to_string(alloc["utilization_percentage"].get<int>()) + "%")
-                                  << std::setw(12) << alloc["from_date"].get<std::string>()
-                                  << std::setw(12) << alloc.value("to_date", "")
+                        std::cout << std::left << std::setw(20) << proj.name.substr(0, 19)
+                                  << std::setw(8) << (std::to_string(alloc.utilizationPercentage) + "%")
+                                  << std::setw(12) << alloc.fromDate
+                                  << std::setw(12) << alloc.toDate
                                   << "ACTIVE\n";
-                        totalUtil += alloc["utilization_percentage"].get<int>();
+                        totalUtil += alloc.utilizationPercentage;
                         count++;
                     }
                 }
@@ -321,10 +327,10 @@ void EmployeeScreen::viewMyAllocations(ApiClient& apiClient)
 
 void EmployeeScreen::viewTimesheetDetails(ApiClient& apiClient, int timesheetId, const std::string& weekStart, const std::string& status)
 {
-    auto response = apiClient.get("/timesheets/" + std::to_string(timesheetId));
-    if (!response["success"].get<bool>())
+    auto response = ApiListResponse<TimesheetEntryDTO>::fromJson(apiClient.get("/timesheets/" + std::to_string(timesheetId)));
+    if (!response.success)
     {
-        showError(response["message"].get<std::string>());
+        showError(response.message);
         ScreenUtils::readLine("Press Enter to continue");
         return;
     }
@@ -349,13 +355,13 @@ void EmployeeScreen::viewTimesheetDetails(ApiClient& apiClient, int timesheetId,
     ScreenUtils::printDivider();
 
     int total = 0;
-    for (const auto& row : response["data"])
+    for (const auto& row : response.data)
     {
-        int hrs = row["hours"].get<int>();
+        int hrs = row.hoursWorked;
         total += hrs;
-        std::cout << std::left << std::setw(20) << row["project_name"].get<std::string>().substr(0, 19)
+        std::cout << std::left << std::setw(20) << row.projectName.substr(0, 19)
                   << std::setw(10) << hrs
-                  << row["tags"].get<std::string>() << "\n";
+                  << row.tags << "\n";
     }
     ScreenUtils::printDivider();
     std::cout << "Total: " << total << " hrs\n\n";

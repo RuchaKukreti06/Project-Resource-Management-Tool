@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <string>
+#include <optional>
 
 namespace ScreenUtils
 {
@@ -13,6 +14,8 @@ std::string readLine(const std::string& label);
 std::string readPassword(const std::string& label);
 bool isValidPassword(const std::string& password, std::string& errorMsg);
 bool isValidEmail(const std::string& email);
+std::optional<int> safeParseInt(const std::string& input);
+std::optional<double> safeParseDouble(const std::string& input);
 }
 
 #endif

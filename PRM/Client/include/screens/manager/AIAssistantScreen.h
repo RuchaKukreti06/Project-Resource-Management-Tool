@@ -2,6 +2,7 @@
 #define AI_ASSISTANT_SCREEN_H
 
 #include "Screen.h"
+#include "dto/AiResponseDTO.h"
 
 class AIAssistantScreen : public Screen
 {
@@ -17,7 +18,7 @@ class AIAssistantScreen : public Screen
     void teamBuilder(ApiClient& apiClient);
 
    private:
-    void displayTeamMatchResults(const nlohmann::json& team);
+    void displayTeamMatchResults(const AiTeamBuilderResponse& dto);
 
    protected:
     ScreenDecorator decorator() const override;

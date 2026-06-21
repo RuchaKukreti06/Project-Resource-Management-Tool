@@ -1,4 +1,5 @@
 #include "UserAccountCreationScreen.h"
+#include "dto/ApiResponse.h"
 
 void UserAccountCreationScreen::show(ApiClient& apiClient)
 {
@@ -61,9 +62,10 @@ void UserAccountCreationScreen::handleInput(ApiClient& apiClient)
                                         {"email", email},
                                         {"full_name", fullName}});
 
-        if (!response["success"].get<bool>())
+        auto res = ApiEmptyResponse::fromJson(response);
+        if (!res.success)
         {
-            showError(response["message"].get<std::string>());
+            showError(res.message);
             handleInput(apiClient);
             return;
         }

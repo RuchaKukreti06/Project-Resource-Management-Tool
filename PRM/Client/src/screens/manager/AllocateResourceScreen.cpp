@@ -1,5 +1,10 @@
 #include "manager/AllocateResourceScreen.h"
 #include "AuthSession.h"
+#include "dto/ApiResponse.h"
+#include "dto/ProjectDTO.h"
+#include "dto/EmployeeDTO.h"
+#include "dto/AllocationDTO.h"
+#include "dto/AiResponseDTO.h"
 #include <ctime>
 
 AllocateResourceScreen::AllocateResourceScreen()
@@ -62,32 +67,18 @@ void AllocateResourceScreen::findResourceAI(ApiClient& apiClient)
 
         std::cout << "\nSearching... (AI matching in progress)\n";
         
-        nlohmann::json payload = {{"requirement", reqText}};
-        auto response = apiClient.post("/ai/skill-match", payload);
+        AiSkillMatchRequest req;
+        req.requirement = reqText;
+        auto response = apiClient.post("/ai/skill-match", req.toJson());
 
-        if (!response.contains("success") || !response["success"].get<bool>())
+        auto aiRes = AiSkillMatchResponse::fromJson(response);
+        if (aiRes.fallback_message.has_value())
         {
-            showError("AI service error. Please check the API key in System Configuration.");
+            showError("AI service error: " + aiRes.fallback_message.value());
             return;
         }
 
-        auto data = response["data"];
-
-        // Normalise: if LLM returned a JSON string in "raw", try to parse it as array
-        std::vector<nlohmann::json> candidates;
-        nlohmann::json parsedData = nlohmann::json::array();
-        if (data.is_array())
-        {
-            parsedData = data;
-        }
-        else if (data.contains("raw"))
-        {
-            try { parsedData = nlohmann::json::parse(data["raw"].get<std::string>()); }
-            catch (...) {}
-        }
-        if (parsedData.is_array())
-            for (const auto& item : parsedData) candidates.push_back(item);
-
+        auto candidates = aiRes.candidates;
         // ── Table header ──────────────────────────────────────────
         const int W_NO     = 4;
         const int W_ID     = 6;
@@ -109,7 +100,7 @@ void AllocateResourceScreen::findResourceAI(ApiClient& apiClient)
             int idx = 1;
             for (const auto& item : candidates)
             {
-                std::string reason = item.value("reason", "");
+                std::string reason = item.reason;
 
                 // Word-wrap reason into lines of W_REASON chars
                 std::vector<std::string> reasonLines;
@@ -126,8 +117,8 @@ void AllocateResourceScreen::findResourceAI(ApiClient& apiClient)
                 // First line — print all columns
                 std::cout << std::left
                           << std::setw(W_NO)   << idx++
-                          << std::setw(W_ID)   << item.value("employee_id", 0)
-                          << std::setw(W_NAME) << item.value("name", "Unknown").substr(0, W_NAME - 1)
+                          << std::setw(W_ID)   << item.employee_id
+                          << std::setw(W_NAME) << item.name.substr(0, W_NAME - 1)
                           << reasonLines[0] << "\n";
 
                 // Continuation lines — indent to reason column
@@ -150,32 +141,37 @@ void AllocateResourceScreen::findResourceAI(ApiClient& apiClient)
         }
 
         std::string selStr = ScreenUtils::readLine("Select employee (enter #, or 0 to search again)");
-        int selection = std::stoi(selStr);
+        auto parsedSel = ScreenUtils::safeParseInt(selStr);
+        if (!parsedSel) throw std::invalid_argument("Invalid selection format");
+        int selection = parsedSel.value();
         if (selection < 1 || selection > (int)candidates.size())
         {
             return;
         }
 
         auto selectedEmp = candidates[selection - 1];
-        int empId = selectedEmp["employee_id"].get<int>();
+        int empId = selectedEmp.employee_id;
 
-        std::cout << "\n── " << selectedEmp.value("name", "Unknown") << " ─────────────────────────────────\n";
+        std::cout << "\n── " << selectedEmp.name << " ─────────────────────────────────\n";
         std::cout << "Current Utilisation: 0%   (fully on bench)\n\n";
 
         std::string utilStr = ScreenUtils::readLine("Set Allocation Utilisation %");
+        auto parsedUtil = ScreenUtils::safeParseInt(utilStr);
+        if (!parsedUtil) throw std::invalid_argument("Invalid utilisation format");
+        int utilPercent = parsedUtil.value();
         std::string fromDate = ScreenUtils::readLine("From Date (YYYY-MM-DD)");
         std::string toDate = ScreenUtils::readLine("To Date (YYYY-MM-DD)");
 
         // Find Project ID
         int projectId = 0;
-        auto projRes = apiClient.get("/projects");
-        if (projRes["success"].get<bool>())
+        auto projRes = ApiListResponse<ProjectDTO>::fromJson(apiClient.get("/projects"));
+        if (projRes.success)
         {
-            for (const auto& p : projRes["data"])
+            for (const auto& p : projRes.data)
             {
-                if (std::to_string(p["id"].get<int>()) == projectInput || p["name"].get<std::string>() == projectInput)
+                if (std::to_string(p.id) == projectInput || p.name == projectInput)
                 {
-                    projectId = p["id"].get<int>();
+                    projectId = p.id;
                     break;
                 }
             }
@@ -188,21 +184,21 @@ void AllocateResourceScreen::findResourceAI(ApiClient& apiClient)
             return;
         }
 
-        auto allocRes = apiClient.post("/allocations", {
+        auto allocRes = ApiEmptyResponse::fromJson(apiClient.post("/allocations", {
             {"employee_id", empId},
             {"project_id", projectId},
-            {"utilization_percentage", std::stoi(utilStr)},
+            {"utilization_percentage", utilPercent},
             {"from_date", fromDate},
             {"to_date", toDate}
-        });
+        }));
 
-        if (allocRes["success"].get<bool>())
+        if (allocRes.success)
         {
             showSuccess("Allocation saved successfully! ✓");
         }
         else
         {
-            showError(allocRes["message"].get<std::string>());
+            showError(allocRes.message);
         }
         ScreenUtils::readLine("Press Enter to continue");
     }
@@ -218,18 +214,21 @@ void AllocateResourceScreen::allocateDirectly(ApiClient& apiClient)
     try
     {
         std::string projInput = ScreenUtils::readLine("Select Project (Enter name or ID)");
-        std::string empId = ScreenUtils::readLine("Enter Employee ID");
+        std::string empIdStr = ScreenUtils::readLine("Enter Employee ID");
+        auto parsedEmp = ScreenUtils::safeParseInt(empIdStr);
+        if (!parsedEmp) throw std::invalid_argument("Invalid employee ID");
+        int empIdParsed = parsedEmp.value();
 
         // Find Project ID
         int projectId = 0;
-        auto projRes = apiClient.get("/projects");
-        if (projRes["success"].get<bool>())
+        auto projRes = ApiListResponse<ProjectDTO>::fromJson(apiClient.get("/projects"));
+        if (projRes.success)
         {
-            for (const auto& p : projRes["data"])
+            for (const auto& p : projRes.data)
             {
-                if (std::to_string(p["id"].get<int>()) == projInput || p["name"].get<std::string>() == projInput)
+                if (std::to_string(p.id) == projInput || p.name == projInput)
                 {
-                    projectId = p["id"].get<int>();
+                    projectId = p.id;
                     break;
                 }
             }
@@ -243,24 +242,27 @@ void AllocateResourceScreen::allocateDirectly(ApiClient& apiClient)
         }
 
         std::string utilStr = ScreenUtils::readLine("Utilisation %");
+        auto parsedUtil = ScreenUtils::safeParseInt(utilStr);
+        if (!parsedUtil) throw std::invalid_argument("Invalid utilisation format");
+        int utilPercent = parsedUtil.value();
         std::string fromDate = ScreenUtils::readLine("From Date (YYYY-MM-DD)");
         std::string toDate = ScreenUtils::readLine("To Date (YYYY-MM-DD)");
 
-        auto allocRes = apiClient.post("/allocations", {
-            {"employee_id", std::stoi(empId)},
+        auto allocRes = ApiEmptyResponse::fromJson(apiClient.post("/allocations", {
+            {"employee_id", empIdParsed},
             {"project_id", projectId},
-            {"utilization_percentage", std::stoi(utilStr)},
+            {"utilization_percentage", utilPercent},
             {"from_date", fromDate},
             {"to_date", toDate}
-        });
+        }));
 
-        if (allocRes["success"].get<bool>())
+        if (allocRes.success)
         {
             showSuccess("Allocation saved successfully. ✓");
         }
         else
         {
-            showError(allocRes["message"].get<std::string>());
+            showError(allocRes.message);
         }
         ScreenUtils::readLine("Press Enter to continue");
     }
@@ -278,14 +280,14 @@ void AllocateResourceScreen::endAllocation(ApiClient& apiClient)
         std::string projInput = ScreenUtils::readLine("Select Project (Enter name or ID)");
 
         int projectId = 0;
-        auto projRes = apiClient.get("/projects");
-        if (projRes["success"].get<bool>())
+        auto projRes = ApiListResponse<ProjectDTO>::fromJson(apiClient.get("/projects"));
+        if (projRes.success)
         {
-            for (const auto& p : projRes["data"])
+            for (const auto& p : projRes.data)
             {
-                if (std::to_string(p["id"].get<int>()) == projInput || p["name"].get<std::string>() == projInput)
+                if (std::to_string(p.id) == projInput || p.name == projInput)
                 {
-                    projectId = p["id"].get<int>();
+                    projectId = p.id;
                     break;
                 }
             }
@@ -299,7 +301,7 @@ void AllocateResourceScreen::endAllocation(ApiClient& apiClient)
         }
 
         // Fetch allocations
-        auto allocRes = apiClient.get("/projects/" + std::to_string(projectId) + "/allocations");
+        auto allocRes = ApiListResponse<AllocationDTO>::fromJson(apiClient.get("/projects/" + std::to_string(projectId) + "/allocations"));
         
         // clearScreen();
         std::cout << "\nActive Allocations on this project:\n";
@@ -310,29 +312,29 @@ void AllocateResourceScreen::endAllocation(ApiClient& apiClient)
                   << std::setw(12) << "To" << "\n";
         ScreenUtils::printDivider();
 
-        std::vector<nlohmann::json> activeAllocs;
+        std::vector<AllocationDTO> activeAllocs;
         int idx = 1;
-        if (!allocRes.contains("data") || !allocRes["data"].is_array())
+        if (!allocRes.success || allocRes.data.empty())
         {
             showInfo("No active allocations found on this project.");
             ScreenUtils::readLine("Press Enter to continue");
             return;
         }
-        for (const auto& alloc : allocRes["data"])
+        for (const auto& alloc : allocRes.data)
         {
             activeAllocs.push_back(alloc);
-            int empId = alloc["employee_id"].get<int>();
+            int empId = alloc.employeeId;
             
             // fetch emp name
             std::string empName = "Emp " + std::to_string(empId);
-            auto empRes = apiClient.get("/employees");
-            if (empRes.contains("data"))
+            auto empRes = ApiListResponse<EmployeeDTO>::fromJson(apiClient.get("/employees"));
+            if (empRes.success)
             {
-                for (const auto& e : empRes["data"])
+                for (const auto& e : empRes.data)
                 {
-                    if (e["id"].get<int>() == empId)
+                    if (e.id == empId)
                     {
-                        empName = e["full_name"].get<std::string>();
+                        empName = e.fullName;
                         break;
                     }
                 }
@@ -340,9 +342,9 @@ void AllocateResourceScreen::endAllocation(ApiClient& apiClient)
 
             std::cout << std::left << std::setw(6) << idx++
                       << std::setw(20) << empName.substr(0, 19)
-                      << std::setw(8) << (std::to_string(alloc["utilization_percentage"].get<int>()) + "%")
-                      << std::setw(12) << alloc["from_date"].get<std::string>()
-                      << std::setw(12) << alloc["to_date"].get<std::string>() << "\n";
+                      << std::setw(8) << (std::to_string(alloc.utilizationPercentage) + "%")
+                      << std::setw(12) << alloc.fromDate
+                      << std::setw(12) << alloc.toDate << "\n";
         }
         ScreenUtils::printDivider();
 
@@ -353,15 +355,17 @@ void AllocateResourceScreen::endAllocation(ApiClient& apiClient)
             return;
         }
 
-        std::string selStr = ScreenUtils::readLine("Select allocation to end");
-        int selection = std::stoi(selStr);
+        std::string selStr = ScreenUtils::readLine("Select resource to deallocate (enter #, or 0 to cancel)");
+        auto parsedSel = ScreenUtils::safeParseInt(selStr);
+        if (!parsedSel) throw std::invalid_argument("Invalid selection format");
+        int selection = parsedSel.value();
         if (selection < 1 || selection > (int)activeAllocs.size())
         {
             return;
         }
 
         auto targetAlloc = activeAllocs[selection - 1];
-        int allocId = targetAlloc["id"].get<int>();
+        int allocId = targetAlloc.id;
 
         std::cout << "Confirm setting end date to today (Y/N): ";
         std::string confirm = ScreenUtils::readLine("Choice");
@@ -377,17 +381,17 @@ void AllocateResourceScreen::endAllocation(ApiClient& apiClient)
             char buffer[11] = {0};
             std::strftime(buffer, sizeof(buffer), "%Y-%m-%d", &local);
 
-            auto response = apiClient.put("/allocations/" + std::to_string(allocId) + "/end", {
+            auto response = ApiEmptyResponse::fromJson(apiClient.put("/allocations/" + std::to_string(allocId) + "/end", {
                 {"end_date", std::string(buffer)}
-            });
+            }));
 
-            if (response["success"].get<bool>())
+            if (response.success)
             {
                 showSuccess("Allocation ended successfully. ✓");
             }
             else
             {
-                showError(response["message"].get<std::string>());
+                showError(response.message);
             }
         }
         ScreenUtils::readLine("Press Enter to continue");

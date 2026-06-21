@@ -1,4 +1,6 @@
 #include "admin/SystemConfigScreen.h"
+#include "dto/SystemConfigDTO.h"
+#include "dto/ApiResponse.h"
 
 SystemConfigScreen::SystemConfigScreen()
 {
@@ -19,22 +21,22 @@ void SystemConfigScreen::loadConfig(ApiClient& apiClient)
 {
     try
     {
-        auto response = apiClient.get("/system/config");
-        if (response["success"].get<bool>() && response.contains("data"))
+        auto res = ApiResponse<SystemConfigDTO>::fromJson(apiClient.get("/system/config"));
+        if (res.success && res.data.has_value())
         {
-            const auto& data = response["data"];
-            llmProvider_       = data.value("llm_provider", "Google Gemini");
-            llmApiKey_         = data.value("llm_api_key", "");
-            schedulerInterval_ = data.value("scheduler_interval", 4);
-            maxWeeklyHours_    = data.value("max_weekly_hours", 40);
-            smtpEnabled_       = data.value("smtp_enabled", false);
-            smtpHost_          = data.value("smtp_host", "");
-            smtpPort_          = data.value("smtp_port", 587);
-            smtpUsername_      = data.value("smtp_username", "");
-            smtpPasswordMasked_ = data.value("smtp_password", "");
-            smtpFromEmail_     = data.value("smtp_from_email", "");
-            smtpFromName_      = data.value("smtp_from_name", "");
-            smtpUseTls_        = data.value("smtp_use_tls", true);
+            const auto& data = res.data.value();
+            llmProvider_       = data.llmProvider;
+            llmApiKey_         = data.llmApiKey;
+            schedulerInterval_ = data.schedulerIntervalHours;
+            maxWeeklyHours_    = data.maxWeeklyHours;
+            smtpEnabled_       = data.smtpEnabled;
+            smtpHost_          = data.smtpHost;
+            smtpPort_          = data.smtpPort;
+            smtpUsername_      = data.smtpUsername;
+            smtpPasswordMasked_ = data.smtpPassword;
+            smtpFromEmail_     = data.smtpFromEmail;
+            smtpFromName_      = data.smtpFromName;
+            smtpUseTls_        = data.smtpUseTls;
         }
     }
     catch (const std::exception& ex)
@@ -53,9 +55,10 @@ bool SystemConfigScreen::sendTestEmail(ApiClient& apiClient, const std::string& 
              {"subject", "PRM SMTP Test"},
              {"body", "SMTP configuration test succeeded."}});
 
-        if (!response["success"].get<bool>())
+        auto res = ApiEmptyResponse::fromJson(response);
+        if (!res.success)
         {
-            showError(response["message"].get<std::string>());
+            showError(res.message);
             return false;
         }
         return true;
@@ -72,9 +75,10 @@ bool SystemConfigScreen::saveConfig(ApiClient& apiClient, const nlohmann::json& 
     try
     {
         auto response = apiClient.put("/system/config", patch);
-        if (!response["success"].get<bool>())
+        auto res = ApiEmptyResponse::fromJson(response);
+        if (!res.success)
         {
-            showError(response["message"].get<std::string>());
+            showError(res.message);
             return false;
         }
         loadConfig(apiClient);  // Refresh local values from server
@@ -165,43 +169,43 @@ void SystemConfigScreen::handleInput(ApiClient& apiClient)
     else if (choice == "3")
     {
         std::string val = ScreenUtils::readLine("Enter Scheduler Interval in hours (1-168)");
-        try
-        {
-            int hrs = std::stoi(val);
-            if (hrs < 1 || hrs > 168)
-            {
-                showError("Interval must be between 1 and 168.");
-                ScreenUtils::readLine("Press Enter to continue");
-                return;
-            }
-            if (saveConfig(apiClient, {{"scheduler_interval", hrs}}))
-                showSuccess("Scheduler Interval updated to " + std::to_string(hrs) + " hours.");
+        auto parsedVal = ScreenUtils::safeParseInt(val);
+        if (!parsedVal) {
+            showError("Invalid interval format");
+            ScreenUtils::readLine("Press Enter to continue");
+            return;
         }
-        catch (...)
+        int hrs = parsedVal.value();
+
+        if (hrs < 1 || hrs > 168)
         {
-            showError("Invalid number.");
+            showError("Interval must be between 1 and 168.");
+            ScreenUtils::readLine("Press Enter to continue");
+            return;
         }
+        if (saveConfig(apiClient, {{"scheduler_interval", hrs}}))
+            showSuccess("Scheduler Interval updated to " + std::to_string(hrs) + " hours.");
         ScreenUtils::readLine("Press Enter to continue");
     }
     else if (choice == "4")
     {
-        std::string hrs = ScreenUtils::readLine("Enter Max Weekly Hours (1-168)");
-        try
-        {
-            int h = std::stoi(hrs);
-            if (h < 1 || h > 168)
-            {
-                showError("Hours must be between 1 and 168.");
-                ScreenUtils::readLine("Press Enter to continue");
-                return;
-            }
-            if (saveConfig(apiClient, {{"max_weekly_hours", h}}))
-                showSuccess("Max Weekly Hours updated to " + std::to_string(h) + ".");
+        std::string hrsStr = ScreenUtils::readLine("Enter Max Weekly Hours (1-168)");
+        auto parsedH = ScreenUtils::safeParseInt(hrsStr);
+        if (!parsedH) {
+            showError("Invalid hours format");
+            ScreenUtils::readLine("Press Enter to continue");
+            return;
         }
-        catch (...)
+        int h = parsedH.value();
+
+        if (h < 1 || h > 168)
         {
-            showError("Invalid number.");
+            showError("Hours must be between 1 and 168.");
+            ScreenUtils::readLine("Press Enter to continue");
+            return;
         }
+        if (saveConfig(apiClient, {{"max_weekly_hours", h}}))
+            showSuccess("Max Weekly Hours updated to " + std::to_string(h) + ".");
         ScreenUtils::readLine("Press Enter to continue");
     }
     else if (choice == "5")
@@ -214,23 +218,23 @@ void SystemConfigScreen::handleInput(ApiClient& apiClient)
     {
         std::string host = ScreenUtils::readLine("Enter SMTP host");
         std::string port = ScreenUtils::readLine("Enter SMTP port");
-        try
-        {
-            int parsedPort = std::stoi(port);
-            if (parsedPort < 1 || parsedPort > 65535)
-            {
-                showError("SMTP port must be between 1 and 65535.");
-                ScreenUtils::readLine("Press Enter to continue");
-                return;
-            }
+        auto parsedPortOpt = ScreenUtils::safeParseInt(port);
+        if (!parsedPortOpt) {
+            showError("Invalid port format");
+            ScreenUtils::readLine("Press Enter to continue");
+            return;
+        }
+        int parsedPort = parsedPortOpt.value();
 
-            if (saveConfig(apiClient, {{"smtp_host", host}, {"smtp_port", parsedPort}}))
-                showSuccess("SMTP server updated.");
-        }
-        catch (...)
+        if (parsedPort < 1 || parsedPort > 65535)
         {
-            showError("Invalid port number.");
+            showError("SMTP port must be between 1 and 65535.");
+            ScreenUtils::readLine("Press Enter to continue");
+            return;
         }
+
+        if (saveConfig(apiClient, {{"smtp_host", host}, {"smtp_port", parsedPort}}))
+            showSuccess("SMTP server updated.");
         ScreenUtils::readLine("Press Enter to continue");
     }
     else if (choice == "7")

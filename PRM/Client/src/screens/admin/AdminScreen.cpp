@@ -4,7 +4,11 @@
 #include "admin/ManageUsersScreen.h"
 #include "admin/SystemConfigScreen.h"
 #include "AuthSession.h"
-
+#include "dto/ApiResponse.h"
+#include "dto/ProjectDTO.h"
+#include "dto/EmployeeDTO.h"
+#include "dto/AllocationDTO.h"
+#include <map>
 AdminScreen::AdminScreen()
 {
 }
@@ -50,13 +54,13 @@ void AdminScreen::handleInput(ApiClient& apiClient)
         // View All Allocations
         try
         {
-            auto response = apiClient.get("/projects");
-            if (!response["success"].get<bool>())
+            auto response = ApiListResponse<ProjectDTO>::fromJson(apiClient.get("/projects"));
+            if (!response.success)
             {
-                showError(response["message"].get<std::string>());
+                showError(response.message);
                 return;
             }
-            auto projects = response["data"];
+            auto projects = response.data;
             // clearScreen();
             std::cout << "\n================ ALL ACTIVE ALLOCATIONS ================\n";
             std::cout << std::left << std::setw(15) << "Employee" 
@@ -67,34 +71,31 @@ void AdminScreen::handleInput(ApiClient& apiClient)
             ScreenUtils::printDivider();
 
             int totalAllocations = 0;
+            
+            auto empRes = ApiListResponse<EmployeeDTO>::fromJson(apiClient.get("/employees"));
+            std::map<int, std::string> empMap;
+            if (empRes.success) {
+                for (const auto& e : empRes.data) {
+                    empMap[e.id] = e.fullName;
+                }
+            }
+
             for (const auto& proj : projects)
             {
-                int projId = proj["id"].get<int>();
-                std::string projName = proj["name"].get<std::string>();
-                auto allocRes = apiClient.get("/projects/" + std::to_string(projId) + "/allocations");
-                if (!allocRes.contains("data") || !allocRes["data"].is_array()) continue;
-                for (const auto& alloc : allocRes["data"])
+                auto allocRes = ApiListResponse<AllocationDTO>::fromJson(apiClient.get("/projects/" + std::to_string(proj.id) + "/allocations"));
+                if (!allocRes.success) continue;
+                for (const auto& alloc : allocRes.data)
                 {
-                    int empId = alloc["employee_id"].get<int>();
-                    auto empRes = apiClient.get("/employees");
-                    std::string empName = "Emp " + std::to_string(empId);
-                    if (empRes.contains("data"))
-                    {
-                        for (const auto& e : empRes["data"])
-                        {
-                            if (e["id"].get<int>() == empId)
-                            {
-                                empName = e["full_name"].get<std::string>();
-                                break;
-                            }
-                        }
+                    std::string empName = "Emp " + std::to_string(alloc.employeeId);
+                    if (empMap.find(alloc.employeeId) != empMap.end()) {
+                        empName = empMap[alloc.employeeId];
                     }
 
                     std::cout << std::left << std::setw(15) << empName.substr(0, 14)
-                              << std::setw(20) << projName.substr(0, 19)
-                              << std::setw(8)  << (std::to_string(alloc["utilization_percentage"].get<int>()) + "%")
-                              << std::setw(12) << alloc["from_date"].get<std::string>()
-                              << std::setw(12) << alloc["to_date"].get<std::string>() << "\n";
+                              << std::setw(20) << proj.name.substr(0, 19)
+                              << std::setw(8)  << (std::to_string(alloc.utilizationPercentage) + "%")
+                              << std::setw(12) << alloc.fromDate
+                              << std::setw(12) << alloc.toDate << "\n";
                     totalAllocations++;
                 }
             }

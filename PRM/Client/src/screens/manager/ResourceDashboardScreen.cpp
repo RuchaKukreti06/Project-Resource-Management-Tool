@@ -1,5 +1,10 @@
 #include "manager/ResourceDashboardScreen.h"
 #include "AuthSession.h"
+#include "dto/ApiResponse.h"
+#include "dto/EmployeeDTO.h"
+#include "dto/ProjectDTO.h"
+#include "dto/AllocationDTO.h"
+#include "dto/TimesheetDTO.h"
 #include <iomanip>
 #include <set>
 #include <sstream>
@@ -20,15 +25,15 @@ void ResourceDashboardScreen::show(ApiClient& apiClient)
         try
         {
             int managerId = api::AuthSession::instance().userId();
-            auto response = apiClient.get("/managers/" + std::to_string(managerId) + "/team");
-            if (!response["success"].get<bool>())
+            auto response = ApiListResponse<EmployeeDTO>::fromJson(apiClient.get("/managers/" + std::to_string(managerId) + "/team"));
+            if (!response.success)
             {
-                showError(response["message"].get<std::string>());
+                showError(response.message);
                 ScreenUtils::readLine("Press Enter to continue");
                 return;
             }
 
-            auto employees = response["data"];
+            auto employees = response.data;
             // clearScreen();
             decorator().render();
 
@@ -42,34 +47,34 @@ void ResourceDashboardScreen::show(ApiClient& apiClient)
             int benchCount = 0;
             int activeCount = 0;
 
-            std::vector<nlohmann::json> activeList;
+            std::vector<EmployeeDTO> activeList;
 
             for (const auto& emp : employees)
             {
-                if (!emp["is_active"].get<bool>()) continue;
+                if (!emp.isActive) continue;
 
-                int empId = emp["id"].get<int>();
-                std::string status = emp["status"].get<std::string>();
+                int empId = emp.id;
+                std::string status = emp.status;
 
                 if (status == "BENCH")
                 {
                     // Fetch skills
                     std::string skillsStr = "";
-                    auto skillsRes = apiClient.get("/employees/" + std::to_string(empId) + "/skills");
-                    if (skillsRes["success"].get<bool>())
+                    auto skillsRes = ApiListResponse<SkillDTO>::fromJson(apiClient.get("/employees/" + std::to_string(empId) + "/skills"));
+                    if (skillsRes.success)
                     {
                         int count = 0;
-                        for (const auto& s : skillsRes["data"])
+                        for (const auto& s : skillsRes.data)
                         {
                             if (count > 0) skillsStr += ", ";
-                            skillsStr += s["skill_name"].get<std::string>();
+                            skillsStr += s.skillName;
                             count++;
                         }
                     }
 
                     std::cout << std::left << std::setw(6) << empId
-                              << std::setw(20) << emp["full_name"].get<std::string>().substr(0, 19)
-                              << std::setw(15) << emp["department"].get<std::string>().substr(0, 14)
+                              << std::setw(20) << emp.fullName.substr(0, 19)
+                              << std::setw(15) << emp.department.substr(0, 14)
                               << skillsStr << "\n";
                     benchCount++;
                 }
@@ -89,11 +94,11 @@ void ResourceDashboardScreen::show(ApiClient& apiClient)
 
             for (const auto& emp : activeList)
             {
-                int util = emp.value("total_utilisation", 0);
+                int util = emp.totalUtilisation;
                 std::string avail = (util == 0) ? "FULL" : (util >= 100 ? "0% free" : std::to_string(100 - util) + "% free");
 
-                std::cout << std::left << std::setw(6) << emp["id"].get<int>()
-                          << std::setw(20) << emp["full_name"].get<std::string>().substr(0, 19)
+                std::cout << std::left << std::setw(6) << emp.id
+                          << std::setw(20) << emp.fullName.substr(0, 19)
                           << std::setw(15) << (std::to_string(util) + "%")
                           << avail << "\n";
             }
@@ -130,14 +135,14 @@ void ResourceDashboardScreen::drillIntoEmployeeDetails(ApiClient& apiClient)
     {
         std::string empId = ScreenUtils::readLine("Enter Employee ID");
         int managerId = api::AuthSession::instance().userId();
-        auto response = apiClient.get("/managers/" + std::to_string(managerId) + "/team");
-        if (!response["success"].get<bool>()) return;
+        auto response = ApiListResponse<EmployeeDTO>::fromJson(apiClient.get("/managers/" + std::to_string(managerId) + "/team"));
+        if (!response.success) return;
 
-        nlohmann::json targetEmp;
+        EmployeeDTO targetEmp;
         bool found = false;
-        for (const auto& emp : response["data"])
+        for (const auto& emp : response.data)
         {
-            if (std::to_string(emp["id"].get<int>()) == empId)
+            if (std::to_string(emp.id) == empId)
             {
                 targetEmp = emp;
                 found = true;
@@ -153,21 +158,21 @@ void ResourceDashboardScreen::drillIntoEmployeeDetails(ApiClient& apiClient)
         }
 
         // clearScreen();
-        std::cout << "\n── " << targetEmp["full_name"].get<std::string>() << " ─────────────────────────────────\n";
-        std::cout << "Department     : " << targetEmp["department"].get<std::string>() << "\n";
-        std::cout << "Designation    : " << targetEmp["designation"].get<std::string>() << "\n";
-        std::cout << "Current Status : " << targetEmp["status"].get<std::string>() << "\n";
+        std::cout << "\n── " << targetEmp.fullName << " ─────────────────────────────────\n";
+        std::cout << "Department     : " << targetEmp.department << "\n";
+        std::cout << "Designation    : " << targetEmp.designation << "\n";
+        std::cout << "Current Status : " << targetEmp.status << "\n";
 
         // Fetch skills
         std::string skillsStr = "";
-        auto skillsRes = apiClient.get("/employees/" + empId + "/skills");
-        if (skillsRes["success"].get<bool>())
+        auto skillsRes = ApiListResponse<SkillDTO>::fromJson(apiClient.get("/employees/" + empId + "/skills"));
+        if (skillsRes.success)
         {
             int count = 0;
-            for (const auto& s : skillsRes["data"])
+            for (const auto& s : skillsRes.data)
             {
                 if (count > 0) skillsStr += ", ";
-                skillsStr += s["skill_name"].get<std::string>() + " (" + s["proficiency"].get<std::string>() + ")";
+                skillsStr += s.skillName + " (" + s.proficiency + ")";
                 count++;
             }
         }
@@ -181,22 +186,22 @@ void ResourceDashboardScreen::drillIntoEmployeeDetails(ApiClient& apiClient)
                   << std::setw(12) << "To" << "\n";
         ScreenUtils::printDivider();
 
-        auto projResponse = apiClient.get("/projects");
-        if (projResponse["success"].get<bool>())
+        auto projResponse = ApiListResponse<ProjectDTO>::fromJson(apiClient.get("/projects"));
+        if (projResponse.success)
         {
-            for (const auto& proj : projResponse["data"])
+            for (const auto& proj : projResponse.data)
             {
-                int projId = proj["id"].get<int>();
-                auto allocsRes = apiClient.get("/projects/" + std::to_string(projId) + "/allocations");
-                if (!allocsRes.contains("data") || !allocsRes["data"].is_array()) continue;
-                for (const auto& alloc : allocsRes["data"])
+                int projId = proj.id;
+                auto allocsRes = ApiListResponse<AllocationDTO>::fromJson(apiClient.get("/projects/" + std::to_string(projId) + "/allocations"));
+                if (!allocsRes.success) continue;
+                for (const auto& alloc : allocsRes.data)
                 {
-                    if (std::to_string(alloc["employee_id"].get<int>()) == empId)
+                    if (std::to_string(alloc.employeeId) == empId)
                     {
-                        std::cout << "  " << std::left << std::setw(18) << proj["name"].get<std::string>().substr(0, 17)
-                                  << std::setw(8) << (std::to_string(alloc["utilization_percentage"].get<int>()) + "%")
-                                  << std::setw(12) << alloc["from_date"].get<std::string>()
-                                  << std::setw(12) << alloc["to_date"].get<std::string>() << "\n";
+                        std::cout << "  " << std::left << std::setw(18) << proj.name.substr(0, 17)
+                                  << std::setw(8) << (std::to_string(alloc.utilizationPercentage) + "%")
+                                  << std::setw(12) << alloc.fromDate
+                                  << std::setw(12) << alloc.toDate << "\n";
                     }
                 }
             }
@@ -205,20 +210,20 @@ void ResourceDashboardScreen::drillIntoEmployeeDetails(ApiClient& apiClient)
 
         // Fetch recent activity tags from timesheets (real data)
         std::cout << "Recent Activity Tags (last 4 weeks):\n  ";
-        auto tsRes = apiClient.get("/employees/" + empId + "/timesheets");
+        auto tsRes = ApiListResponse<TimesheetDTO>::fromJson(apiClient.get("/employees/" + empId + "/timesheets"));
         std::set<std::string> tagSet;
-        if (tsRes["success"].get<bool>() && tsRes["data"].is_array())
+        if (tsRes.success)
         {
             int weekCount = 0;
-            for (const auto& ts : tsRes["data"])
+            for (const auto& ts : tsRes.data)
             {
                 if (weekCount++ >= 4) break;
-                auto detailRes = apiClient.get("/timesheets/" + std::to_string(ts["id"].get<int>()));
-                if (detailRes["success"].get<bool>() && detailRes["data"].is_array())
+                auto detailRes = ApiListResponse<TimesheetEntryDTO>::fromJson(apiClient.get("/timesheets/" + std::to_string(ts.id)));
+                if (detailRes.success)
                 {
-                    for (const auto& row : detailRes["data"])
+                    for (const auto& row : detailRes.data)
                     {
-                        std::string tags = row.value("tags", "");
+                        std::string tags = row.tags;
                         std::istringstream ss(tags);
                         std::string tag;
                         while (std::getline(ss, tag, ','))

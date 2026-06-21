@@ -1,5 +1,7 @@
 #include "manager/TimesheetsScreen.h"
 #include "AuthSession.h"
+#include "dto/ApiResponse.h"
+#include "dto/TimesheetDTO.h"
 #include <iomanip>
 
 TimesheetsScreen::TimesheetsScreen()
@@ -45,15 +47,15 @@ void TimesheetsScreen::show(ApiClient& apiClient)
                 endpoint += "?week_start_date=" + formattedDate;
             }
 
-            auto response = apiClient.get(endpoint);
-            if (!response["success"].get<bool>())
+            auto response = ApiListResponse<ManagerTimesheetDTO>::fromJson(apiClient.get(endpoint));
+            if (!response.success)
             {
-                showError(response["message"].get<std::string>());
+                showError(response.message);
                 ScreenUtils::readLine("Press Enter to continue");
                 return;
             }
 
-            auto rows = response["data"];
+            auto rows = response.data;
             // clearScreen();
             std::cout << "\n================ TIMESHEETS — MY TEAM ================\n";
             std::cout << std::left << std::setw(20) << "Employee"
@@ -64,10 +66,10 @@ void TimesheetsScreen::show(ApiClient& apiClient)
 
             for (const auto& row : rows)
             {
-                std::cout << std::left << std::setw(20) << row["employee_name"].get<std::string>().substr(0, 19)
-                          << std::setw(20) << row["project_name"].get<std::string>().substr(0, 19)
-                          << std::setw(8) << row["hours"].get<int>()
-                          << row["status"].get<std::string>() << "\n";
+                std::cout << std::left << std::setw(20) << row.employeeName.substr(0, 19)
+                          << std::setw(20) << row.projectName.substr(0, 19)
+                          << std::setw(8) << row.hours
+                          << row.status << "\n";
             }
             ScreenUtils::printDivider();
 
@@ -100,16 +102,16 @@ void TimesheetsScreen::viewTimesheetDetail(ApiClient& apiClient)
     try
     {
         std::string empId = ScreenUtils::readLine("Enter Employee ID");
-        auto response = apiClient.get("/employees/" + empId + "/timesheets");
+        auto response = ApiListResponse<TimesheetDTO>::fromJson(apiClient.get("/employees/" + empId + "/timesheets"));
         
-        if (!response["success"].get<bool>())
+        if (!response.success)
         {
-            showError(response["message"].get<std::string>());
+            showError(response.message);
             ScreenUtils::readLine("Press Enter to continue");
             return;
         }
 
-        auto timesheets = response["data"];
+        auto timesheets = response.data;
         // clearScreen();
         std::cout << "\n========== TIMESHEET HISTORY FOR EMPLOYEE ID: " << empId << " ==========\n";
         std::cout << std::left << std::setw(15) << "Week Start"
@@ -118,8 +120,8 @@ void TimesheetsScreen::viewTimesheetDetail(ApiClient& apiClient)
 
         for (const auto& ts : timesheets)
         {
-            std::cout << std::left << std::setw(15) << ts["week_start_date"].get<std::string>()
-                      << ts["status"].get<std::string>() << "\n";
+            std::cout << std::left << std::setw(15) << ts.weekStartDate
+                      << ts.status << "\n";
         }
         ScreenUtils::printDivider();
         ScreenUtils::readLine("Press Enter to go back");

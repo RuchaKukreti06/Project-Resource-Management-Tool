@@ -1,5 +1,6 @@
 #include "ChangePasswordScreen.h"
 #include "AuthSession.h"
+#include "dto/ApiResponse.h"
 
 ScreenDecorator ChangePasswordScreen::decorator() const
 {
@@ -56,9 +57,10 @@ void ChangePasswordScreen::handleInput(ApiClient& apiClient)
                 "/auth/change-password",
                 {{"user_id", api::AuthSession::instance().userId()}, {"new_password", newPassword}});
 
-            if (!response["success"].get<bool>())
+            auto res = ApiEmptyResponse::fromJson(response);
+            if (!res.success)
             {
-                showError(response["message"].get<std::string>());
+                showError(res.message);
                 continue;
             }
 

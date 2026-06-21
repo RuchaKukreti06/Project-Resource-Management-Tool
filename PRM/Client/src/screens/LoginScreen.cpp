@@ -2,6 +2,7 @@
 
 #include "AuthSession.h"
 #include "ChangePasswordScreen.h"
+#include "dto/AuthDTO.h"
 
 ScreenDecorator LoginScreen::decorator() const
 {
@@ -51,19 +52,20 @@ void LoginScreen::handleInput(ApiClient& apiClient)
             {
                 auto response = apiClient.post(
                     "/auth/login", {{"username", username}, {"password", password}});
-                if (!response["success"].get<bool>())
+                auto loginRes = AuthLoginResponse::fromJson(response);
+                if (!loginRes.success)
                 {
-                    showError(response["message"].get<std::string>());
+                    showError(loginRes.message);
                     ScreenUtils::readLine("Press Enter to continue");
                     displayMenu();
                     continue;
                 }
 
-                std::string token = response["token"].get<std::string>();
-                std::string respUsername = response["user"]["username"].get<std::string>();
-                std::string role = response["user"]["role"].get<std::string>();
-                int userId = response["user"]["id"].get<int>();
-                bool forcePasswordChange = response["user"]["force_password_change"].get<bool>();
+                std::string token = loginRes.token;
+                std::string respUsername = loginRes.user.username;
+                std::string role = loginRes.user.role;
+                int userId = loginRes.user.id;
+                bool forcePasswordChange = loginRes.user.forcePasswordChange;
 
                 apiClient.setToken(token);
                 api::AuthSession::instance().login(token, respUsername, role, userId, forcePasswordChange);

@@ -96,4 +96,37 @@ bool isValidEmail(const std::string& email)
     const std::regex pattern(R"(^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$)");
     return std::regex_match(email, pattern);
 }
+
+std::optional<int> safeParseInt(const std::string& input)
+{
+    if (input.empty()) return std::nullopt;
+    try
+    {
+        size_t pos;
+        int val = std::stoi(input, &pos);
+        if (pos != input.length()) return std::nullopt;
+        return val;
+    }
+    catch (...)
+    {
+        return std::nullopt;
+    }
+}
+
+std::optional<double> safeParseDouble(const std::string& input)
+{
+    if (input.empty()) return std::nullopt;
+    try
+    {
+        size_t pos;
+        double val = std::stod(input, &pos);
+        if (pos != input.length()) return std::nullopt;
+        return val;
+    }
+    catch (...)
+    {
+        return std::nullopt;
+    }
+}
+
 } 

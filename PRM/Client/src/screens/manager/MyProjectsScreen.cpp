@@ -1,5 +1,10 @@
 #include "manager/MyProjectsScreen.h"
 #include "AuthSession.h"
+#include "dto/ApiResponse.h"
+#include "dto/ProjectDTO.h"
+#include "dto/AllocationDTO.h"
+#include "dto/EmployeeDTO.h"
+#include "dto/AiResponseDTO.h"
 #include <iomanip>
 #include <ctime>
 
@@ -18,16 +23,16 @@ void MyProjectsScreen::show(ApiClient& apiClient)
         try
         {
             int managerId = api::AuthSession::instance().userId();
-            auto response = apiClient.get("/managers/" + std::to_string(managerId) + "/projects");
+            auto response = ApiListResponse<ProjectDTO>::fromJson(apiClient.get("/managers/" + std::to_string(managerId) + "/projects"));
             
-            if (!response["success"].get<bool>())
+            if (!response.success)
             {
-                showError(response["message"].get<std::string>());
+                showError(response.message);
                 ScreenUtils::readLine("Press Enter to continue");
                 return;
             }
 
-            auto projects = response["data"];
+            auto projects = response.data;
             // clearScreen();
             decorator().render();
 
@@ -37,15 +42,15 @@ void MyProjectsScreen::show(ApiClient& apiClient)
                       << "Health\n";
             ScreenUtils::printDivider();
 
-            std::vector<nlohmann::json> projList;
+            std::vector<ProjectDTO> projList;
             int idx = 1;
             for (const auto& proj : projects)
             {
                 projList.push_back(proj);
                 
                 // Fetch milestones to compute health
-                int projId = proj["id"].get<int>();
-                auto msRes = apiClient.get("/projects/" + std::to_string(projId) + "/milestones");
+                int projId = proj.id;
+                auto msRes = ApiListResponse<MilestoneDTO>::fromJson(apiClient.get("/projects/" + std::to_string(projId) + "/milestones"));
                 
                 std::string health = "🟢 ON TRACK";
                 bool hasOverdue = false;
@@ -73,12 +78,12 @@ void MyProjectsScreen::show(ApiClient& apiClient)
                 std::strftime(nextBuffer, sizeof(nextBuffer), "%Y-%m-%d", &localNext);
                 std::string nextStr(nextBuffer);
 
-                if (msRes["success"].get<bool>())
+                if (msRes.success)
                 {
-                    for (const auto& ms : msRes["data"])
+                    for (const auto& ms : msRes.data)
                     {
-                        std::string status = ms["status"].get<std::string>();
-                        std::string dueDate = ms["due_date"].get<std::string>();
+                        std::string status = ms.status;
+                        std::string dueDate = ms.dueDate;
                         if (status != "DONE" && dueDate < todayStr)
                         {
                             hasOverdue = true;
@@ -100,8 +105,8 @@ void MyProjectsScreen::show(ApiClient& apiClient)
                 }
 
                 std::cout << std::left << std::setw(6) << idx++
-                          << std::setw(25) << proj["name"].get<std::string>().substr(0, 24)
-                          << std::setw(15) << proj["end_date"].get<std::string>()
+                          << std::setw(25) << proj.name.substr(0, 24)
+                          << std::setw(15) << proj.endDate
                           << health << "\n";
             }
             ScreenUtils::printDivider();
@@ -114,14 +119,16 @@ void MyProjectsScreen::show(ApiClient& apiClient)
             }
 
             std::string selStr = ScreenUtils::readLine("Select project number to view details (or 0 to go back)");
-            int selection = std::stoi(selStr);
+            auto parsedSel = ScreenUtils::safeParseInt(selStr);
+            if (!parsedSel) throw std::invalid_argument("Invalid selection format");
+            int selection = parsedSel.value();
             if (selection == 0)
             {
                 break;
             }
             if (selection >= 1 && selection <= (int)projList.size())
             {
-                viewProjectDetail(apiClient, projList[selection - 1]["id"].get<int>());
+                viewProjectDetail(apiClient, projList[selection - 1].id);
             }
         }
         catch (const std::exception& ex)
@@ -143,15 +150,15 @@ void MyProjectsScreen::viewProjectDetail(ApiClient& apiClient, int projectId)
     {
         try
         {
-            auto projRes = apiClient.get("/projects/" + std::to_string(projectId));
-            if (!projRes["success"].get<bool>()) return;
-            auto proj = projRes["data"];
+            auto projRes = ApiResponse<ProjectDTO>::fromJson(apiClient.get("/projects/" + std::to_string(projectId)));
+            if (!projRes.success || !projRes.data) return;
+            auto proj = *projRes.data;
 
-            auto msRes = apiClient.get("/projects/" + std::to_string(projectId) + "/milestones");
-            auto allocsRes = apiClient.get("/projects/" + std::to_string(projectId) + "/allocations");
+            auto msRes = ApiListResponse<MilestoneDTO>::fromJson(apiClient.get("/projects/" + std::to_string(projectId) + "/milestones"));
+            auto allocsRes = ApiListResponse<AllocationDTO>::fromJson(apiClient.get("/projects/" + std::to_string(projectId) + "/allocations"));
 
             // clearScreen();
-            std::cout << "\n── " << proj["name"].get<std::string>() << " ───────────────────────────────\n";
+            std::cout << "\n── " << proj.name << " ───────────────────────────────\n";
             
             // Health flags
             std::time_t now = std::time(nullptr);
@@ -179,16 +186,16 @@ void MyProjectsScreen::viewProjectDetail(ApiClient& apiClient, int projectId)
             bool hasOverdue = false;
             bool hasApproaching = false;
             std::vector<std::string> overdueTitles;
-            if (msRes["success"].get<bool>())
+            if (msRes.success)
             {
-                for (const auto& ms : msRes["data"])
+                for (const auto& ms : msRes.data)
                 {
-                    if (ms["status"].get<std::string>() != "DONE" && ms["due_date"].get<std::string>() < todayStr)
+                    if (ms.status != "DONE" && ms.dueDate < todayStr)
                     {
                         hasOverdue = true;
-                        overdueTitles.push_back(ms["title"].get<std::string>());
+                        overdueTitles.push_back(ms.title);
                     }
-                    else if (ms["status"].get<std::string>() != "DONE" && ms["due_date"].get<std::string>() <= nextStr)
+                    else if (ms.status != "DONE" && ms.dueDate <= nextStr)
                     {
                         hasApproaching = true;
                     }
@@ -217,15 +224,15 @@ void MyProjectsScreen::viewProjectDetail(ApiClient& apiClient, int projectId)
                       << "Status\n";
             ScreenUtils::printDivider();
 
-            if (msRes["success"].get<bool>())
+            if (msRes.success)
             {
                 int mIdx = 1;
-                for (const auto& ms : msRes["data"])
+                for (const auto& ms : msRes.data)
                 {
                     std::cout << "  " << std::left << std::setw(4) << mIdx++
-                              << std::setw(25) << ms["title"].get<std::string>().substr(0, 24)
-                              << std::setw(15) << ms["due_date"].get<std::string>()
-                              << ms["status"].get<std::string>() << "\n";
+                              << std::setw(25) << ms.title.substr(0, 24)
+                              << std::setw(15) << ms.dueDate
+                              << ms.status << "\n";
                 }
             }
             std::cout << "\nAllocated Resources:\n";
@@ -235,27 +242,27 @@ void MyProjectsScreen::viewProjectDetail(ApiClient& apiClient, int projectId)
                       << std::setw(12) << "To" << "\n";
             ScreenUtils::printDivider();
 
-            for (const auto& alloc : (allocsRes.contains("data") && allocsRes["data"].is_array() ? allocsRes["data"] : nlohmann::json::array()))
+            for (const auto& alloc : (allocsRes.success ? allocsRes.data : std::vector<AllocationDTO>{}))
             {
-                int empId = alloc["employee_id"].get<int>();
+                int empId = alloc.employeeId;
                 std::string empName = "Emp " + std::to_string(empId);
-                auto empRes = apiClient.get("/employees");
-                if (empRes.contains("data"))
+                auto empRes = ApiListResponse<EmployeeDTO>::fromJson(apiClient.get("/employees"));
+                if (empRes.success)
                 {
-                    for (const auto& e : empRes["data"])
+                    for (const auto& e : empRes.data)
                     {
-                        if (e["id"].get<int>() == empId)
+                        if (e.id == empId)
                         {
-                            empName = e["full_name"].get<std::string>();
+                            empName = e.fullName;
                             break;
                         }
                     }
                 }
 
                 std::cout << "  " << std::left << std::setw(18) << empName.substr(0, 17)
-                          << std::setw(8) << (std::to_string(alloc["utilization_percentage"].get<int>()) + "%")
-                          << std::setw(12) << alloc["from_date"].get<std::string>()
-                          << std::setw(12) << alloc["to_date"].get<std::string>() << "\n";
+                          << std::setw(8) << (std::to_string(alloc.utilizationPercentage) + "%")
+                          << std::setw(12) << alloc.fromDate
+                          << std::setw(12) << alloc.toDate << "\n";
             }
             std::cout << "\n";
 
@@ -264,18 +271,20 @@ void MyProjectsScreen::viewProjectDetail(ApiClient& apiClient, int projectId)
             if (choice == "A" || choice == "a")
             {
                 std::cout << "\nGenerating AI summary...\n\n";
-                nlohmann::json payload = {{"project_id", projectId}};
-                auto aiResponse = apiClient.post("/ai/risk-summary", payload);
+                AiRiskSummaryRequest req;
+                req.projectId = projectId;
+                auto aiResponse = apiClient.post("/ai/risk-summary", req.toJson());
 
-                std::cout << "\n── AI Risk Summary — " << proj["name"].get<std::string>() << " ────────────\n\n";
+                std::cout << "\n── AI Risk Summary — " << proj.name << " ────────────\n\n";
 
-                if (aiResponse.contains("success") && aiResponse["success"].get<bool>())
+                auto aiRes = AiRiskSummaryResponse::fromJson(aiResponse);
+                if (!aiRes.fallback_message.has_value())
                 {
-                    std::cout << "\"" << aiResponse["data"]["summary"].get<std::string>() << "\"\n";
+                    std::cout << "\"" << aiRes.data.summary << "\"\n";
                 }
                 else
                 {
-                    std::cout << "AI service error. Please check the API key in System Configuration.\n";
+                    std::cout << "AI service error: " << aiRes.fallback_message.value() << "\n";
                 }
 
                 std::cout << "\n  Note: This summary is AI-generated from milestone and timesheet data.\n\n";
