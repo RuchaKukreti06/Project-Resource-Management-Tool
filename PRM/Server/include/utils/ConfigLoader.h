@@ -21,6 +21,7 @@ public:
     std::string dbPassword() const;
     std::string jwtSecret() const;
     int jwtExpirationMinutes() const;
+    std::string gemmaIp() const;
     void save(const std::string& path);
     const nlohmann::json& raw() const;
 
