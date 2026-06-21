@@ -4,26 +4,10 @@
 #include <ctime>
 #include <spdlog/spdlog.h>
 
-namespace
-{
-std::string currentDateIso()
-{
-    std::time_t now = std::time(nullptr);
-    std::tm local  = {};
-#ifdef _WIN32
-    localtime_s(&local, &now);
-#else
-    local = *std::localtime(&now);
-#endif
-    char buffer[11] = {0};
-    std::strftime(buffer, sizeof(buffer), "%Y-%m-%d", &local);
-    return buffer;
-}
-}  // namespace
+#include "utils/DateUtils.h"
 
-BackgroundScheduler::BackgroundScheduler(std::shared_ptr<SchedulerService> schedulerService,
-                                         std::shared_ptr<ISystemConfigRepository> configRepo)
-    : schedulerService_(std::move(schedulerService)), configRepo_(std::move(configRepo))
+BackgroundScheduler::BackgroundScheduler(std::function<void()> job, std::function<int()> getIntervalHrs)
+    : job_(std::move(job)), getIntervalHrs_(std::move(getIntervalHrs))
 {
 }
 
@@ -53,7 +37,7 @@ void BackgroundScheduler::loop()
     // Run once immediately on start
     try
     {
-        schedulerService_->runRecomputationJob(currentDateIso());
+        if (job_) job_();
     }
     catch (const std::exception& ex)
     {
@@ -62,7 +46,11 @@ void BackgroundScheduler::loop()
 
     while (running_)
     {
-        int intervalHours = configRepo_->getConfig().schedulerIntervalHrs;
+        int intervalHours = 24;
+        if (getIntervalHrs_)
+        {
+            intervalHours = getIntervalHrs_();
+        }
         auto interval = std::chrono::hours(intervalHours);
         auto nextRun  = std::chrono::steady_clock::now() + interval;
 
@@ -77,7 +65,7 @@ void BackgroundScheduler::loop()
 
         try
         {
-            schedulerService_->runRecomputationJob(currentDateIso());
+        if (job_) job_();
         }
         catch (const std::exception& ex)
         {
