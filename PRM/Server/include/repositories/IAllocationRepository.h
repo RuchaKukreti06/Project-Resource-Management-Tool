@@ -2,6 +2,7 @@
 
 #include <string>
 #include <vector>
+#include <optional>
 
 #include "models/Allocations.h"
 
@@ -19,4 +20,6 @@ class IAllocationRepository
     virtual int getOverlappingUtilization(int employeeId, const std::string& fromDate,
                                           const std::string& toDate) = 0;
     virtual int getCurrentUtilization(int employeeId, const std::string& date) = 0;
+    virtual std::vector<Allocation> getAllocationsByEmployee(int employeeId) = 0;
+    virtual std::optional<Allocation> getAllocationById(int allocationId) = 0;
 };

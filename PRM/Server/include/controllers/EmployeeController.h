@@ -4,15 +4,17 @@
 #include <httplib.h>
 
 #include "services/interfaces/IEmployeeService.h"
+#include "services/interfaces/ITokenService.h"
 
 class EmployeeController
 {
    public:
-    explicit EmployeeController(IEmployeeService& employeeService);
+    explicit EmployeeController(IEmployeeService& employeeService, ITokenService& tokenService);
     void registerRoutes(httplib::Server& server);
 
    private:
     IEmployeeService& employeeService_;
+    ITokenService& tokenService_;
 
     void handleGetAllEmployees(const httplib::Request& req, httplib::Response& res);
     void handleGetTeamEmployees(const httplib::Request& req, httplib::Response& res);

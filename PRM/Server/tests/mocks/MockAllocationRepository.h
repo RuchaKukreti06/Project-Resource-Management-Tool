@@ -2,6 +2,7 @@
 
 #include <string>
 #include <vector>
+#include <optional>
 
 #include "Allocations.h"
 #include "repositories/IAllocationRepository.h"
@@ -51,5 +52,20 @@ class MockAllocationRepository : public IAllocationRepository
     int getCurrentUtilization(int, const std::string&) override
     {
         return currentUtilization;
+    }
+
+    std::vector<Allocation> getAllocationsByEmployee(int) override
+    {
+        return allocations;
+    }
+
+    std::optional<Allocation> getAllocationById(int allocationId) override
+    {
+        for (const auto& a : allocations) {
+            if (a.id == allocationId) {
+                return a;
+            }
+        }
+        return std::nullopt;
     }
 };

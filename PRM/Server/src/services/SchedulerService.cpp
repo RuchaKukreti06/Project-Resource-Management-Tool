@@ -68,7 +68,7 @@ void SchedulerService::runRecomputationJob(const std::string& todayDate)
         }
 
         // 2. Recompute project health
-        projectService_->recomputeProjectHealth(todayDate);
+        recomputeProjectHealth(todayDate);
 
         // 3. Flag missed timesheets for previous week
         flagMissedTimesheets(previousMondayIso(todayDate));
@@ -83,7 +83,60 @@ void SchedulerService::runRecomputationJob(const std::string& todayDate)
     }
 }
 
+std::string SchedulerService::computeProjectHealth(int projectId, const std::string& todayDate)
+{
+    const auto milestones = projectService_->getProjectMilestones(projectId);
 
+    bool hasOverdue     = false;
+    bool hasInProgress  = false;
+
+    for (const auto& m : milestones)
+    {
+        if (m.status == "DONE")
+            continue;
+
+        if (m.dueDate < todayDate)
+        {
+            hasOverdue = true;
+        }
+        if (m.status == "IN_PROGRESS")
+        {
+            hasInProgress = true;
+        }
+    }
+
+    if (hasOverdue)
+        return "AT_RISK";
+    if (hasInProgress)
+        return "ATTENTION";
+    return "ON_TRACK";
+}
+
+void SchedulerService::recomputeProjectHealth(const std::string& todayDate)
+{
+    spdlog::info("Scheduler: recomputing project health for {}", todayDate);
+    const auto projects = projectService_->getAllProjects();
+
+    for (const auto& project : projects)
+    {
+        if (project.status == "COMPLETED" || project.status == "ON_HOLD")
+            continue;
+
+        const std::string health = computeProjectHealth(project.id, todayDate);
+        if (health != project.healthStatus)
+        {
+            try
+            {
+                projectService_->updateProjectHealth(project.id, health);
+                spdlog::info("Scheduler: project {} health updated to {}", project.id, health);
+            }
+            catch (const std::exception& e)
+            {
+                spdlog::error("Scheduler: Failed to update project {} health: {}", project.id, e.what());
+            }
+        }
+    }
+}
 
 void SchedulerService::flagMissedTimesheets(const std::string& weekStartDate)
 {

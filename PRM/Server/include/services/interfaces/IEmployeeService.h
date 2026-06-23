@@ -21,6 +21,7 @@ public:
     virtual std::vector<EmployeeResponse> getAllEmployees() = 0;
     virtual std::vector<EmployeeResponse> getTeamEmployees(int managerUserId) = 0;
     virtual std::optional<Employee> getEmployeeById(int employeeId) = 0;
+    virtual std::optional<Employee> getEmployeeByUserId(int userId) = 0;
     virtual void addSkill(const AddSkillRequest& req) = 0;
     virtual void updateSkill(const UpdateSkillRequest& req) = 0;
     virtual void removeSkill(int employeeId, int skillId) = 0;

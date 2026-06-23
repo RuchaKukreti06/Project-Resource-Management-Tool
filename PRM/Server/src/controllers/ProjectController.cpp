@@ -1,6 +1,7 @@
 #include "ProjectController.h"
 
 #include <nlohmann/json.hpp>
+#include "exceptions/Exceptions.h"
 
 namespace
 {
@@ -9,8 +10,8 @@ namespace
 
 }  // namespace
 
-ProjectController::ProjectController(IProjectService& projectService)
-    : projectService_(projectService)
+ProjectController::ProjectController(IProjectService& projectService, ITokenService& tokenService)
+    : projectService_(projectService), tokenService_(tokenService)
 {
 }
 
@@ -45,8 +46,16 @@ void ProjectController::registerRoutes(httplib::Server& server)
                { handleUpdateMilestoneStatus(req, res); });
 }
 
-void ProjectController::handleGetAllProjects(const httplib::Request&, httplib::Response& res)
+void ProjectController::handleGetAllProjects(const httplib::Request& req, httplib::Response& res)
 {
+    std::string authHeader = req.get_header_value("Authorization");
+    std::string token = authHeader.substr(7);
+    std::string tokenRole = tokenService_.getClaimRole(token);
+
+    if (tokenRole != "ADMIN") {
+        throw exceptions::AuthorizationException("Forbidden: Only ADMIN can view all projects.");
+    }
+
     const auto projects = projectService_.getAllProjects();
 
     res.status = 200;
@@ -56,6 +65,11 @@ void ProjectController::handleGetAllProjects(const httplib::Request&, httplib::R
 
 void ProjectController::handleGetProjectById(const httplib::Request& req, httplib::Response& res)
 {
+    std::string authHeader = req.get_header_value("Authorization");
+    std::string token = authHeader.substr(7);
+    std::string tokenRole = tokenService_.getClaimRole(token);
+    int tokenUserId = tokenService_.getClaimUserId(token);
+
     const int projectId = std::stoi(req.matches[1]);
 
     auto project = projectService_.getProjectById(projectId);
@@ -65,6 +79,10 @@ void ProjectController::handleGetProjectById(const httplib::Request& req, httpli
         res.status = 404;
         res.set_content(nlohmann::json({{"success", false}, {"message", "Project not found."}}).dump(), "application/json");
         return;
+    }
+
+    if (tokenRole != "ADMIN" && (tokenRole != "MANAGER" || project->managerId != tokenUserId)) {
+        throw exceptions::AuthorizationException("Forbidden: You cannot view this project.");
     }
 
     nlohmann::json response;
@@ -77,7 +95,17 @@ void ProjectController::handleGetProjectById(const httplib::Request& req, httpli
 void ProjectController::handleGetManagerProjects(const httplib::Request& req,
                                                  httplib::Response& res)
 {
+    std::string authHeader = req.get_header_value("Authorization");
+    std::string token = authHeader.substr(7);
+    std::string tokenRole = tokenService_.getClaimRole(token);
+    int tokenUserId = tokenService_.getClaimUserId(token);
+
     const int managerId = std::stoi(req.matches[1]);
+
+    if (tokenRole != "ADMIN" && (tokenRole != "MANAGER" || tokenUserId != managerId)) {
+        throw exceptions::AuthorizationException("Forbidden: You cannot view this manager's projects.");
+    }
+
     const auto projects = projectService_.getManagerProjects(managerId);
 
     res.status = 200;
@@ -107,7 +135,22 @@ void ProjectController::handleCreateProject(const httplib::Request& req, httplib
 
 void ProjectController::handleUpdateProject(const httplib::Request& req, httplib::Response& res)
 {
+    std::string authHeader = req.get_header_value("Authorization");
+    std::string token = authHeader.substr(7);
+    int tokenUserId = tokenService_.getClaimUserId(token);
+    std::string tokenRole = tokenService_.getClaimRole(token);
+
     const int projectId = std::stoi(req.matches[1]);
+    
+    auto projectOpt = projectService_.getProjectById(projectId);
+    if (!projectOpt.has_value()) {
+        throw exceptions::NotFoundException("Project not found.");
+    }
+
+    if (tokenRole != "ADMIN" && projectOpt->managerId != tokenUserId) {
+        throw exceptions::AuthorizationException("Forbidden: You do not manage this project.");
+    }
+
     const auto body = nlohmann::json::parse(req.body);
 
     UpdateProjectRequest request;

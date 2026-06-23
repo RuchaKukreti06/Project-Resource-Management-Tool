@@ -4,13 +4,14 @@
 #include <memory>
 #include <thread>
 
-#include <functional>
+#include "services/SchedulerService.h"
+#include "repositories/ISystemConfigRepository.h"
 
-/// Runs a job on a background thread at a fixed interval (hours).
+/// Runs SchedulerService on a background thread at a fixed interval (hours).
 class BackgroundScheduler
 {
    public:
-    BackgroundScheduler(std::function<void()> job, std::function<int()> getIntervalHrs);
+    BackgroundScheduler(std::shared_ptr<SchedulerService> schedulerService, std::shared_ptr<ISystemConfigRepository> configRepo);
     ~BackgroundScheduler();
 
     void start();
@@ -19,8 +20,8 @@ class BackgroundScheduler
    private:
     void loop();
 
-    std::function<void()> job_;
-    std::function<int()> getIntervalHrs_;
+    std::shared_ptr<SchedulerService> schedulerService_;
+    std::shared_ptr<ISystemConfigRepository> configRepo_;
     std::atomic<bool> running_{false};
     std::thread thread_;
 };

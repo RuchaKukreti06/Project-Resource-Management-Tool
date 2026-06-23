@@ -299,3 +299,4 @@ ScreenDecorator SystemConfigScreen::decorator() const
 {
     return ScreenDecorator("SYSTEM CONFIGURATION").withWidth(40).withPadding(2);
 }
+

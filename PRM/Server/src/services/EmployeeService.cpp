@@ -111,6 +111,16 @@ std::optional<Employee> EmployeeService::getEmployeeById(int employeeId)
     return employee;
 }
 
+std::optional<Employee> EmployeeService::getEmployeeByUserId(int userId)
+{
+    auto employee = employeeRepository_->getEmployeeByUserId(userId);
+    if (employee.id == 0)
+    {
+        return std::nullopt;
+    }
+    return employee;
+}
+
 void EmployeeService::addSkill(const AddSkillRequest& req)
 {
     std::string message;

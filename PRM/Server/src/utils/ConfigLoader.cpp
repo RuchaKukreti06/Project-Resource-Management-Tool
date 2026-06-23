@@ -61,12 +61,7 @@ int ConfigLoader::jwtExpirationMinutes() const {
     return config_["jwt"]["expiration_minutes"].get<int>();
 }
 
-std::string ConfigLoader::gemmaIp() const {
-    if (config_.contains("ai") && config_["ai"].contains("gemma_ip")) {
-        return config_["ai"]["gemma_ip"].get<std::string>();
-    }
-    return "164.52.211.238"; // fallback
-}
+
 
 void ConfigLoader::save(const std::string& path) {
     std::ofstream file(path);

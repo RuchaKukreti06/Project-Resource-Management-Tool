@@ -2,6 +2,8 @@
 
 #include <nlohmann/json.hpp>
 
+#include "exceptions/Exceptions.h"
+
 namespace
 {
 
@@ -9,8 +11,8 @@ namespace
 
 }  // namespace
 
-EmployeeController::EmployeeController(IEmployeeService& employeeService)
-    : employeeService_(employeeService)
+EmployeeController::EmployeeController(IEmployeeService& employeeService, ITokenService& tokenService)
+    : employeeService_(employeeService), tokenService_(tokenService)
 {
 }
 
@@ -49,8 +51,16 @@ void EmployeeController::registerRoutes(httplib::Server& server)
                   { this->handleRemoveSkill(req, res); });
 }
 
-void EmployeeController::handleGetAllEmployees(const httplib::Request&, httplib::Response& res)
+void EmployeeController::handleGetAllEmployees(const httplib::Request& req, httplib::Response& res)
 {
+    std::string authHeader = req.get_header_value("Authorization");
+    std::string token = authHeader.substr(7);
+    std::string tokenRole = tokenService_.getClaimRole(token);
+
+    if (tokenRole != "ADMIN") {
+        throw exceptions::AuthorizationException("Forbidden: Only ADMIN can view the employee directory.");
+    }
+
     const auto employees = employeeService_.getAllEmployees();
 
     res.status = 200;
@@ -60,7 +70,17 @@ void EmployeeController::handleGetAllEmployees(const httplib::Request&, httplib:
 
 void EmployeeController::handleGetTeamEmployees(const httplib::Request& req, httplib::Response& res)
 {
+    std::string authHeader = req.get_header_value("Authorization");
+    std::string token = authHeader.substr(7);
+    std::string tokenRole = tokenService_.getClaimRole(token);
+    int tokenUserId = tokenService_.getClaimUserId(token);
+
     const int managerId = std::stoi(req.matches[1]);
+    
+    if (tokenRole != "ADMIN" && (tokenRole != "MANAGER" || tokenUserId != managerId)) {
+        throw exceptions::AuthorizationException("Forbidden: You cannot view this team's employees.");
+    }
+
     const auto employees = employeeService_.getTeamEmployees(managerId);
 
     res.status = 200;

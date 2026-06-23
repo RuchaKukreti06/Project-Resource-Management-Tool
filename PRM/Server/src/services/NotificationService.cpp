@@ -1,8 +1,5 @@
 #include "services/NotificationService.h"
 
-#include "services/interfaces/IEmailService.h"
-#include "services/EmailService.h"
-
 #include <spdlog/spdlog.h>
 
 #include <sstream>
@@ -10,7 +7,7 @@
 
 NotificationService::NotificationService(
     std::shared_ptr<INotificationRepository> notificationRepository,
-    std::shared_ptr<IUserRepository> userRepository, std::shared_ptr<IEmailService> emailService)
+    std::shared_ptr<IUserRepository> userRepository, std::shared_ptr<EmailService> emailService)
     : notificationRepository_(std::move(notificationRepository)),
       userRepository_(std::move(userRepository)),
       emailService_(std::move(emailService))

@@ -25,6 +25,7 @@ class EmployeeService : public IEmployeeService
     std::vector<EmployeeResponse> getAllEmployees() override;
     std::vector<EmployeeResponse> getTeamEmployees(int managerId) override;
     std::optional<Employee> getEmployeeById(int employeeId) override;
+    std::optional<Employee> getEmployeeByUserId(int userId) override;
 
     void addSkill(const AddSkillRequest& req) override;
     void updateSkill(const UpdateSkillRequest& req) override;

@@ -19,7 +19,11 @@ class SchedulerService
                      std::shared_ptr<INotificationService> notificationService = nullptr);
 
     void runRecomputationJob(const std::string& todayDate);
+    void recomputeProjectHealth(const std::string& todayDate);
     void flagMissedTimesheets(const std::string& lastMondayDate);
+
+   private:
+    std::string computeProjectHealth(int projectId, const std::string& todayDate);
 
     std::shared_ptr<IEmployeeService> employeeService_;
     std::shared_ptr<IProjectService> projectService_;

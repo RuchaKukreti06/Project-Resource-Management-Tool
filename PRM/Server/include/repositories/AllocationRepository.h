@@ -17,6 +17,8 @@ class AllocationRepository : public IAllocationRepository
     int getOverlappingUtilization(int employeeId, const std::string& fromDate,
                                   const std::string& toDate) override;
     int getCurrentUtilization(int employeeId, const std::string& date) override;
+    std::vector<Allocation> getAllocationsByEmployee(int employeeId) override;
+    std::optional<Allocation> getAllocationById(int allocationId) override;
 
    private:
     database::Database& database_;

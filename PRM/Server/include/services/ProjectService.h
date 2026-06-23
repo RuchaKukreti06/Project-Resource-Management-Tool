@@ -27,8 +27,6 @@ class ProjectService : public IProjectService
     void updateMilestoneStatus(const UpdateMilestoneStatusRequest& req) override;
     std::vector<MilestoneResponse> getProjectMilestones(int projectId) override;
     void updateProjectHealth(int projectId, const std::string& health) override;
-    std::string computeProjectHealth(int projectId, const std::string& todayDate) override;
-    void recomputeProjectHealth(const std::string& todayDate) override;
 
    private:
     bool isValidManager(int managerUserId) const;

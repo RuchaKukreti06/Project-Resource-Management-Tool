@@ -13,6 +13,7 @@
 #include "services/JwtTokenService.h"
 #include "exceptions/Exceptions.h"
 #include "utils/GlobalExceptionHandler.h"
+#include "middleware/AuthMiddleware.h"
 
 static std::filesystem::path getTestConfigPath()
 {
@@ -38,9 +39,11 @@ class AuthControllerTest : public ::testing::Test
         authService = std::make_unique<AuthService>(
             repo, hasher, tokenService);
 
-        controller = std::make_unique<AuthController>(*authService);
+        controller = std::make_unique<AuthController>(*authService, *tokenService);
+        authMiddleware = std::make_unique<AuthMiddleware>(*tokenService);
 
         serverThread = std::thread([this]() {
+            authMiddleware->registerMiddleware(server);
             controller->registerRoutes(server);
             utils::GlobalExceptionHandler::registerGlobalExceptionHandler(server);
             server.listen("localhost", 8090);
@@ -65,6 +68,7 @@ class AuthControllerTest : public ::testing::Test
     std::shared_ptr<MockUserRepository> repo;
     std::unique_ptr<AuthService> authService;
     std::unique_ptr<AuthController> controller;
+    std::unique_ptr<AuthMiddleware> authMiddleware;
 };
 
 TEST_F(AuthControllerTest, RegisterSuccess)
@@ -196,11 +200,16 @@ TEST_F(AuthControllerTest, ChangePasswordSuccess)
     authService->registerUser({"john", "OldPassword", "john@example.com", "John Doe"});
 
     User user = repo->getUserByUsername("john");
+    JwtTokenService tokenService(AuthConfig{"test-jwt-secret", 60});
+    std::string token = tokenService.generateToken(user);
 
     httplib::Client cli("localhost", 8090);
-    std::string body = nlohmann::json{{"userId", user.id}, {"newPassword", "NewPassword"}}.dump();
+    std::string body = nlohmann::json{{"newPassword", "NewPassword"}}.dump();
 
-    auto res = cli.Post("/auth/change-password", body, "application/json");
+    httplib::Headers headers = {
+        {"Authorization", "Bearer " + token}
+    };
+    auto res = cli.Post("/auth/change-password", headers, body, "application/json");
 
     ASSERT_TRUE(res);
     EXPECT_EQ(res->status, 200);
@@ -211,10 +220,19 @@ TEST_F(AuthControllerTest, ChangePasswordSuccess)
 
 TEST_F(AuthControllerTest, ChangePasswordUnknownUser)
 {
-    httplib::Client cli("localhost", 8090);
-    std::string body = nlohmann::json{{"userId", 9999}, {"newPassword", "NewPassword"}}.dump();
+    User fakeUser;
+    fakeUser.id = 9999;
+    fakeUser.role = "EMPLOYEE";
+    JwtTokenService tokenService(AuthConfig{"test-jwt-secret", 60});
+    std::string token = tokenService.generateToken(fakeUser);
 
-    auto res = cli.Post("/auth/change-password", body, "application/json");
+    httplib::Client cli("localhost", 8090);
+    std::string body = nlohmann::json{{"newPassword", "NewPassword"}}.dump();
+
+    httplib::Headers headers = {
+        {"Authorization", "Bearer " + token}
+    };
+    auto res = cli.Post("/auth/change-password", headers, body, "application/json");
 
     ASSERT_TRUE(res);
     EXPECT_EQ(res->status, 404);

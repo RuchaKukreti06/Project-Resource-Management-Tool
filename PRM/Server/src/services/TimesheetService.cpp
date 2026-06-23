@@ -8,13 +8,11 @@
 TimesheetService::TimesheetService(std::shared_ptr<ITimesheetRepository> timesheetRepository,
                                    std::shared_ptr<IEmployeeRepository> employeeRepository,
                                    std::shared_ptr<IAllocationRepository> allocationRepository,
-                                   std::shared_ptr<INotificationService> notificationService,
-                                   std::shared_ptr<ISystemConfigRepository> systemConfigRepository)
+                                   std::shared_ptr<INotificationService> notificationService)
     : timesheetRepository_(std::move(timesheetRepository)),
       employeeRepository_(std::move(employeeRepository)),
       allocationRepository_(std::move(allocationRepository)),
-      notificationService_(std::move(notificationService)),
-      systemConfigRepository_(std::move(systemConfigRepository))
+      notificationService_(std::move(notificationService))
 {
 }
 
@@ -52,14 +50,8 @@ void TimesheetService::submitTimesheet(const SubmitTimesheetRequest& req)
         lines.push_back(input);
     }
 
-    int maxWeeklyHours = req.maxWeeklyHours;
-    if (systemConfigRepository_)
-    {
-        maxWeeklyHours = systemConfigRepository_->getConfig().maxWeeklyHours;
-    }
-
     std::string message;
-    if (!timesheetValidator_.validateSubmit(req.employeeId, req.weekStartDate, lines, maxWeeklyHours, message))
+    if (!timesheetValidator_.validateSubmit(req.employeeId, req.weekStartDate, lines, req.maxWeeklyHours, message))
     {
         throw exceptions::ValidationException(message);
     }
@@ -93,7 +85,7 @@ void TimesheetService::submitTimesheet(const SubmitTimesheetRequest& req)
     std::unordered_map<int, int> maxProjectHours;
     for (const auto& allocation : allocations)
     {
-        const int allowed = (allocation.utilizationPercentage * maxWeeklyHours) / 100;
+        const int allowed = (allocation.utilizationPercentage * req.maxWeeklyHours) / 100;
         const auto found  = maxProjectHours.find(allocation.projectId);
         if (found == maxProjectHours.end() || found->second < allowed)
         {
@@ -118,7 +110,7 @@ void TimesheetService::submitTimesheet(const SubmitTimesheetRequest& req)
         total += line.hoursWorked;
     }
 
-    if (total > maxWeeklyHours)
+    if (total > req.maxWeeklyHours)
     {
         throw exceptions::ValidationException("Total hours exceed weekly maximum.");
     }

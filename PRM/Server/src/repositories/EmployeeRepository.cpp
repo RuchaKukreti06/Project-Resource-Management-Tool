@@ -18,6 +18,7 @@ Employee mapEmployeeRow(const mysqlx::Row& row)
     employee.status           = row[6].get<std::string>(); // resources.status
     employee.isActive         = row[7].get<bool>();
     employee.totalUtilisation = row[8].get<int>();          // D7: resources.total_utilisation
+    employee.manager_id       = !row[9].isNull() ? row[9].get<int>() : 0;
     return employee;
 }
 
@@ -107,7 +108,7 @@ Employee EmployeeRepository::getEmployeeById(int id)
     {
         auto result = database_.getSession()
                           .sql("SELECT r.id, r.user_id, u.full_name, u.email, u.department, "
-                               "u.designation, r.status, u.is_active, r.total_utilisation "
+                               "u.designation, r.status, u.is_active, r.total_utilisation, u.manager_id "
                                "FROM resources r "
                                "JOIN users u ON r.user_id = u.id "
                                "WHERE r.id = ?")
@@ -133,7 +134,7 @@ Employee EmployeeRepository::getEmployeeByUserId(int userId)
     {
         auto result = database_.getSession()
                           .sql("SELECT r.id, r.user_id, u.full_name, u.email, u.department, "
-                               "u.designation, r.status, u.is_active, r.total_utilisation "
+                               "u.designation, r.status, u.is_active, r.total_utilisation, u.manager_id "
                                "FROM resources r "
                                "JOIN users u ON r.user_id = u.id "
                                "WHERE r.user_id = ?")
@@ -159,7 +160,7 @@ std::vector<Employee> EmployeeRepository::getAllEmployees()
     {
         auto result = database_.getSession()
                           .sql("SELECT r.id, r.user_id, u.full_name, u.email, u.department, "
-                               "u.designation, r.status, u.is_active, r.total_utilisation "
+                               "u.designation, r.status, u.is_active, r.total_utilisation, u.manager_id "
                                "FROM resources r "
                                "JOIN users u ON r.user_id = u.id")
                           .execute();
@@ -185,7 +186,7 @@ std::vector<Employee> EmployeeRepository::getEmployeesByManager(int managerUserI
             database_.getSession()
                 .sql(
                     "SELECT r.id, r.user_id, u.full_name, u.email, u.department, "
-                    "u.designation, r.status, u.is_active, r.total_utilisation "
+                    "u.designation, r.status, u.is_active, r.total_utilisation, u.manager_id "
                     "FROM resources r "
                     "JOIN users u ON r.user_id = u.id "
                     "WHERE u.manager_id = ? AND u.is_active = 1")

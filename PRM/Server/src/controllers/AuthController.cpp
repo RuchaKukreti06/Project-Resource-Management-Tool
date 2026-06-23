@@ -2,8 +2,10 @@
 
 #include "dto/DTOMapper.h"
 #include <nlohmann/json.hpp>
+#include "exceptions/Exceptions.h"
 
-AuthController::AuthController(IAuthService& authService) : authService_(authService)
+AuthController::AuthController(IAuthService& authService, ITokenService& tokenService) 
+    : authService_(authService), tokenService_(tokenService)
 {
 }
 
@@ -53,12 +55,14 @@ void AuthController::handleChangePassword(const httplib::Request& req, httplib::
 {
     auto payload = nlohmann::json::parse(req.body);
 
-    // D12: Accept snake_case keys; fall back to camelCase for compatibility
+    std::string authHeader = req.get_header_value("Authorization");
+    if (authHeader.empty() || authHeader.find("Bearer ") != 0) {
+        throw exceptions::AuthenticationException("Missing or invalid authorization header.");
+    }
+    std::string token = authHeader.substr(7);
+
     ResetPasswordRequest request;
-    if (payload.contains("user_id"))
-        request.userId = payload.at("user_id").get<int>();
-    else
-        request.userId = payload.at("userId").get<int>();
+    request.userId = tokenService_.getClaimUserId(token);
 
     if (payload.contains("new_password"))
         request.newPassword = payload.at("new_password").get<std::string>();

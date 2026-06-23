@@ -26,6 +26,4 @@ public:
     virtual void updateMilestoneStatus(const UpdateMilestoneStatusRequest& req) = 0;
     virtual std::vector<MilestoneResponse> getProjectMilestones(int projectId) = 0;
     virtual void updateProjectHealth(int projectId, const std::string& health) = 0;
-    virtual std::string computeProjectHealth(int projectId, const std::string& todayDate) = 0;
-    virtual void recomputeProjectHealth(const std::string& todayDate) = 0;
 };

@@ -198,3 +198,53 @@ int AllocationRepository::getCurrentUtilization(int employeeId, const std::strin
 
     return 0;
 }
+
+std::vector<Allocation> AllocationRepository::getAllocationsByEmployee(int employeeId)
+{
+    std::vector<Allocation> allocations;
+    try
+    {
+        auto result = database_.getSession()
+                          .sql("SELECT id, resource_id, project_id, utilisation_percent, from_date, to_date "
+                               "FROM allocations "
+                               "WHERE resource_id = ? "
+                               "ORDER BY from_date DESC")
+                          .bind(employeeId)
+                          .execute();
+
+        while (auto row = result.fetchOne())
+        {
+            allocations.push_back(mapAllocationRow(row));
+        }
+    }
+    catch (const mysqlx::Error& e)
+    {
+        spdlog::error("getAllocationsByEmployee failed: {}", e.what());
+    }
+
+    return allocations;
+}
+
+std::optional<Allocation> AllocationRepository::getAllocationById(int allocationId)
+{
+    try
+    {
+        auto result = database_.getSession()
+                          .sql("SELECT id, resource_id, project_id, utilisation_percent, from_date, to_date "
+                               "FROM allocations "
+                               "WHERE id = ?")
+                          .bind(allocationId)
+                          .execute();
+
+        if (auto row = result.fetchOne())
+        {
+            return mapAllocationRow(row);
+        }
+    }
+    catch (const mysqlx::Error& e)
+    {
+        spdlog::error("getAllocationById failed: {}", e.what());
+    }
+
+    return std::nullopt;
+}

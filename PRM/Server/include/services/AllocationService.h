@@ -21,7 +21,9 @@ class AllocationService : public IAllocationService
     void createAllocation(const AllocationCreateRequest& req, int createdByUserId) override;
     void endAllocation(const EndAllocationRequest& req) override;
     std::vector<AllocationResponse> getProjectAllocations(int projectId) override;
+    std::vector<AllocationResponse> getEmployeeAllocations(int employeeId) override;
     void recomputeEmployeeStatus(int employeeId, const std::string& todayDate) override;
+    std::optional<AllocationResponse> getAllocationById(int allocationId) override;
 
    private:
     bool isProjectAllocatable(const Project& project) const;

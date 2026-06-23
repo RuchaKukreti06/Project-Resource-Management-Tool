@@ -4,11 +4,12 @@
 #include "httplib.h"
 #include "services/AIService.h"
 #include "repositories/ISystemConfigRepository.h"
+#include "services/interfaces/ITokenService.h"
 
 class AIController
 {
    public:
-    explicit AIController(std::shared_ptr<AIService> aiService, std::shared_ptr<ISystemConfigRepository> configRepo);
+    explicit AIController(std::shared_ptr<AIService> aiService, std::shared_ptr<ISystemConfigRepository> configRepo, std::shared_ptr<ITokenService> tokenService);
     void registerRoutes(httplib::Server& server);
 
    private:
@@ -18,4 +19,5 @@ class AIController
 
     std::shared_ptr<AIService> aiService_;
     std::shared_ptr<ISystemConfigRepository> configRepo_;
+    std::shared_ptr<ITokenService> tokenService_;
 };

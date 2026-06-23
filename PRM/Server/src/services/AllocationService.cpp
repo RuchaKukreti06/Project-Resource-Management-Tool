@@ -75,6 +75,11 @@ std::vector<AllocationResponse> AllocationService::getProjectAllocations(int pro
     return DTOMapper::mapToAllocationResponse(allocationRepository_->getActiveAllocationsByProject(projectId));
 }
 
+std::vector<AllocationResponse> AllocationService::getEmployeeAllocations(int employeeId)
+{
+    return DTOMapper::mapToAllocationResponse(allocationRepository_->getAllocationsByEmployee(employeeId));
+}
+
 void AllocationService::recomputeEmployeeStatus(int employeeId, const std::string& todayDate)
 {
     const std::string effectiveDate = todayDate.empty() ? utils::currentDateIso() : todayDate;
@@ -84,4 +89,13 @@ void AllocationService::recomputeEmployeeStatus(int employeeId, const std::strin
     {
         throw exceptions::DatabaseException("Failed to set employee status.");
     }
+}
+
+std::optional<AllocationResponse> AllocationService::getAllocationById(int allocationId)
+{
+    auto allocation = allocationRepository_->getAllocationById(allocationId);
+    if (!allocation.has_value()) {
+        return std::nullopt;
+    }
+    return DTOMapper::mapToAllocationResponse(allocation.value());
 }

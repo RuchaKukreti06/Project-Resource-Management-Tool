@@ -8,6 +8,7 @@
 #include "dto/AllocationDTO.h"
 #include "AuthSession.h"
 #include <iomanip>
+#include <map>
 
 EmployeeScreen::EmployeeScreen()
 {
@@ -285,28 +286,30 @@ void EmployeeScreen::viewMyAllocations(ApiClient& apiClient)
         ScreenUtils::printDivider();
 
         auto projRes = ApiListResponse<ProjectDTO>::fromJson(apiClient.get("/projects"));
-        int count = 0;
-        int totalUtil = 0;
+        std::map<int, std::string> projectNames;
         if (projRes.success)
         {
             for (const auto& proj : projRes.data)
             {
-                int projId = proj.id;
-                auto allocs = ApiListResponse<AllocationDTO>::fromJson(apiClient.get("/projects/" + std::to_string(projId) + "/allocations"));
-                if (!allocs.success) continue;
-                for (const auto& alloc : allocs.data)
-                {
-                    if (alloc.employeeId == empId)
-                    {
-                        std::cout << std::left << std::setw(20) << proj.name.substr(0, 19)
-                                  << std::setw(8) << (std::to_string(alloc.utilizationPercentage) + "%")
-                                  << std::setw(12) << alloc.fromDate
-                                  << std::setw(12) << alloc.toDate
-                                  << "ACTIVE\n";
-                        totalUtil += alloc.utilizationPercentage;
-                        count++;
-                    }
-                }
+                projectNames[proj.id] = proj.name;
+            }
+        }
+
+        int count = 0;
+        int totalUtil = 0;
+        auto allocs = ApiListResponse<AllocationDTO>::fromJson(apiClient.get("/employees/" + std::to_string(empId) + "/allocations"));
+        if (allocs.success)
+        {
+            for (const auto& alloc : allocs.data)
+            {
+                std::string pName = projectNames.count(alloc.projectId) ? projectNames[alloc.projectId] : "Unknown Project";
+                std::cout << std::left << std::setw(20) << pName.substr(0, 19)
+                          << std::setw(8) << (std::to_string(alloc.utilizationPercentage) + "%")
+                          << std::setw(12) << alloc.fromDate
+                          << std::setw(12) << alloc.toDate
+                          << "ACTIVE\n";
+                totalUtil += alloc.utilizationPercentage;
+                count++;
             }
         }
         ScreenUtils::printDivider();

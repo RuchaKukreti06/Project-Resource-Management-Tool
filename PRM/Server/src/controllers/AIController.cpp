@@ -42,8 +42,8 @@ nlohmann::json parseLLMResponse(const std::string& raw)
 }
 }  // namespace
 
-AIController::AIController(std::shared_ptr<AIService> aiService, std::shared_ptr<ISystemConfigRepository> configRepo)
-    : aiService_(std::move(aiService)), configRepo_(std::move(configRepo))
+AIController::AIController(std::shared_ptr<AIService> aiService, std::shared_ptr<ISystemConfigRepository> configRepo, std::shared_ptr<ITokenService> tokenService)
+    : aiService_(std::move(aiService)), configRepo_(std::move(configRepo)), tokenService_(std::move(tokenService))
 {
 }
 
