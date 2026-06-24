@@ -20,6 +20,51 @@ struct SkillDTO
     }
 };
 
+struct UpdateEmployeeRequest {
+    std::string fullName;
+    std::string email;
+    std::string department;
+    std::string designation;
+    std::string status;
+    bool isActive = true;
+
+    nlohmann::json toJson() const {
+        return {
+            {"full_name", fullName},
+            {"email", email},
+            {"department", department},
+            {"designation", designation},
+            {"status", status},
+            {"is_active", isActive}
+        };
+    }
+};
+
+struct AddSkillRequest {
+    std::string skillName;
+    std::string category;
+    std::string proficiency;
+
+    nlohmann::json toJson() const {
+        return {
+            {"skill_name", skillName},
+            {"category", category},
+            {"proficiency", proficiency}
+        };
+    }
+};
+
+struct UpdateSkillRequest {
+    std::string proficiency;
+
+    nlohmann::json toJson() const {
+        return {
+            {"proficiency", proficiency}
+        };
+    }
+};
+
+
 struct EmployeeDTO
 {
     int id;

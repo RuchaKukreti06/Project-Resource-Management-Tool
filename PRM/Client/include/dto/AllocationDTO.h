@@ -1,6 +1,23 @@
 #pragma once
 #include <string>
 #include <nlohmann/json.hpp>
+struct CreateAllocationRequest {
+    int employeeId;
+    int projectId;
+    int utilizationPercentage;
+    std::string fromDate;
+    std::string toDate;
+
+    nlohmann::json toJson() const {
+        return {
+            {"employee_id", employeeId},
+            {"project_id", projectId},
+            {"utilization_percentage", utilizationPercentage},
+            {"from_date", fromDate},
+            {"to_date", toDate}
+        };
+    }
+};
 
 struct AllocationDTO
 {

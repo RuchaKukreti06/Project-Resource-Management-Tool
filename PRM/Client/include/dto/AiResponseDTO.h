@@ -21,6 +21,14 @@ struct AiRiskSummaryRequest {
     }
 };
 
+struct AiTeamBuilderRequest {
+    std::string requirement;
+
+    nlohmann::json toJson() const {
+        return {{"requirement", requirement}};
+    }
+};
+
 #include <string>
 #include <vector>
 #include <optional>

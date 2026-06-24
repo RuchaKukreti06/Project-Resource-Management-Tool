@@ -94,3 +94,26 @@ struct TimesheetCreateRequest
         };
     }
 };
+
+struct SubmitTimesheetRequest
+{
+    int employeeId;
+    std::string weekStartDate;
+    int maxWeeklyHours = 40;
+    std::vector<TimesheetLineRequest> lines;
+
+    nlohmann::json toJson() const
+    {
+        nlohmann::json jLines = nlohmann::json::array();
+        for (const auto& l : lines)
+        {
+            jLines.push_back(l.toJson());
+        }
+        return {
+            {"employee_id", employeeId},
+            {"week_start_date", weekStartDate},
+            {"max_weekly_hours", maxWeeklyHours},
+            {"lines", jLines}
+        };
+    }
+};

@@ -20,6 +20,48 @@ struct MilestoneDTO
     }
 };
 
+struct CreateProjectRequest {
+    std::string name;
+    std::string description;
+    std::string startDate;
+    std::string endDate;
+    std::string status;
+    int totalStoryPoints;
+    std::string healthStatus;
+    int managerId;
+
+    nlohmann::json toJson() const {
+        return {
+            {"name", name},
+            {"description", description},
+            {"start_date", startDate},
+            {"end_date", endDate},
+            {"status", status},
+            {"total_story_points", totalStoryPoints},
+            {"health_status", healthStatus},
+            {"manager_id", managerId}
+        };
+    }
+};
+
+struct AddMilestoneRequest {
+    std::string title;
+    std::string dueDate;
+    int storyPoints;
+    std::string status;
+    std::string healthFlag;
+
+    nlohmann::json toJson() const {
+        return {
+            {"title", title},
+            {"due_date", dueDate},
+            {"story_points", storyPoints},
+            {"status", status},
+            {"health_flag", healthFlag}
+        };
+    }
+};
+
 struct ProjectDTO
 {
     int id;

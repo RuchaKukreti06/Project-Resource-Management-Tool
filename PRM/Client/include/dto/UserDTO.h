@@ -29,3 +29,48 @@ struct UserDTO
         return u;
     }
 };
+
+struct RegisterUserRequest
+{
+    std::string username;
+    std::string password;
+    std::string email;
+    std::string fullName;
+
+    nlohmann::json toJson() const
+    {
+        return {
+            {"username", username},
+            {"password", password},
+            {"email", email},
+            {"full_name", fullName}
+        };
+    }
+};
+
+struct CreateUserRequest
+{
+    std::string username;
+    std::string password;
+    std::string role;
+    std::string email;
+    std::string fullName;
+    std::string department;
+    std::string designation;
+    bool forcePasswordChange = true;
+
+    nlohmann::json toJson() const
+    {
+        return {
+            {"username", username},
+            {"password", password},
+            {"role", role},
+            {"email", email},
+            {"full_name", fullName},
+            {"department", department},
+            {"designation", designation},
+            {"force_password_change", forcePasswordChange}
+        };
+    }
+};
+
