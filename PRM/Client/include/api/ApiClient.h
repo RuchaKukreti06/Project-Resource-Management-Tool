@@ -6,14 +6,16 @@
 #include <nlohmann/json.hpp>
 #include <string>
 
-#include "IClient.h"
+#include "IApiClient.h"
 
-class ApiClient : public IClient
+class ApiClient : public IApiClient
 {
    private:
     std::string baseUrl_;
     std::string authToken_;
     std::unique_ptr<httplib::Client> client_;
+
+    nlohmann::json handleResponse(const httplib::Result& response);
 
    public:
     ApiClient(const std::string& baseUrl);
@@ -23,8 +25,8 @@ class ApiClient : public IClient
     nlohmann::json patch(const std::string& endpoint, const nlohmann::json& payload) override;
     nlohmann::json del(const std::string& endpoint) override;
 
-    void setToken(const std::string& token);
-    void clearToken();
+    void setToken(const std::string& token) override;
+    void clearToken() override;
 };
 
 #endif

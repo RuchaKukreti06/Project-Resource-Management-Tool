@@ -1,4 +1,5 @@
 #include "ApiClient.h"
+#include "ApiException.h"
 
 #include <httplib.h>
 
@@ -19,12 +20,7 @@ nlohmann::json ApiClient::get(const std::string& endpoint)
         headers.emplace("Authorization", "Bearer " + authToken_);
     }
     auto response = client_->Get(endpoint, headers);
-    if (!response)
-        throw std::runtime_error("GET " + endpoint + " — no response (server down?)");
-    if (response->status < 200 || response->status >= 300)
-        throw std::runtime_error("GET " + endpoint + " returned HTTP " +
-                                 std::to_string(response->status) + ": " + response->body);
-    return nlohmann::json::parse(response->body);
+    return handleResponse(response);
 }
 
 nlohmann::json ApiClient::post(const std::string& endpoint, const nlohmann::json& payload)
@@ -35,12 +31,7 @@ nlohmann::json ApiClient::post(const std::string& endpoint, const nlohmann::json
         headers.emplace("Authorization", "Bearer " + authToken_);
     }
     auto response = client_->Post(endpoint, headers, payload.dump(), "application/json");
-    if (!response)
-        throw std::runtime_error("POST " + endpoint + " — no response (server down?)");
-    if (response->status < 200 || response->status >= 300)
-        throw std::runtime_error("POST " + endpoint + " returned HTTP " +
-                                 std::to_string(response->status) + ": " + response->body);
-    return nlohmann::json::parse(response->body);
+    return handleResponse(response);
 }
 
 nlohmann::json ApiClient::put(const std::string& endpoint, const nlohmann::json& payload)
@@ -51,12 +42,7 @@ nlohmann::json ApiClient::put(const std::string& endpoint, const nlohmann::json&
         headers.emplace("Authorization", "Bearer " + authToken_);
     }
     auto response = client_->Put(endpoint, headers, payload.dump(), "application/json");
-    if (!response)
-        throw std::runtime_error("PUT " + endpoint + " — no response (server down?)");
-    if (response->status < 200 || response->status >= 300)
-        throw std::runtime_error("PUT " + endpoint + " returned HTTP " +
-                                 std::to_string(response->status) + ": " + response->body);
-    return nlohmann::json::parse(response->body);
+    return handleResponse(response);
 }
 
 nlohmann::json ApiClient::patch(const std::string& endpoint, const nlohmann::json& payload)
@@ -67,12 +53,7 @@ nlohmann::json ApiClient::patch(const std::string& endpoint, const nlohmann::jso
         headers.emplace("Authorization", "Bearer " + authToken_);
     }
     auto response = client_->Patch(endpoint, headers, payload.dump(), "application/json");
-    if (!response)
-        throw std::runtime_error("PATCH " + endpoint + " — no response (server down?)");
-    if (response->status < 200 || response->status >= 300)
-        throw std::runtime_error("PATCH " + endpoint + " returned HTTP " +
-                                 std::to_string(response->status) + ": " + response->body);
-    return nlohmann::json::parse(response->body);
+    return handleResponse(response);
 }
 
 nlohmann::json ApiClient::del(const std::string& endpoint)
@@ -83,12 +64,7 @@ nlohmann::json ApiClient::del(const std::string& endpoint)
         headers.emplace("Authorization", "Bearer " + authToken_);
     }
     auto response = client_->Delete(endpoint, headers);
-    if (!response)
-        throw std::runtime_error("DELETE " + endpoint + " — no response (server down?)");
-    if (response->status < 200 || response->status >= 300)
-        throw std::runtime_error("DELETE " + endpoint + " returned HTTP " +
-                                 std::to_string(response->status) + ": " + response->body);
-    return nlohmann::json::parse(response->body);
+    return handleResponse(response);
 }
 
 void ApiClient::setToken(const std::string& token)
@@ -99,4 +75,62 @@ void ApiClient::setToken(const std::string& token)
 void ApiClient::clearToken()
 {
     authToken_.clear();
+}
+
+nlohmann::json ApiClient::handleResponse(const httplib::Result& response)
+{
+    if (!response)
+    {
+        throw NetworkException("Could not connect to server. Please check if the server is running.");
+    }
+
+    if (response->status >= 200 && response->status < 300)
+    {
+        if (response->body.empty()) {
+            return nlohmann::json::object();
+        }
+        try {
+            return nlohmann::json::parse(response->body);
+        } catch (...) {
+            throw ServerException("Invalid JSON response from server.", response->status);
+        }
+    }
+
+    std::string errorMessage = "An unknown error occurred.";
+    try
+    {
+        auto errorJson = nlohmann::json::parse(response->body);
+        if (errorJson.contains("error") && errorJson["error"].is_string())
+        {
+            errorMessage = errorJson["error"].get<std::string>();
+        }
+        else if (errorJson.contains("message") && errorJson["message"].is_string())
+        {
+            errorMessage = errorJson["message"].get<std::string>();
+        }
+    }
+    catch (...)
+    {
+        // If it's not JSON, maybe use a default message or raw body if we have to, but instructions say no raw body.
+        if (response->status == 404) errorMessage = "Resource not found.";
+        else if (response->status == 500) errorMessage = "Internal server error.";
+    }
+
+    switch (response->status)
+    {
+        case 400:
+            throw ValidationException(errorMessage);
+        case 401:
+            throw AuthenticationException(errorMessage);
+        case 403:
+            throw AuthorizationException("You are not allowed to perform this action.");
+        case 404:
+            throw NotFoundException(errorMessage);
+        default:
+            if (response->status >= 500)
+            {
+                throw ServerException(errorMessage, response->status);
+            }
+            throw ApiException(errorMessage, response->status);
+    }
 }
