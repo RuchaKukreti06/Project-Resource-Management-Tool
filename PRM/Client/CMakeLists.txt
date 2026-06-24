@@ -22,9 +22,18 @@ find_package(GTest CONFIG REQUIRED)
 
 add_library(client-lib STATIC
     src/api/ApiClient.cpp
+    src/services/AuthClientService.cpp
+    src/services/UserClientService.cpp
     src/screens/Screen.cpp
+    src/services/EmployeeClientService.cpp
+    src/services/ProjectClientService.cpp
+    src/services/AllocationClientService.cpp
+    src/services/TimesheetClientService.cpp
+    src/services/AiClientService.cpp
+    src/services/ConfigClientService.cpp
     src/api/AuthSession.cpp
     src/app/Application.cpp
+    src/app/Router.cpp
     src/screens/LoginScreen.cpp
     src/screens/ChangePasswordScreen.cpp
     src/screens/ScreenDecorator.cpp
