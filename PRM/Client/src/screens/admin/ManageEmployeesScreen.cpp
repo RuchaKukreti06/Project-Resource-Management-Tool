@@ -1,8 +1,10 @@
 #include "admin/ManageEmployeesScreen.h"
 #include "dto/ApiResponse.h"
 #include "dto/EmployeeDTO.h"
-
-ManageEmployeesScreen::ManageEmployeesScreen()
+#include "api/ApiException.h"
+#include "services/EmployeeClientService.h"
+ManageEmployeesScreen::ManageEmployeesScreen(EmployeeClientService& empService)
+    : empService_(empService)
 {
 }
 
@@ -18,38 +20,38 @@ void ManageEmployeesScreen::displayMenu()
     std::cout << "6. Back\n";
 }
 
-void ManageEmployeesScreen::show(ApiClient& apiClient)
+void ManageEmployeesScreen::show()
 {
     keepRunning_ = true;
     while (keepRunning_)
     {
         displayMenu();
-        handleInput(apiClient);
+        handleInput();
     }
 }
 
-void ManageEmployeesScreen::handleInput(ApiClient& apiClient)
+void ManageEmployeesScreen::handleInput()
 {
     std::string choice = ScreenUtils::readLine("Enter option");
     if (choice == "1")
     {
-        viewAllEmployees(apiClient);
+        viewAllEmployees();
     }
     else if (choice == "2")
     {
-        updateEmployee(apiClient);
+        updateEmployee();
     }
     else if (choice == "3")
     {
-        deactivateEmployee(apiClient);
+        assignManager();
     }
     else if (choice == "4")
     {
-        manageEmployeeSkills(apiClient);
+        manageEmployeeSkills();
     }
     else if (choice == "5")
     {
-        assignManager(apiClient);
+        deactivateEmployee();
     }
     else if (choice == "6" || choice == "B" || choice == "b")
     {
@@ -62,11 +64,11 @@ void ManageEmployeesScreen::handleInput(ApiClient& apiClient)
     }
 }
 
-void ManageEmployeesScreen::viewAllEmployees(ApiClient& apiClient)
+void ManageEmployeesScreen::viewAllEmployees()
 {
     try
     {
-        auto response = ApiListResponse<EmployeeDTO>::fromJson(apiClient.get("/employees"));
+        auto response = empService_.viewAllEmployees();
         if (!response.success)
         {
             showError(response.message);
@@ -158,19 +160,23 @@ void ManageEmployeesScreen::viewAllEmployees(ApiClient& apiClient)
             }
         }
     }
-    catch (const std::exception& ex)
+    catch (const ApiException& ex)
     {
-        showError(std::string("Failed to view employees: ") + ex.what());
+        showError(ex.what());
         ScreenUtils::readLine("Press Enter to continue");
+    }
+    catch (const std::exception&)
+    {
+        showError("Something went wrong. Please try again.");
     }
 }
 
-void ManageEmployeesScreen::updateEmployee(ApiClient& apiClient)
+void ManageEmployeesScreen::updateEmployee()
 {
     try
     {
         std::string empId = ScreenUtils::readLine("Enter Employee ID");
-        auto response = ApiListResponse<EmployeeDTO>::fromJson(apiClient.get("/employees"));
+        auto response = empService_.viewAllEmployees();
         if (!response.success)
         {
             showError("Failed to fetch employees list.");
@@ -217,14 +223,15 @@ void ManageEmployeesScreen::updateEmployee(ApiClient& apiClient)
         if (newDept.empty()) newDept = targetEmp.department;
         if (newDesg.empty()) newDesg = targetEmp.designation;
 
-        auto putRes = ApiEmptyResponse::fromJson(apiClient.put("/employees/" + empId, {
-            {"full_name", newName},
-            {"email", newEmail},
-            {"department", newDept},
-            {"designation", newDesg},
-            {"status", newStatus},
-            {"is_active", targetEmp.isActive}
-        }));
+        UpdateEmployeeRequest req;
+        req.fullName = newName;
+        req.email = newEmail;
+        req.department = newDept;
+        req.designation = newDesg;
+        req.status = newStatus;
+        req.isActive = targetEmp.isActive;
+
+        auto putRes = empService_.updateEmployee(std::stoi(empId), req);
 
         if (putRes.success)
         {
@@ -236,19 +243,23 @@ void ManageEmployeesScreen::updateEmployee(ApiClient& apiClient)
         }
         ScreenUtils::readLine("Press Enter to continue");
     }
-    catch (const std::exception& ex)
+    catch (const ApiException& ex)
     {
-        showError(std::string("Failed to update employee: ") + ex.what());
+        showError(ex.what());
         ScreenUtils::readLine("Press Enter to continue");
+    }
+    catch (const std::exception&)
+    {
+        showError("Something went wrong. Please try again.");
     }
 }
 
-void ManageEmployeesScreen::deactivateEmployee(ApiClient& apiClient)
+void ManageEmployeesScreen::deactivateEmployee()
 {
     try
     {
         std::string empId = ScreenUtils::readLine("Enter Employee ID");
-        auto response = ApiListResponse<EmployeeDTO>::fromJson(apiClient.get("/employees"));
+        auto response = empService_.viewAllEmployees();
         if (!response.success)
         {
             showError("Failed to fetch employees list.");
@@ -285,7 +296,7 @@ void ManageEmployeesScreen::deactivateEmployee(ApiClient& apiClient)
         std::string confirm = ScreenUtils::readLine("Choice");
         if (confirm == "Y" || confirm == "y")
         {
-            auto patchRes = ApiEmptyResponse::fromJson(apiClient.patch("/employees/" + empId + "/deactivate", {}));
+            auto patchRes = empService_.deactivateEmployee(std::stoi(empId));
             if (patchRes.success)
             {
                 showSuccess("Employee deactivated. ✓");
@@ -297,22 +308,26 @@ void ManageEmployeesScreen::deactivateEmployee(ApiClient& apiClient)
         }
         ScreenUtils::readLine("Press Enter to continue");
     }
-    catch (const std::exception& ex)
+    catch (const ApiException& ex)
     {
-        showError(std::string("Failed to deactivate employee: ") + ex.what());
+        showError(ex.what());
         ScreenUtils::readLine("Press Enter to continue");
+    }
+    catch (const std::exception&)
+    {
+        showError("Something went wrong. Please try again.");
     }
 }
 
-void ManageEmployeesScreen::manageEmployeeSkills(ApiClient& apiClient)
+void ManageEmployeesScreen::manageEmployeeSkills()
 {
     try
     {
         std::string empId = ScreenUtils::readLine("Enter Employee ID");
-        
+
         while (true)
         {
-            auto skillsRes = ApiListResponse<SkillDTO>::fromJson(apiClient.get("/employees/" + empId + "/skills"));
+            auto skillsRes = empService_.getEmployeeSkills(std::stoi(empId));
             if (!skillsRes.success)
             {
                 showError(skillsRes.message);
@@ -363,11 +378,12 @@ void ManageEmployeesScreen::manageEmployeeSkills(ApiClient& apiClient)
                 if (profChoice == "2") proficiency = "INTERMEDIATE";
                 else if (profChoice == "3") proficiency = "ADVANCED";
 
-                auto addRes = ApiEmptyResponse::fromJson(apiClient.post("/employees/" + empId + "/skills", {
-                    {"skill_name", skillName},
-                    {"category", category},
-                    {"proficiency", proficiency}
-                }));
+                AddSkillRequest req;
+                req.skillName = skillName;
+                req.category = category;
+                req.proficiency = proficiency;
+
+                auto addRes = empService_.addSkill(std::stoi(empId), req);
 
                 if (addRes.success)
                 {
@@ -402,9 +418,10 @@ void ManageEmployeesScreen::manageEmployeeSkills(ApiClient& apiClient)
                 if (profChoice == "2") proficiency = "INTERMEDIATE";
                 else if (profChoice == "3") proficiency = "ADVANCED";
 
-                auto putRes = ApiEmptyResponse::fromJson(apiClient.put("/employees/" + empId + "/skills/" + std::to_string(skillId), {
-                    {"proficiency", proficiency}
-                }));
+                UpdateSkillRequest req;
+                req.proficiency = proficiency;
+
+                auto putRes = empService_.updateSkill(std::stoi(empId), skillId, req);
 
                 if (putRes.success)
                 {
@@ -430,7 +447,7 @@ void ManageEmployeesScreen::manageEmployeeSkills(ApiClient& apiClient)
                 }
                 int skillId = skills[itemNum - 1].skillId;
 
-                auto delRes = ApiEmptyResponse::fromJson(apiClient.del("/employees/" + empId + "/skills/" + std::to_string(skillId)));
+                auto delRes = empService_.removeSkill(std::stoi(empId), skillId);
                 if (delRes.success)
                 {
                     showSuccess("Skill removed. ✓");
@@ -447,14 +464,18 @@ void ManageEmployeesScreen::manageEmployeeSkills(ApiClient& apiClient)
             }
         }
     }
-    catch (const std::exception& ex)
+    catch (const ApiException& ex)
     {
-        showError(std::string("Error managing skills: ") + ex.what());
+        showError(ex.what());
         ScreenUtils::readLine("Press Enter to continue");
+    }
+    catch (const std::exception&)
+    {
+        showError("Something went wrong. Please try again.");
     }
 }
 
-void ManageEmployeesScreen::assignManager(ApiClient& apiClient)
+void ManageEmployeesScreen::assignManager()
 {
     try
     {
@@ -462,10 +483,9 @@ void ManageEmployeesScreen::assignManager(ApiClient& apiClient)
         std::string mgrUserId = ScreenUtils::readLine("Manager User ID");
         auto parsedMgrId = ScreenUtils::safeParseInt(mgrUserId);
         if (!parsedMgrId) throw std::invalid_argument("Invalid manager ID format");
-        int mgrIdParsed = parsedMgrId.value();
+        int mgrId = parsedMgrId.value();
 
-        auto res = ApiEmptyResponse::fromJson(apiClient.put("/users/" + empUserId + "/assign-manager",
-                                 {{"manager_id", mgrIdParsed}}));
+        auto res = empService_.assignManager(std::stoi(empUserId), mgrId);
 
         if (res.success)
         {
@@ -477,10 +497,14 @@ void ManageEmployeesScreen::assignManager(ApiClient& apiClient)
         }
         ScreenUtils::readLine("Press Enter to continue");
     }
-    catch (const std::exception& ex)
+    catch (const ApiException& ex)
     {
-        showError(std::string("Failed to assign manager: ") + ex.what());
+        showError(ex.what());
         ScreenUtils::readLine("Press Enter to continue");
+    }
+    catch (const std::exception&)
+    {
+        showError("Something went wrong. Please try again.");
     }
 }
 

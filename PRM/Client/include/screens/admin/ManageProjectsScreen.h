@@ -3,20 +3,23 @@
 
 #include "Screen.h"
 
+class ProjectClientService;
+
 class ManageProjectsScreen : public Screen
 {
    public:
-    ManageProjectsScreen();
-    void show(ApiClient& apiClient) override;
+    ManageProjectsScreen(ProjectClientService& projService);
+    void show() override;
     void displayMenu() override;
-    void handleInput(ApiClient& apiClient) override;
+    void handleInput() override;
 
    private:
+    ProjectClientService& projService_;
     bool keepRunning_ = true;
-    void createProject(ApiClient& apiClient);
-    void viewAllProjects(ApiClient& apiClient);
-    void updateProjectDetails(ApiClient& apiClient);
-    void manageMilestones(ApiClient& apiClient);
+    void createProject();
+    void viewAllProjects();
+    void updateProjectDetails();
+    void manageMilestones();
 
    protected:
     ScreenDecorator decorator() const override;

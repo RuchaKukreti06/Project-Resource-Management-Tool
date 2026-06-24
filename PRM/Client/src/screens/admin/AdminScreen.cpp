@@ -7,9 +7,15 @@
 #include "dto/ApiResponse.h"
 #include "dto/ProjectDTO.h"
 #include "dto/EmployeeDTO.h"
-#include "dto/AllocationDTO.h"
 #include <map>
-AdminScreen::AdminScreen()
+#include "api/ApiException.h"
+#include "services/ProjectClientService.h"
+#include "services/AllocationClientService.h"
+#include "services/EmployeeClientService.h"
+#include "app/Router.h"
+
+AdminScreen::AdminScreen(Router& router, api::ISessionStore& sessionStore, ProjectClientService& projService, AllocationClientService& allocService, EmployeeClientService& empService)
+    : router_(router), sessionStore_(sessionStore), projService_(projService), allocService_(allocService), empService_(empService)
 {
 }
 
@@ -25,36 +31,36 @@ void AdminScreen::displayMenu()
     std::cout << "6. Logout\n";
 }
 
-void AdminScreen::show(ApiClient& apiClient)
+void AdminScreen::show()
 {
     while (true)
     {
         displayMenu();
-        handleInput(apiClient);
-        if (!api::AuthSession::instance().isLoggedIn())
+        handleInput();
+        if (!sessionStore_.isLoggedIn())
         {
             break;
         }
     }
 }
 
-void AdminScreen::handleInput(ApiClient& apiClient)
+void AdminScreen::handleInput()
 {
     std::string choice = ScreenUtils::readLine("Enter option");
     if (choice == "1")
     {
-        ManageEmployeesScreen().show(apiClient);
+        router_.navigateToManageEmployees();
     }
     else if (choice == "2")
     {
-        ManageProjectsScreen().show(apiClient);
+        router_.navigateToManageProjects();
     }
     else if (choice == "3")
     {
         // View All Allocations
         try
         {
-            auto response = ApiListResponse<ProjectDTO>::fromJson(apiClient.get("/projects"));
+            auto response = projService_.viewAllProjects();
             if (!response.success)
             {
                 showError(response.message);
@@ -72,7 +78,7 @@ void AdminScreen::handleInput(ApiClient& apiClient)
 
             int totalAllocations = 0;
             
-            auto empRes = ApiListResponse<EmployeeDTO>::fromJson(apiClient.get("/employees"));
+            auto empRes = empService_.viewAllEmployees();
             std::map<int, std::string> empMap;
             if (empRes.success) {
                 for (const auto& e : empRes.data) {
@@ -82,7 +88,7 @@ void AdminScreen::handleInput(ApiClient& apiClient)
 
             for (const auto& proj : projects)
             {
-                auto allocRes = ApiListResponse<AllocationDTO>::fromJson(apiClient.get("/projects/" + std::to_string(proj.id) + "/allocations"));
+                auto allocRes = allocService_.getProjectAllocations(proj.id);
                 if (!allocRes.success) continue;
                 for (const auto& alloc : allocRes.data)
                 {
@@ -103,24 +109,27 @@ void AdminScreen::handleInput(ApiClient& apiClient)
             std::cout << "Total Active Allocations: " << totalAllocations << "\n\n";
             ScreenUtils::readLine("Press Enter to go back");
         }
-        catch (const std::exception& e)
+        catch (const ApiException& e)
         {
-            showError(std::string("Failed to fetch allocations: ") + e.what());
+            showError(e.what());
             ScreenUtils::readLine("Press Enter to continue");
+        }
+        catch (const std::exception&)
+        {
+            showError("Something went wrong. Please try again.");
         }
     }
     else if (choice == "4")
     {
-        ManageUsersScreen().show(apiClient);
+        router_.navigateToManageUsers();
     }
     else if (choice == "5")
     {
-        SystemConfigScreen().show(apiClient);
+        router_.navigateToSystemConfig();
     }
     else if (choice == "6")
     {
-        api::AuthSession::instance().logout();
-        apiClient.clearToken();
+        sessionStore_.logout();
         showSuccess("Logged out successfully.");
     }
     else

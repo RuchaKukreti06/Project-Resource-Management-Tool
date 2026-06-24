@@ -9,8 +9,17 @@
 #include "AuthSession.h"
 #include <iomanip>
 #include <map>
+#include "api/ApiException.h"
+#include "services/EmployeeClientService.h"
+#include "services/TimesheetClientService.h"
+#include "services/ProjectClientService.h"
+#include "services/AllocationClientService.h"
 
-EmployeeScreen::EmployeeScreen()
+#include "app/Router.h"
+#include "api/ISessionStore.h"
+
+EmployeeScreen::EmployeeScreen(Router& router, api::ISessionStore& sessionStore, EmployeeClientService& empService, TimesheetClientService& tsService, ProjectClientService& projService, AllocationClientService& allocService)
+    : router_(router), sessionStore_(sessionStore), empService_(empService), tsService_(tsService), projService_(projService), allocService_(allocService)
 {
 }
 
@@ -31,12 +40,12 @@ void EmployeeScreen::displayMenu()
     std::cout << "4. Logout\n";
 }
 
-void EmployeeScreen::show(ApiClient& apiClient)
+void EmployeeScreen::show()
 {
     // Fetch Employee ID
-    int userId = api::AuthSession::instance().userId();
+    int userId = sessionStore_.userId();
     int empId = 0;
-    auto empRes = ApiListResponse<EmployeeDTO>::fromJson(apiClient.get("/employees"));
+    auto empRes = empService_.viewAllEmployees();
     if (empRes.success)
     {
         for (const auto& e : empRes.data)
@@ -77,7 +86,7 @@ void EmployeeScreen::show(ApiClient& apiClient)
         hasMissingTimesheet_ = true;
         if (empId > 0)
         {
-            auto tsRes = ApiListResponse<TimesheetDTO>::fromJson(apiClient.get("/employees/" + std::to_string(empId) + "/timesheets"));
+            auto tsRes = tsService_.getEmployeeTimesheets(empId);
             if (tsRes.success)
             {
                 for (const auto& ts : tsRes.data)
@@ -92,33 +101,32 @@ void EmployeeScreen::show(ApiClient& apiClient)
         }
 
         displayMenu();
-        handleInput(apiClient);
-        if (!api::AuthSession::instance().isLoggedIn())
+        handleInput();
+        if (!sessionStore_.isLoggedIn())
         {
             break;
         }
     }
 }
 
-void EmployeeScreen::handleInput(ApiClient& apiClient)
+void EmployeeScreen::handleInput()
 {
     std::string choice = ScreenUtils::readLine("Enter option");
     if (choice == "1")
     {
-        SubmitTimesheetScreen().show(apiClient);
+        router_.navigateToSubmitTimesheet();
     }
     else if (choice == "2")
     {
-        viewMyTimesheets(apiClient);
+        viewMyTimesheets();
     }
     else if (choice == "3")
     {
-        viewMyAllocations(apiClient);
+        viewMyAllocations();
     }
     else if (choice == "4")
     {
-        api::AuthSession::instance().logout();
-        apiClient.clearToken();
+        sessionStore_.logout();
         showSuccess("Logged out successfully.");
     }
     else
@@ -128,14 +136,14 @@ void EmployeeScreen::handleInput(ApiClient& apiClient)
     }
 }
 
-void EmployeeScreen::viewMyTimesheets(ApiClient& apiClient)
+void EmployeeScreen::viewMyTimesheets()
 {
     try
     {
         // Find Employee ID
-        int userId = api::AuthSession::instance().userId();
+        int userId = sessionStore_.userId();
         int empId = 0;
-        auto empRes = ApiListResponse<EmployeeDTO>::fromJson(apiClient.get("/employees"));
+        auto empRes = empService_.viewAllEmployees();
         if (empRes.success)
         {
             for (const auto& e : empRes.data)
@@ -155,7 +163,7 @@ void EmployeeScreen::viewMyTimesheets(ApiClient& apiClient)
             return;
         }
 
-        auto response = ApiListResponse<TimesheetDTO>::fromJson(apiClient.get("/employees/" + std::to_string(empId) + "/timesheets"));
+        auto response = tsService_.getEmployeeTimesheets(empId);
         if (!response.success)
         {
             showError(response.message);
@@ -228,7 +236,7 @@ void EmployeeScreen::viewMyTimesheets(ApiClient& apiClient)
 
                 if (selectedId > 0)
                 {
-                    viewTimesheetDetails(apiClient, selectedId, dateToView, st);
+                    viewTimesheetDetails(selectedId, dateToView, st);
                     // Stay in [V]/[B] loop after viewing details
                 }
                 else
@@ -242,21 +250,25 @@ void EmployeeScreen::viewMyTimesheets(ApiClient& apiClient)
             }
         }
     }
-    catch (const std::exception& ex)
+    catch (const ApiException& ex)
     {
-        showError(std::string("Error viewing timesheets: ") + ex.what());
+        showError(ex.what());
         ScreenUtils::readLine("Press Enter to continue");
+    }
+    catch (const std::exception&)
+    {
+        showError("Something went wrong. Please try again.");
     }
 }
 
-void EmployeeScreen::viewMyAllocations(ApiClient& apiClient)
+void EmployeeScreen::viewMyAllocations()
 {
     try
     {
         // Find Employee ID
-        int userId = api::AuthSession::instance().userId();
+        int userId = sessionStore_.userId();
         int empId = 0;
-        auto empRes = ApiListResponse<EmployeeDTO>::fromJson(apiClient.get("/employees"));
+        auto empRes = empService_.viewAllEmployees();
         if (empRes.success)
         {
             for (const auto& e : empRes.data)
@@ -285,7 +297,7 @@ void EmployeeScreen::viewMyAllocations(ApiClient& apiClient)
                   << "Status\n";
         ScreenUtils::printDivider();
 
-        auto projRes = ApiListResponse<ProjectDTO>::fromJson(apiClient.get("/projects"));
+        auto projRes = projService_.viewAllProjects();
         std::map<int, std::string> projectNames;
         if (projRes.success)
         {
@@ -297,7 +309,7 @@ void EmployeeScreen::viewMyAllocations(ApiClient& apiClient)
 
         int count = 0;
         int totalUtil = 0;
-        auto allocs = ApiListResponse<AllocationDTO>::fromJson(apiClient.get("/employees/" + std::to_string(empId) + "/allocations"));
+        auto allocs = allocService_.getEmployeeAllocations(empId);
         if (allocs.success)
         {
             for (const auto& alloc : allocs.data)
@@ -321,16 +333,20 @@ void EmployeeScreen::viewMyAllocations(ApiClient& apiClient)
         }
         ScreenUtils::readLine("Press Enter to go back");
     }
-    catch (const std::exception& ex)
+    catch (const ApiException& ex)
     {
-        showError(std::string("Error viewing allocations: ") + ex.what());
+        showError(ex.what());
         ScreenUtils::readLine("Press Enter to continue");
+    }
+    catch (const std::exception&)
+    {
+        showError("Something went wrong. Please try again.");
     }
 }
 
-void EmployeeScreen::viewTimesheetDetails(ApiClient& apiClient, int timesheetId, const std::string& weekStart, const std::string& status)
+void EmployeeScreen::viewTimesheetDetails(int timesheetId, const std::string& weekStart, const std::string& status)
 {
-    auto response = ApiListResponse<TimesheetEntryDTO>::fromJson(apiClient.get("/timesheets/" + std::to_string(timesheetId)));
+    auto response = tsService_.getTimesheetEntries(timesheetId);
     if (!response.success)
     {
         showError(response.message);
@@ -373,6 +389,6 @@ void EmployeeScreen::viewTimesheetDetails(ApiClient& apiClient, int timesheetId,
 
 ScreenDecorator EmployeeScreen::decorator() const
 {
-    std::string username = api::AuthSession::instance().username();
+    std::string username = sessionStore_.username();
     return ScreenDecorator("Welcome, " + username + "!").withWidth(40).withPadding(2);
 }

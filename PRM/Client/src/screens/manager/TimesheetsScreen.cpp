@@ -3,8 +3,11 @@
 #include "dto/ApiResponse.h"
 #include "dto/TimesheetDTO.h"
 #include <iomanip>
+#include "api/ApiException.h"
+#include "services/TimesheetClientService.h"
 
-TimesheetsScreen::TimesheetsScreen()
+TimesheetsScreen::TimesheetsScreen(TimesheetClientService& tsService)
+    : tsService_(tsService)
 {
 }
 
@@ -12,7 +15,7 @@ void TimesheetsScreen::displayMenu()
 {
 }
 
-void TimesheetsScreen::show(ApiClient& apiClient)
+void TimesheetsScreen::show()
 {
     while (true)
     {
@@ -41,13 +44,7 @@ void TimesheetsScreen::show(ApiClient& apiClient)
             }
 
             int managerId = api::AuthSession::instance().userId();
-            std::string endpoint = "/managers/" + std::to_string(managerId) + "/timesheets";
-            if (!formattedDate.empty())
-            {
-                endpoint += "?week_start_date=" + formattedDate;
-            }
-
-            auto response = ApiListResponse<ManagerTimesheetDTO>::fromJson(apiClient.get(endpoint));
+            auto response = tsService_.getManagerTimesheets(managerId, formattedDate);
             if (!response.success)
             {
                 showError(response.message);
@@ -77,32 +74,36 @@ void TimesheetsScreen::show(ApiClient& apiClient)
             std::string choice = ScreenUtils::readLine("Enter choice");
             if (choice == "V" || choice == "v")
             {
-                viewTimesheetDetail(apiClient);
+                viewTimesheetDetail();
             }
             else if (choice == "B" || choice == "b")
             {
                 break;
             }
         }
-        catch (const std::exception& ex)
+        catch (const ApiException& ex)
         {
-            showError(std::string("Error viewing timesheets: ") + ex.what());
+            showError(ex.what());
             ScreenUtils::readLine("Press Enter to continue");
             break;
+        }
+        catch (const std::exception&)
+        {
+            showError("Something went wrong. Please try again.");
         }
     }
 }
 
-void TimesheetsScreen::handleInput(ApiClient& apiClient)
+void TimesheetsScreen::handleInput()
 {
 }
 
-void TimesheetsScreen::viewTimesheetDetail(ApiClient& apiClient)
+void TimesheetsScreen::viewTimesheetDetail()
 {
     try
     {
         std::string empId = ScreenUtils::readLine("Enter Employee ID");
-        auto response = ApiListResponse<TimesheetDTO>::fromJson(apiClient.get("/employees/" + empId + "/timesheets"));
+        auto response = tsService_.getEmployeeTimesheets(std::stoi(empId));
         
         if (!response.success)
         {
@@ -126,10 +127,14 @@ void TimesheetsScreen::viewTimesheetDetail(ApiClient& apiClient)
         ScreenUtils::printDivider();
         ScreenUtils::readLine("Press Enter to go back");
     }
-    catch (const std::exception& ex)
+    catch (const ApiException& ex)
     {
-        showError(std::string("Error viewing timesheet detail: ") + ex.what());
+        showError(ex.what());
         ScreenUtils::readLine("Press Enter to continue");
+    }
+    catch (const std::exception&)
+    {
+        showError("Something went wrong. Please try again.");
     }
 }
 

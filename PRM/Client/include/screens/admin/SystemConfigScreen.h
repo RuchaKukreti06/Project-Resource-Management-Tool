@@ -5,15 +5,18 @@
 #include <string>
 #include "Screen.h"
 
+class ConfigClientService;
+
 class SystemConfigScreen : public Screen
 {
    public:
-    SystemConfigScreen();
-    void show(ApiClient& apiClient) override;
+    SystemConfigScreen(ConfigClientService& configService);
+    void show() override;
     void displayMenu() override;
-    void handleInput(ApiClient& apiClient) override;
+    void handleInput() override;
 
    private:
+    ConfigClientService& configService_;
     bool        keepRunning_       = true;
     std::string llmProvider_       = "Google Gemini";
     std::string llmApiKey_;
@@ -28,9 +31,9 @@ class SystemConfigScreen : public Screen
     std::string smtpFromName_;
     bool        smtpUseTls_        = true;
 
-    void loadConfig(ApiClient& apiClient);
-    bool saveConfig(ApiClient& apiClient, const nlohmann::json& patch);
-    bool sendTestEmail(ApiClient& apiClient, const std::string& toEmail);
+    void loadConfig();
+    bool saveConfig(const nlohmann::json& patch);
+    bool sendTestEmail(const std::string& toEmail);
 
    protected:
     ScreenDecorator decorator() const override;

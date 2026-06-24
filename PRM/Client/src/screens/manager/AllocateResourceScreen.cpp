@@ -6,8 +6,14 @@
 #include "dto/AllocationDTO.h"
 #include "dto/AiResponseDTO.h"
 #include <ctime>
+#include "api/ApiException.h"
+#include "services/AiClientService.h"
+#include "services/ProjectClientService.h"
+#include "services/AllocationClientService.h"
+#include "services/EmployeeClientService.h"
 
-AllocateResourceScreen::AllocateResourceScreen()
+AllocateResourceScreen::AllocateResourceScreen(AiClientService& aiService, AllocationClientService& allocService, ProjectClientService& projService, EmployeeClientService& empService)
+    : aiService_(aiService), allocService_(allocService), projService_(projService), empService_(empService)
 {
 }
 
@@ -21,41 +27,43 @@ void AllocateResourceScreen::displayMenu()
     std::cout << "4. Back\n";
 }
 
-void AllocateResourceScreen::show(ApiClient& apiClient)
+void AllocateResourceScreen::show()
 {
     while (true)
     {
         displayMenu();
-        std::string choice = ScreenUtils::readLine("Enter option");
-        if (choice == "1")
-        {
-            findResourceAI(apiClient);
-        }
-        else if (choice == "2")
-        {
-            allocateDirectly(apiClient);
-        }
-        else if (choice == "3")
-        {
-            endAllocation(apiClient);
-        }
-        else if (choice == "4" || choice == "B" || choice == "b")
-        {
-            break;
-        }
-        else
-        {
-            showError("Invalid option. Please enter 1–4.");
-            ScreenUtils::readLine("Press Enter to continue");
-        }
+        handleInput();
+        break; // Return after one action or back
     }
 }
 
-void AllocateResourceScreen::handleInput(ApiClient& apiClient)
+void AllocateResourceScreen::handleInput()
 {
+    std::string choice = ScreenUtils::readLine("Enter option");
+    if (choice == "1")
+    {
+        findResourceAI();
+    }
+    else if (choice == "2")
+    {
+        allocateDirectly();
+    }
+    else if (choice == "3")
+    {
+        endAllocation();
+    }
+    else if (choice == "4" || choice == "B" || choice == "b")
+    {
+        return;
+    }
+    else
+    {
+        showError("Invalid option. Please enter 1–4.");
+        ScreenUtils::readLine("Press Enter to continue");
+    }
 }
 
-void AllocateResourceScreen::findResourceAI(ApiClient& apiClient)
+void AllocateResourceScreen::findResourceAI()
 {
     try
     {
@@ -69,9 +77,7 @@ void AllocateResourceScreen::findResourceAI(ApiClient& apiClient)
         
         AiSkillMatchRequest req;
         req.requirement = reqText;
-        auto response = apiClient.post("/ai/skill-match", req.toJson());
-
-        auto aiRes = AiSkillMatchResponse::fromJson(response);
+        auto aiRes = aiService_.getSkillMatch(req);
         if (aiRes.fallback_message.has_value())
         {
             showError("AI service error: " + aiRes.fallback_message.value());
@@ -164,7 +170,7 @@ void AllocateResourceScreen::findResourceAI(ApiClient& apiClient)
 
         // Find Project ID
         int projectId = 0;
-        auto projRes = ApiListResponse<ProjectDTO>::fromJson(apiClient.get("/projects"));
+        auto projRes = projService_.viewAllProjects();
         if (projRes.success)
         {
             for (const auto& p : projRes.data)
@@ -184,13 +190,14 @@ void AllocateResourceScreen::findResourceAI(ApiClient& apiClient)
             return;
         }
 
-        auto allocRes = ApiEmptyResponse::fromJson(apiClient.post("/allocations", {
-            {"employee_id", empId},
-            {"project_id", projectId},
-            {"utilization_percentage", utilPercent},
-            {"from_date", fromDate},
-            {"to_date", toDate}
-        }));
+        CreateAllocationRequest allocReq;
+        allocReq.employeeId = empId;
+        allocReq.projectId = projectId;
+        allocReq.utilizationPercentage = utilPercent;
+        allocReq.fromDate = fromDate;
+        allocReq.toDate = toDate;
+
+        auto allocRes = allocService_.createAllocation(allocReq);
 
         if (allocRes.success)
         {
@@ -202,14 +209,18 @@ void AllocateResourceScreen::findResourceAI(ApiClient& apiClient)
         }
         ScreenUtils::readLine("Press Enter to continue");
     }
-    catch (const std::exception& ex)
+    catch (const ApiException& ex)
     {
-        showError(std::string("Error during AI allocation: ") + ex.what());
+        showError(ex.what());
         ScreenUtils::readLine("Press Enter to continue");
+    }
+    catch (const std::exception&)
+    {
+        showError("Something went wrong. Please try again.");
     }
 }
 
-void AllocateResourceScreen::allocateDirectly(ApiClient& apiClient)
+void AllocateResourceScreen::allocateDirectly()
 {
     try
     {
@@ -221,7 +232,7 @@ void AllocateResourceScreen::allocateDirectly(ApiClient& apiClient)
 
         // Find Project ID
         int projectId = 0;
-        auto projRes = ApiListResponse<ProjectDTO>::fromJson(apiClient.get("/projects"));
+        auto projRes = projService_.viewAllProjects();
         if (projRes.success)
         {
             for (const auto& p : projRes.data)
@@ -248,13 +259,14 @@ void AllocateResourceScreen::allocateDirectly(ApiClient& apiClient)
         std::string fromDate = ScreenUtils::readLine("From Date (YYYY-MM-DD)");
         std::string toDate = ScreenUtils::readLine("To Date (YYYY-MM-DD)");
 
-        auto allocRes = ApiEmptyResponse::fromJson(apiClient.post("/allocations", {
-            {"employee_id", empIdParsed},
-            {"project_id", projectId},
-            {"utilization_percentage", utilPercent},
-            {"from_date", fromDate},
-            {"to_date", toDate}
-        }));
+        CreateAllocationRequest allocReq;
+        allocReq.employeeId = empIdParsed;
+        allocReq.projectId = projectId;
+        allocReq.utilizationPercentage = utilPercent;
+        allocReq.fromDate = fromDate;
+        allocReq.toDate = toDate;
+
+        auto allocRes = allocService_.createAllocation(allocReq);
 
         if (allocRes.success)
         {
@@ -266,21 +278,25 @@ void AllocateResourceScreen::allocateDirectly(ApiClient& apiClient)
         }
         ScreenUtils::readLine("Press Enter to continue");
     }
-    catch (const std::exception& ex)
+    catch (const ApiException& ex)
     {
-        showError(std::string("Error during direct allocation: ") + ex.what());
+        showError(ex.what());
         ScreenUtils::readLine("Press Enter to continue");
+    }
+    catch (const std::exception&)
+    {
+        showError("Something went wrong. Please try again.");
     }
 }
 
-void AllocateResourceScreen::endAllocation(ApiClient& apiClient)
+void AllocateResourceScreen::endAllocation()
 {
     try
     {
         std::string projInput = ScreenUtils::readLine("Select Project (Enter name or ID)");
 
         int projectId = 0;
-        auto projRes = ApiListResponse<ProjectDTO>::fromJson(apiClient.get("/projects"));
+        auto projRes = projService_.viewAllProjects();
         if (projRes.success)
         {
             for (const auto& p : projRes.data)
@@ -300,8 +316,7 @@ void AllocateResourceScreen::endAllocation(ApiClient& apiClient)
             return;
         }
 
-        // Fetch allocations
-        auto allocRes = ApiListResponse<AllocationDTO>::fromJson(apiClient.get("/projects/" + std::to_string(projectId) + "/allocations"));
+        auto allocRes = allocService_.getProjectAllocations(projectId);
         
         // clearScreen();
         std::cout << "\nActive Allocations on this project:\n";
@@ -327,7 +342,7 @@ void AllocateResourceScreen::endAllocation(ApiClient& apiClient)
             
             // fetch emp name
             std::string empName = "Emp " + std::to_string(empId);
-            auto empRes = ApiListResponse<EmployeeDTO>::fromJson(apiClient.get("/employees"));
+            auto empRes = empService_.viewAllEmployees();
             if (empRes.success)
             {
                 for (const auto& e : empRes.data)
@@ -381,9 +396,7 @@ void AllocateResourceScreen::endAllocation(ApiClient& apiClient)
             char buffer[11] = {0};
             std::strftime(buffer, sizeof(buffer), "%Y-%m-%d", &local);
 
-            auto response = ApiEmptyResponse::fromJson(apiClient.put("/allocations/" + std::to_string(allocId) + "/end", {
-                {"end_date", std::string(buffer)}
-            }));
+            auto response = allocService_.endAllocation(allocId, std::string(buffer));
 
             if (response.success)
             {
@@ -396,10 +409,14 @@ void AllocateResourceScreen::endAllocation(ApiClient& apiClient)
         }
         ScreenUtils::readLine("Press Enter to continue");
     }
-    catch (const std::exception& ex)
+    catch (const ApiException& ex)
     {
-        showError(std::string("Error ending allocation: ") + ex.what());
+        showError(ex.what());
         ScreenUtils::readLine("Press Enter to continue");
+    }
+    catch (const std::exception&)
+    {
+        showError("Something went wrong. Please try again.");
     }
 }
 

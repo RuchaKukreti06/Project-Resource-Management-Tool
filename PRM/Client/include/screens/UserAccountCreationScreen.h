@@ -6,9 +6,9 @@
 class UserAccountCreationScreen : public Screen
 {
    public:
-    void show(ApiClient& apiClient) override;
+    void show(IApiClient& apiClient) override;
     void displayMenu() override;
-    void handleInput(ApiClient& apiClient) override;
+    void handleInput(IApiClient& apiClient) override;
 
    protected:
     ScreenDecorator decorator() const override;

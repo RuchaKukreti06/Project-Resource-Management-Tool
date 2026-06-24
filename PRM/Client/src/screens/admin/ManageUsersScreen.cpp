@@ -2,8 +2,12 @@
 #include "AuthSession.h"
 #include "dto/ApiResponse.h"
 #include "dto/UserDTO.h"
+#include "api/ISessionStore.h"
+#include "api/ApiException.h"
+#include "services/UserClientService.h"
 
-ManageUsersScreen::ManageUsersScreen()
+ManageUsersScreen::ManageUsersScreen(UserClientService& userService, api::ISessionStore& sessionStore)
+    : userService_(userService), sessionStore_(sessionStore)
 {
 }
 
@@ -18,34 +22,34 @@ void ManageUsersScreen::displayMenu()
     std::cout << "5. Back\n";
 }
 
-void ManageUsersScreen::show(ApiClient& apiClient)
+void ManageUsersScreen::show()
 {
     keepRunning_ = true;
     while (keepRunning_)
     {
         displayMenu();
-        handleInput(apiClient);
+        handleInput();
     }
 }
 
-void ManageUsersScreen::handleInput(ApiClient& apiClient)
+void ManageUsersScreen::handleInput()
 {
     std::string choice = ScreenUtils::readLine("Enter option");
     if (choice == "1")
     {
-        createUser(apiClient);
+        createUser();
     }
     else if (choice == "2")
     {
-        viewUsers(apiClient);
+        viewUsers();
     }
     else if (choice == "3")
     {
-        resetUserPassword(apiClient);
+        resetUserPassword();
     }
     else if (choice == "4")
     {
-        deactivateUser(apiClient);
+        deactivateUser();
     }
     else if (choice == "5" || choice == "B" || choice == "b")
     {
@@ -58,7 +62,7 @@ void ManageUsersScreen::handleInput(ApiClient& apiClient)
     }
 }
 
-void ManageUsersScreen::createUser(ApiClient& apiClient)
+void ManageUsersScreen::createUser()
 {
     try
     {
@@ -128,16 +132,17 @@ void ManageUsersScreen::createUser(ApiClient& apiClient)
             desg = ScreenUtils::readLine("Designation");
         }
 
-        auto response = ApiEmptyResponse::fromJson(apiClient.post("/users", {
-            {"username", username},
-            {"password", tempPassword},
-            {"role", role},
-            {"email", email},
-            {"full_name", fullName},
-            {"department", dept},
-            {"designation", desg},
-            {"force_password_change", true}
-        }));
+        CreateUserRequest req;
+        req.username = username;
+        req.password = tempPassword;
+        req.role = role;
+        req.email = email;
+        req.fullName = fullName;
+        req.department = dept;
+        req.designation = desg;
+        req.forcePasswordChange = true;
+
+        auto response = userService_.createUser(req);
 
         if (!response.success)
         {
@@ -149,18 +154,22 @@ void ManageUsersScreen::createUser(ApiClient& apiClient)
         showSuccess("Account created. User must change password on first login.");
         ScreenUtils::readLine("Press Enter to continue");
     }
-    catch (const std::exception& ex)
+    catch (const ApiException& ex)
     {
-        showError(std::string("Failed to create user account: ") + ex.what());
+        showError(ex.what());
         ScreenUtils::readLine("Press Enter to continue");
+    }
+    catch (const std::exception&)
+    {
+        showError("Something went wrong. Please try again.");
     }
 }
 
-void ManageUsersScreen::viewUsers(ApiClient& apiClient)
+void ManageUsersScreen::viewUsers()
 {
     try
     {
-        auto response = ApiListResponse<UserDTO>::fromJson(apiClient.get("/users"));
+        auto response = userService_.viewUsers();
         if (!response.success)
         {
             showError(response.message);
@@ -198,7 +207,7 @@ void ManageUsersScreen::viewUsers(ApiClient& apiClient)
         if (act == "R" || act == "r")
         {
             std::string uId = ScreenUtils::readLine("Enter User ID to reactivate");
-            auto reactResponse = ApiEmptyResponse::fromJson(apiClient.put("/users/" + uId + "/reactivate", {}));
+            auto reactResponse = userService_.reactivateUser(uId);
             if (reactResponse.success)
             {
                 showSuccess("Account reactivated. ✓");
@@ -210,14 +219,18 @@ void ManageUsersScreen::viewUsers(ApiClient& apiClient)
             ScreenUtils::readLine("Press Enter to continue");
         }
     }
-    catch (const std::exception& ex)
+    catch (const ApiException& ex)
     {
-        showError(std::string("Failed to retrieve users: ") + ex.what());
+        showError(ex.what());
         ScreenUtils::readLine("Press Enter to continue");
+    }
+    catch (const std::exception&)
+    {
+        showError("Something went wrong. Please try again.");
     }
 }
 
-void ManageUsersScreen::resetUserPassword(ApiClient& apiClient)
+void ManageUsersScreen::resetUserPassword()
 {
     try
     {
@@ -225,7 +238,7 @@ void ManageUsersScreen::resetUserPassword(ApiClient& apiClient)
 
         // Find user to get ID if username was entered
         std::string userId = identifier;
-        auto usersResponse = ApiListResponse<UserDTO>::fromJson(apiClient.get("/users"));
+        auto usersResponse = userService_.viewUsers();
         if (usersResponse.success)
         {
             for (const auto& u : usersResponse.data)
@@ -249,9 +262,7 @@ void ManageUsersScreen::resetUserPassword(ApiClient& apiClient)
             return;
         }
 
-        auto response = ApiEmptyResponse::fromJson(
-            apiClient.put("/users/" + userId + "/reset-password",
-                          {{"new_password", newTempPwd}, {"force_password_change", true}}));
+        auto response = userService_.resetPassword(userId, newTempPwd, true);
 
         if (!response.success)
         {
@@ -263,14 +274,18 @@ void ManageUsersScreen::resetUserPassword(ApiClient& apiClient)
         showSuccess("Password reset. User will be prompted to change it on next login. ✓");
         ScreenUtils::readLine("Press Enter to continue");
     }
-    catch (const std::exception& ex)
+    catch (const ApiException& ex)
     {
-        showError(std::string("Failed to reset password: ") + ex.what());
+        showError(ex.what());
         ScreenUtils::readLine("Press Enter to continue");
+    }
+    catch (const std::exception&)
+    {
+        showError("Something went wrong. Please try again.");
     }
 }
 
-void ManageUsersScreen::deactivateUser(ApiClient& apiClient)
+void ManageUsersScreen::deactivateUser()
 {
     try
     {
@@ -278,7 +293,7 @@ void ManageUsersScreen::deactivateUser(ApiClient& apiClient)
 
         // Find user to get ID if username was entered
         std::string userId = identifier;
-        auto usersResponse = ApiListResponse<UserDTO>::fromJson(apiClient.get("/users"));
+        auto usersResponse = userService_.viewUsers();
         if (usersResponse.success)
         {
             for (const auto& u : usersResponse.data)
@@ -294,7 +309,7 @@ void ManageUsersScreen::deactivateUser(ApiClient& apiClient)
         }
 
         // Prevent admin from deactivating their own account
-        int currentUserId = api::AuthSession::instance().userId();
+        int currentUserId = sessionStore_.userId();
         if (!userId.empty() && ScreenUtils::safeParseInt(userId).value_or(-1) == currentUserId)
         {
             showError("You cannot deactivate your own account.");
@@ -307,7 +322,7 @@ void ManageUsersScreen::deactivateUser(ApiClient& apiClient)
         std::string choice = ScreenUtils::readLine("Choice");
         if (choice == "Y" || choice == "y")
         {
-            auto response = ApiEmptyResponse::fromJson(apiClient.put("/users/" + userId + "/deactivate", {}));
+            auto response = userService_.deactivateUser(userId);
             if (!response.success)
             {
                 showError(response.message);
@@ -318,10 +333,14 @@ void ManageUsersScreen::deactivateUser(ApiClient& apiClient)
         }
         ScreenUtils::readLine("Press Enter to continue");
     }
-    catch (const std::exception& ex)
+    catch (const ApiException& ex)
     {
-        showError(std::string("Failed to deactivate user: ") + ex.what());
+        showError(ex.what());
         ScreenUtils::readLine("Press Enter to continue");
+    }
+    catch (const std::exception&)
+    {
+        showError("Something went wrong. Please try again.");
     }
 }
 

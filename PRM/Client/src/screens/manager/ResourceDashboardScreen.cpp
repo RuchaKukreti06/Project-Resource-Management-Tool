@@ -8,8 +8,14 @@
 #include <iomanip>
 #include <set>
 #include <sstream>
+#include "api/ApiException.h"
+#include "services/EmployeeClientService.h"
+#include "services/ProjectClientService.h"
+#include "services/AllocationClientService.h"
+#include "services/TimesheetClientService.h"
 
-ResourceDashboardScreen::ResourceDashboardScreen()
+ResourceDashboardScreen::ResourceDashboardScreen(EmployeeClientService& empService, ProjectClientService& projService, AllocationClientService& allocService, TimesheetClientService& tsService)
+    : empService_(empService), projService_(projService), allocService_(allocService), tsService_(tsService)
 {
 }
 
@@ -18,14 +24,14 @@ void ResourceDashboardScreen::displayMenu()
     // Display is handled in show() dynamically
 }
 
-void ResourceDashboardScreen::show(ApiClient& apiClient)
+void ResourceDashboardScreen::show()
 {
     while (true)
     {
         try
         {
             int managerId = api::AuthSession::instance().userId();
-            auto response = ApiListResponse<EmployeeDTO>::fromJson(apiClient.get("/managers/" + std::to_string(managerId) + "/team"));
+            auto response = empService_.getTeamEmployees(managerId);
             if (!response.success)
             {
                 showError(response.message);
@@ -60,7 +66,7 @@ void ResourceDashboardScreen::show(ApiClient& apiClient)
                 {
                     // Fetch skills
                     std::string skillsStr = "";
-                    auto skillsRes = ApiListResponse<SkillDTO>::fromJson(apiClient.get("/employees/" + std::to_string(empId) + "/skills"));
+                    auto skillsRes = empService_.getEmployeeSkills(empId);
                     if (skillsRes.success)
                     {
                         int count = 0;
@@ -109,33 +115,37 @@ void ResourceDashboardScreen::show(ApiClient& apiClient)
             std::string choice = ScreenUtils::readLine("Enter choice");
             if (choice == "D" || choice == "d")
             {
-                drillIntoEmployeeDetails(apiClient);
+                drillIntoEmployeeDetails();
             }
             else if (choice == "B" || choice == "b")
             {
                 break;
             }
         }
-        catch (const std::exception& ex)
+        catch (const ApiException& ex)
         {
-            showError(std::string("Dashboard error: ") + ex.what());
+            showError(ex.what());
             ScreenUtils::readLine("Press Enter to continue");
             break;
+        }
+        catch (const std::exception&)
+        {
+            showError("Something went wrong. Please try again.");
         }
     }
 }
 
-void ResourceDashboardScreen::handleInput(ApiClient& apiClient)
+void ResourceDashboardScreen::handleInput()
 {
 }
 
-void ResourceDashboardScreen::drillIntoEmployeeDetails(ApiClient& apiClient)
+void ResourceDashboardScreen::drillIntoEmployeeDetails()
 {
     try
     {
         std::string empId = ScreenUtils::readLine("Enter Employee ID");
         int managerId = api::AuthSession::instance().userId();
-        auto response = ApiListResponse<EmployeeDTO>::fromJson(apiClient.get("/managers/" + std::to_string(managerId) + "/team"));
+        auto response = empService_.viewAllEmployees();
         if (!response.success) return;
 
         EmployeeDTO targetEmp;
@@ -165,7 +175,7 @@ void ResourceDashboardScreen::drillIntoEmployeeDetails(ApiClient& apiClient)
 
         // Fetch skills
         std::string skillsStr = "";
-        auto skillsRes = ApiListResponse<SkillDTO>::fromJson(apiClient.get("/employees/" + empId + "/skills"));
+        auto skillsRes = empService_.getEmployeeSkills(std::stoi(empId));
         if (skillsRes.success)
         {
             int count = 0;
@@ -186,31 +196,24 @@ void ResourceDashboardScreen::drillIntoEmployeeDetails(ApiClient& apiClient)
                   << std::setw(12) << "To" << "\n";
         ScreenUtils::printDivider();
 
-        auto projResponse = ApiListResponse<ProjectDTO>::fromJson(apiClient.get("/projects"));
-        if (projResponse.success)
+        auto allocRes = allocService_.getEmployeeAllocations(std::stoi(empId));
+        if (allocRes.success)
         {
-            for (const auto& proj : projResponse.data)
+            for (const auto& alloc : allocRes.data)
             {
-                int projId = proj.id;
-                auto allocsRes = ApiListResponse<AllocationDTO>::fromJson(apiClient.get("/projects/" + std::to_string(projId) + "/allocations"));
-                if (!allocsRes.success) continue;
-                for (const auto& alloc : allocsRes.data)
-                {
-                    if (std::to_string(alloc.employeeId) == empId)
-                    {
-                        std::cout << "  " << std::left << std::setw(18) << proj.name.substr(0, 17)
-                                  << std::setw(8) << (std::to_string(alloc.utilizationPercentage) + "%")
-                                  << std::setw(12) << alloc.fromDate
-                                  << std::setw(12) << alloc.toDate << "\n";
-                    }
-                }
+                auto projRes = projService_.getProject(alloc.projectId);
+                std::string projName = (projRes.success && projRes.data) ? projRes.data->name : "Unknown";
+                std::cout << "  " << std::left << std::setw(18) << projName.substr(0, 17)
+                          << std::setw(8) << (std::to_string(alloc.utilizationPercentage) + "%")
+                          << std::setw(12) << alloc.fromDate
+                          << std::setw(12) << alloc.toDate << "\n";
             }
         }
         std::cout << "\n";
 
         // Fetch recent activity tags from timesheets (real data)
         std::cout << "Recent Activity Tags (last 4 weeks):\n  ";
-        auto tsRes = ApiListResponse<TimesheetDTO>::fromJson(apiClient.get("/employees/" + empId + "/timesheets"));
+        auto tsRes = tsService_.getEmployeeTimesheets(std::stoi(empId));
         std::set<std::string> tagSet;
         if (tsRes.success)
         {
@@ -218,7 +221,7 @@ void ResourceDashboardScreen::drillIntoEmployeeDetails(ApiClient& apiClient)
             for (const auto& ts : tsRes.data)
             {
                 if (weekCount++ >= 4) break;
-                auto detailRes = ApiListResponse<TimesheetEntryDTO>::fromJson(apiClient.get("/timesheets/" + std::to_string(ts.id)));
+                auto detailRes = tsService_.getTimesheetEntries(ts.id);
                 if (detailRes.success)
                 {
                     for (const auto& row : detailRes.data)
@@ -242,10 +245,14 @@ void ResourceDashboardScreen::drillIntoEmployeeDetails(ApiClient& apiClient)
 
         ScreenUtils::readLine("Press Enter to go back");
     }
-    catch (const std::exception& ex)
+    catch (const ApiException& ex)
     {
-        showError(std::string("Error drilling into employee details: ") + ex.what());
+        showError(ex.what());
         ScreenUtils::readLine("Press Enter to continue");
+    }
+    catch (const std::exception&)
+    {
+        showError("Something went wrong. Please try again.");
     }
 }
 

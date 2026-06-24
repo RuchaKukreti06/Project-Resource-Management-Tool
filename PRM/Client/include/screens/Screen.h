@@ -4,7 +4,7 @@
 #include <iostream>
 #include <string>
 
-#include "ApiClient.h"
+#include "api/IApiClient.h"
 #include "ScreenDecorator.h"
 #include "ScreenInput.h"
 #include "ScreenOptions.h"
@@ -23,9 +23,9 @@ class Screen
 
    public:
     virtual ~Screen() = default;
-    virtual void show(ApiClient& apiClient) = 0;
+    virtual void show() = 0;
     virtual void displayMenu() = 0;
-    virtual void handleInput(ApiClient& apiClient) = 0;
+    virtual void handleInput() = 0;
 };
 
 #endif

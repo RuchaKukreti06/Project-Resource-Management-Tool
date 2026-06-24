@@ -3,16 +3,25 @@
 
 #include "Screen.h"
 
+class ProjectClientService;
+class AllocationClientService;
+class EmployeeClientService;
+class AiClientService;
+
 class MyProjectsScreen : public Screen
 {
    public:
-    MyProjectsScreen();
-    void show(ApiClient& apiClient) override;
+    MyProjectsScreen(ProjectClientService& projService, AllocationClientService& allocService, EmployeeClientService& empService, AiClientService& aiService);
+    void show() override;
     void displayMenu() override;
-    void handleInput(ApiClient& apiClient) override;
+    void handleInput() override;
 
    private:
-    void viewProjectDetail(ApiClient& apiClient, int projectId);
+    ProjectClientService& projService_;
+    AllocationClientService& allocService_;
+    EmployeeClientService& empService_;
+    AiClientService& aiService_;
+    void viewProjectDetail(int projectId);
 
    protected:
     ScreenDecorator decorator() const override;

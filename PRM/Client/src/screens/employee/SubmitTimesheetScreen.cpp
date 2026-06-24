@@ -1,4 +1,5 @@
 #include "employee/SubmitTimesheetScreen.h"
+#include <sstream>
 #include "AuthSession.h"
 #include "dto/ProjectDTO.h"
 #include "dto/AllocationDTO.h"
@@ -9,8 +10,13 @@
 #include "dto/ProjectDTO.h"
 #include "dto/AllocationDTO.h"
 #include <iomanip>
+#include "services/EmployeeClientService.h"
+#include "services/ProjectClientService.h"
+#include "services/AllocationClientService.h"
+#include "services/TimesheetClientService.h"
 
-SubmitTimesheetScreen::SubmitTimesheetScreen()
+SubmitTimesheetScreen::SubmitTimesheetScreen(TimesheetClientService& tsService, AllocationClientService& allocService, ProjectClientService& projService, EmployeeClientService& empService, api::ISessionStore& sessionStore)
+    : tsService_(tsService), allocService_(allocService), projService_(projService), empService_(empService), sessionStore_(sessionStore)
 {
 }
 
@@ -20,20 +26,20 @@ void SubmitTimesheetScreen::displayMenu()
     decorator().render();
 }
 
-void SubmitTimesheetScreen::show(ApiClient& apiClient)
+void SubmitTimesheetScreen::show()
 {
     displayMenu();
-    handleInput(apiClient);
+    handleInput();
 }
 
-void SubmitTimesheetScreen::handleInput(ApiClient& apiClient)
+void SubmitTimesheetScreen::handleInput()
 {
     try
     {
         // Find Employee ID
-        int userId = api::AuthSession::instance().userId();
+        int userId = sessionStore_.userId();
         int empId = 0;
-        auto empRes = ApiListResponse<EmployeeDTO>::fromJson(apiClient.get("/employees"));
+        auto empRes = empService_.viewAllEmployees();
         if (empRes.success)
         {
             for (const auto& e : empRes.data)
@@ -84,7 +90,7 @@ void SubmitTimesheetScreen::handleInput(ApiClient& apiClient)
         }        std::cout << "\nChecking your active allocations for this week...\n";
 
         // Query active projects/allocations
-        auto projRes = ApiListResponse<ProjectDTO>::fromJson(apiClient.get("/projects"));
+        auto projRes = projService_.viewAllProjects();
         std::vector<nlohmann::json> activeAllocs;
 
         if (projRes.success)
@@ -92,7 +98,7 @@ void SubmitTimesheetScreen::handleInput(ApiClient& apiClient)
             for (const auto& proj : projRes.data)
             {
                 int projId = proj.id;
-                auto allocs = ApiListResponse<AllocationDTO>::fromJson(apiClient.get("/projects/" + std::to_string(projId) + "/allocations"));
+                auto allocs = allocService_.getProjectAllocations(projId);
                 if (!allocs.success) continue;
                 for (const auto& alloc : allocs.data)
                 {
@@ -237,7 +243,11 @@ void SubmitTimesheetScreen::handleInput(ApiClient& apiClient)
         std::string submitChoice = ScreenUtils::readLine("Choice");
         if (submitChoice == "S" || submitChoice == "s")
         {
-            TimesheetCreateRequest tsReq;
+            SubmitTimesheetRequest tsReq;
+            tsReq.employeeId = empId;
+            tsReq.weekStartDate = weekStart;
+            tsReq.maxWeeklyHours = 40;
+            
             for (const auto& line : timesheetLines)
             {
                 TimesheetLineRequest lr;
@@ -251,17 +261,10 @@ void SubmitTimesheetScreen::handleInput(ApiClient& apiClient)
                     tCount++;
                 }
                 lr.activityTag = tagsStr;
-                tsReq.entries.push_back(lr);
+                tsReq.lines.push_back(lr);
             }
 
-            nlohmann::json fullPayload = {
-                {"employee_id", empId},
-                {"week_start_date", weekStart},
-                {"max_weekly_hours", 40},
-                {"lines", tsReq.toJson()["entries"]}
-            };
-
-            auto response = ApiEmptyResponse::fromJson(apiClient.post("/timesheets", fullPayload));
+            auto response = tsService_.submitTimesheet(tsReq);
 
             if (response.success)
             {

@@ -3,13 +3,28 @@
 
 #include "Screen.h"
 
+#include "api/ISessionStore.h"
+
+class Router;
+
+class ProjectClientService;
+class AllocationClientService;
+class EmployeeClientService;
+
 class AdminScreen : public Screen
 {
+   private:
+    Router& router_;
+    api::ISessionStore& sessionStore_;
+    ProjectClientService& projService_;
+    AllocationClientService& allocService_;
+    EmployeeClientService& empService_;
+
    public:
-    AdminScreen();
-    void show(ApiClient& apiClient) override;
+    AdminScreen(Router& router, api::ISessionStore& sessionStore, ProjectClientService& projService, AllocationClientService& allocService, EmployeeClientService& empService);
+    void show() override;
     void displayMenu() override;
-    void handleInput(ApiClient& apiClient) override;
+    void handleInput() override;
 
    protected:
     ScreenDecorator decorator() const override;

@@ -1,7 +1,8 @@
 #include "UserAccountCreationScreen.h"
 #include "dto/ApiResponse.h"
-
-void UserAccountCreationScreen::show(ApiClient& apiClient)
+#include "api/ApiException.h"
+#include "services/UserClientService.h"
+void UserAccountCreationScreen::show(IApiClient& apiClient)
 {
     Screen::show(apiClient);
 }
@@ -17,7 +18,7 @@ void UserAccountCreationScreen::displayMenu()
     std::cout << "Confirm Password : ";
 }
 
-void UserAccountCreationScreen::handleInput(ApiClient& apiClient)
+void UserAccountCreationScreen::handleInput(IApiClient& apiClient)
 {
     std::string fullName        = ScreenUtils::readLine("Full Name       ");
     std::string email           = ScreenUtils::readLine("Email           ");
@@ -56,13 +57,14 @@ void UserAccountCreationScreen::handleInput(ApiClient& apiClient)
 
     try
     {
-        auto response = apiClient.post("/auth/register",
-                                       {{"username", username},
-                                        {"password", password},
-                                        {"email", email},
-                                        {"full_name", fullName}});
+        UserClientService userService(apiClient);
+        RegisterUserRequest req;
+        req.username = username;
+        req.password = password;
+        req.email = email;
+        req.fullName = fullName;
 
-        auto res = ApiEmptyResponse::fromJson(response);
+        auto res = userService.registerUser(req);
         if (!res.success)
         {
             showError(res.message);
@@ -72,10 +74,14 @@ void UserAccountCreationScreen::handleInput(ApiClient& apiClient)
 
         std::cout << "\n  Account created successfully! Please log in. ✓\n\n";
     }
-    catch (const std::exception& e)
+    catch (const ApiException& e)
     {
-        showError(std::string("An error occurred: ") + e.what());
+        showError(e.what());
         handleInput(apiClient);
+    }
+    catch (const std::exception&)
+    {
+        showError("Something went wrong. Please try again.");
     }
 }
 

@@ -1,46 +1,18 @@
-#include "Application.h"
-
-#include <iostream>
-
-#include "ApiClient.h"
+#include "app/Application.h"
+#include "app/Router.h"
+#include "app/AppServices.h"
 #include "AuthSession.h"
-#include "LoginScreen.h"
-#include "admin/AdminScreen.h"
-#include "employee/EmployeeScreen.h"
-#include "manager/ManagerScreen.h"
 
-Application::Application(const std::string& baseUrl, ApiClient& apiClient)
-    : apiClient(apiClient), baseUrl(baseUrl)
+Application::Application(const std::string& baseUrl, IApiClient& apiClient)
+    : baseUrl(baseUrl)
 {
+    services_ = std::make_unique<AppServices>(apiClient, api::AuthSession::instance());
+    router_ = std::make_unique<Router>(*services_);
 }
+
+Application::~Application() = default;
 
 void Application::run()
 {
-    while (true)
-    {
-        if (!api::AuthSession::instance().isLoggedIn())
-        {
-            LoginScreen loginScreen;
-            loginScreen.show(apiClient);
-
-            // std::cout << "Welcome, " << api::AuthSession::instance().username() << "!\n";
-
-            std::unique_ptr<Screen> screen;
-
-            const auto& role = api::AuthSession::instance().role();
-            if (role == "ADMIN")
-            {
-                screen = std::make_unique<AdminScreen>();
-            }
-            else if (role == "MANAGER")
-            {
-                screen = std::make_unique<ManagerScreen>();
-            }
-            else
-            {
-                screen = std::make_unique<EmployeeScreen>();
-            }
-            screen->show(apiClient);
-        }
-    }
+    router_->start();
 }

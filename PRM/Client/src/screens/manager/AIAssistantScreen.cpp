@@ -6,8 +6,12 @@
 #include "dto/AiResponseDTO.h"
 #include "dto/ProjectDTO.h"
 #include "dto/ApiResponse.h"
+#include "api/ApiException.h"
+#include "services/AiClientService.h"
+#include "services/ProjectClientService.h"
 
-AIAssistantScreen::AIAssistantScreen()
+AIAssistantScreen::AIAssistantScreen(AiClientService& aiService, ProjectClientService& projService)
+    : aiService_(aiService), projService_(projService)
 {
 }
 
@@ -20,40 +24,42 @@ void AIAssistantScreen::displayMenu()
     std::cout << "4. Back\n";
 }
 
-void AIAssistantScreen::show(ApiClient& apiClient)
+void AIAssistantScreen::show()
 {
     while (true)
     {
         displayMenu();
-        std::string choice = ScreenUtils::readLine("Enter option");
-        if (choice == "1")
-        {
-            skillMatch(apiClient);
-        }
-        else if (choice == "2")
-        {
-            riskSummary(apiClient);
-        }
-        else if (choice == "3")
-        {
-            teamBuilder(apiClient);
-        }
-        else if (choice == "4" || choice == "B" || choice == "b")
-        {
-            break;
-        }
-        else
-        {
-            showError("Invalid option. Please enter 1–4.");
-        }
+        handleInput();
+        break; // Return after one action or back
     }
 }
 
-void AIAssistantScreen::handleInput(ApiClient& apiClient)
+void AIAssistantScreen::handleInput()
 {
+    std::string choice = ScreenUtils::readLine("Enter option");
+    if (choice == "1")
+    {
+        skillMatch();
+    }
+    else if (choice == "2")
+    {
+        riskSummary();
+    }
+    else if (choice == "3")
+    {
+        teamBuilder();
+    }
+    else if (choice == "4" || choice == "B" || choice == "b")
+    {
+        return;
+    }
+    else
+    {
+        showError("Invalid option. Please enter 1–4.");
+    }
 }
 
-void AIAssistantScreen::skillMatch(ApiClient& apiClient)
+void AIAssistantScreen::skillMatch()
 {
     try
     {
@@ -64,9 +70,7 @@ void AIAssistantScreen::skillMatch(ApiClient& apiClient)
 
         AiSkillMatchRequest req;
         req.requirement = reqText;
-        auto response = apiClient.post("/ai/skill-match", req.toJson());
-
-        AiSkillMatchResponse dto = AiSkillMatchResponse::fromJson(response);
+        auto dto = aiService_.getSkillMatch(req);
 
         if (dto.fallback_message.has_value())
         {
@@ -136,23 +140,28 @@ void AIAssistantScreen::skillMatch(ApiClient& apiClient)
         std::string choice = ScreenUtils::readLine("Choice");
         if (choice == "A" || choice == "a")
         {
-            AllocateResourceScreen().show(apiClient);
+            std::cout << "\nPlease navigate to 'Allocate Resource' from the main menu.\n";
+            ScreenUtils::readLine("Press Enter to continue");
         }
     }
-    catch (const std::exception& ex)
+    catch (const ApiException& ex)
     {
-        showError(std::string("Error during skill matching: ") + ex.what());
+        showError(ex.what());
+    }
+    catch (const std::exception&)
+    {
+        showError("Something went wrong. Please try again.");
     }
 }
 
-void AIAssistantScreen::riskSummary(ApiClient& apiClient)
+void AIAssistantScreen::riskSummary()
 {
     try
     {
         std::cout << "\n── Risk Summary ───────────────────────────────\n\n";
 
         int managerId  = api::AuthSession::instance().userId();
-        auto projResp  = ApiListResponse<ProjectDTO>::fromJson(apiClient.get("/managers/" + std::to_string(managerId) + "/projects"));
+        auto projResp = projService_.getManagerProjects(managerId);
         if (!projResp.success)
         {
             showError("Could not load projects.");
@@ -190,9 +199,7 @@ void AIAssistantScreen::riskSummary(ApiClient& apiClient)
 
         AiRiskSummaryRequest req;
         req.projectId = projectId;
-        auto response          = apiClient.post("/ai/risk-summary", req.toJson());
-
-        AiRiskSummaryResponse dto = AiRiskSummaryResponse::fromJson(response);
+        auto dto = aiService_.getRiskSummary(req);
 
         if (dto.fallback_message.has_value())
         {
@@ -207,9 +214,13 @@ void AIAssistantScreen::riskSummary(ApiClient& apiClient)
         std::cout << "\"" << summary << "\"\n\n";
         std::cout << "  Note: AI-generated from current milestone and timesheet data.\n\n";
     }
-    catch (const std::exception& ex)
+    catch (const ApiException& ex)
     {
-        showError(std::string("Error generating risk summary: ") + ex.what());
+        showError(ex.what());
+    }
+    catch (const std::exception&)
+    {
+        showError("Something went wrong. Please try again.");
     }
 }
 
@@ -218,7 +229,7 @@ ScreenDecorator AIAssistantScreen::decorator() const
     return ScreenDecorator("AI ASSISTANT").withWidth(40).withPadding(2);
 }
 
-void AIAssistantScreen::teamBuilder(ApiClient& apiClient)
+void AIAssistantScreen::teamBuilder()
 {
     try
     {
@@ -228,10 +239,10 @@ void AIAssistantScreen::teamBuilder(ApiClient& apiClient)
 
         std::cout << "\nSearching the entire organization... (calling AI)\n\n";
 
-        nlohmann::json payload = {{"requirement", reqText}};
-        auto response          = apiClient.post("/ai/team-builder", payload);
+        AiTeamBuilderRequest req;
+        req.requirement = reqText;
 
-        AiTeamBuilderResponse dto = AiTeamBuilderResponse::fromJson(response);
+        auto dto = aiService_.getTeamBuilder(req);
 
         if (dto.fallback_message.has_value())
         {
@@ -244,9 +255,13 @@ void AIAssistantScreen::teamBuilder(ApiClient& apiClient)
 
         ScreenUtils::readLine("\nPress Enter to continue");
     }
-    catch (const std::exception& ex)
+    catch (const ApiException& ex)
     {
-        showError(std::string("Error during team building: ") + ex.what());
+        showError(ex.what());
+    }
+    catch (const std::exception&)
+    {
+        showError("Something went wrong. Please try again.");
     }
 }
 

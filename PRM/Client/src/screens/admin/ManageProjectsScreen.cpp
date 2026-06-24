@@ -3,8 +3,10 @@
 #include "dto/ProjectDTO.h"
 #include <iomanip>
 #include <iostream>
-
-ManageProjectsScreen::ManageProjectsScreen()
+#include "api/ApiException.h"
+#include "services/ProjectClientService.h"
+ManageProjectsScreen::ManageProjectsScreen(ProjectClientService& projService)
+    : projService_(projService)
 {
 }
 
@@ -19,34 +21,34 @@ void ManageProjectsScreen::displayMenu()
     std::cout << "5. Back\n";
 }
 
-void ManageProjectsScreen::show(ApiClient& apiClient)
+void ManageProjectsScreen::show()
 {
     keepRunning_ = true;
     while (keepRunning_)
     {
         displayMenu();
-        handleInput(apiClient);
+        handleInput();
     }
 }
 
-void ManageProjectsScreen::handleInput(ApiClient& apiClient)
+void ManageProjectsScreen::handleInput()
 {
     std::string choice = ScreenUtils::readLine("Enter option");
     if (choice == "1")
     {
-        createProject(apiClient);
+        createProject();
     }
     else if (choice == "2")
     {
-        viewAllProjects(apiClient);
+        viewAllProjects();
     }
     else if (choice == "3")
     {
-        updateProjectDetails(apiClient);
+        updateProjectDetails();
     }
     else if (choice == "4")
     {
-        manageMilestones(apiClient);
+        manageMilestones();
     }
     else if (choice == "5" || choice == "B" || choice == "b")
     {
@@ -59,7 +61,7 @@ void ManageProjectsScreen::handleInput(ApiClient& apiClient)
     }
 }
 
-void ManageProjectsScreen::createProject(ApiClient& apiClient)
+void ManageProjectsScreen::createProject()
 {
     try
     {
@@ -104,39 +106,44 @@ void ManageProjectsScreen::createProject(ApiClient& apiClient)
         if (!parsedMgrId) throw std::invalid_argument("Invalid manager ID format");
         int mgrIdParsed = parsedMgrId.value();
 
-        auto response = ApiEmptyResponse::fromJson(apiClient.post("/projects", {
-            {"name", name},
-            {"description", desc},
-            {"start_date", startDate},
-            {"end_date", endDate},
-            {"status", status},
-            {"total_story_points", totalStoryPoints},
-            {"health_status", "ON_TRACK"},
-            {"manager_id", mgrIdParsed}
-        }));
+        CreateProjectRequest req;
+        req.name = name;
+        req.description = desc;
+        req.startDate = startDate;
+        req.endDate = endDate;
+        req.status = status;
+        req.totalStoryPoints = totalStoryPoints;
+        req.healthStatus = "ON_TRACK";
+        req.managerId = mgrIdParsed;
 
-        if (response.success)
+        auto postRes = projService_.createProject(req);
+
+        if (postRes.success)
         {
             showSuccess("Project created successfully. ✓");
         }
         else
         {
-            showError(response.message);
+            showError(postRes.message);
         }
         ScreenUtils::readLine("Press Enter to continue");
     }
-    catch (const std::exception& ex)
+    catch (const ApiException& ex)
     {
-        showError(std::string("Failed to create project: ") + ex.what());
+        showError(ex.what());
         ScreenUtils::readLine("Press Enter to continue");
+    }
+    catch (const std::exception&)
+    {
+        showError("Something went wrong. Please try again.");
     }
 }
 
-void ManageProjectsScreen::viewAllProjects(ApiClient& apiClient)
+void ManageProjectsScreen::viewAllProjects()
 {
     try
     {
-        auto response = ApiListResponse<ProjectDTO>::fromJson(apiClient.get("/projects"));
+        auto response = projService_.viewAllProjects();
         if (!response.success)
         {
             showError(response.message);
@@ -163,19 +170,23 @@ void ManageProjectsScreen::viewAllProjects(ApiClient& apiClient)
         ScreenUtils::printDivider();
         ScreenUtils::readLine("Press Enter to go back");
     }
-    catch (const std::exception& ex)
+    catch (const ApiException& ex)
     {
-        showError(std::string("Failed to retrieve projects: ") + ex.what());
+        showError(ex.what());
         ScreenUtils::readLine("Press Enter to continue");
+    }
+    catch (const std::exception&)
+    {
+        showError("Something went wrong. Please try again.");
     }
 }
 
-void ManageProjectsScreen::updateProjectDetails(ApiClient& apiClient)
+void ManageProjectsScreen::updateProjectDetails()
 {
     try
     {
         std::string projId = ScreenUtils::readLine("Enter Project ID");
-        auto response = ApiResponse<ProjectDTO>::fromJson(apiClient.get("/projects/" + projId));
+        auto response = projService_.getProject(std::stoi(projId));
         if (!response.success || !response.data)
         {
             showError("Project not found.");
@@ -227,16 +238,17 @@ void ManageProjectsScreen::updateProjectDetails(ApiClient& apiClient)
             return;
         }
 
-        auto putRes = ApiEmptyResponse::fromJson(apiClient.put("/projects/" + projId, {
-            {"name", newName},
-            {"description", newDesc},
-            {"start_date", newStart},
-            {"end_date", newEnd},
-            {"status", newStatus},
-            {"total_story_points", targetProj.totalStoryPoints},
-            {"health_status", targetProj.healthStatus},
-            {"manager_id", managerId}
-        }));
+        CreateProjectRequest req;
+        req.name = newName;
+        req.description = newDesc;
+        req.startDate = newStart;
+        req.endDate = newEnd;
+        req.status = newStatus;
+        req.totalStoryPoints = targetProj.totalStoryPoints;
+        req.healthStatus = targetProj.healthStatus;
+        req.managerId = managerId;
+
+        auto putRes = projService_.updateProject(targetProj.id, req);
 
         if (putRes.success)
         {
@@ -248,22 +260,27 @@ void ManageProjectsScreen::updateProjectDetails(ApiClient& apiClient)
         }
         ScreenUtils::readLine("Press Enter to continue");
     }
-    catch (const std::exception& ex)
+    catch (const ApiException& ex)
     {
-        showError(std::string("Failed to update project: ") + ex.what());
+        showError(ex.what());
         ScreenUtils::readLine("Press Enter to continue");
+    }
+    catch (const std::exception&)
+    {
+        showError("Something went wrong. Please try again.");
     }
 }
 
-void ManageProjectsScreen::manageMilestones(ApiClient& apiClient)
+void ManageProjectsScreen::manageMilestones()
 {
     try
     {
         std::string projId = ScreenUtils::readLine("Enter Project ID");
+        int pId = std::stoi(projId);
         
         while (true)
         {
-            auto msRes = ApiListResponse<MilestoneDTO>::fromJson(apiClient.get("/projects/" + projId + "/milestones"));
+            auto msRes = projService_.getProjectMilestones(pId);
             if (!msRes.success)
             {
                 showError("Failed to fetch project milestones.");
@@ -300,21 +317,22 @@ void ManageProjectsScreen::manageMilestones(ApiClient& apiClient)
                 std::string title = ScreenUtils::readLine("Milestone Title");
                 std::string dueDate = ScreenUtils::readLine("Due Date (YYYY-MM-DD)");
                 
-                auto addRes = ApiEmptyResponse::fromJson(apiClient.post("/projects/" + projId + "/milestones", {
-                    {"title", title},
-                    {"due_date", dueDate},
-                    {"story_points", 0},
-                    {"status", "NOT_STARTED"},
-                    {"health_flag", "NORMAL"}
-                }));
+                AddMilestoneRequest req;
+                req.title = title;
+                req.dueDate = dueDate;
+                req.storyPoints = 0;
+                req.status = "NOT_STARTED";
+                req.healthFlag = "NORMAL";
 
-                if (addRes.success)
+                auto postRes = projService_.addMilestone(pId, req);
+
+                if (postRes.success)
                 {
                     showSuccess("Milestone added successfully. ✓");
                 }
                 else
                 {
-                    showError(addRes.message);
+                    showError(postRes.message);
                 }
                 ScreenUtils::readLine("Press Enter to continue");
             }
@@ -341,9 +359,7 @@ void ManageProjectsScreen::manageMilestones(ApiClient& apiClient)
                 if (stChoice == "2") status = "IN_PROGRESS";
                 else if (stChoice == "3") status = "DONE";
 
-                auto putRes = ApiEmptyResponse::fromJson(apiClient.put("/milestones/" + std::to_string(milestoneId) + "/status", {
-                    {"status", status}
-                }));
+                auto putRes = projService_.updateMilestoneStatus(milestoneId, status);
 
                 if (putRes.success)
                 {
@@ -361,10 +377,14 @@ void ManageProjectsScreen::manageMilestones(ApiClient& apiClient)
             }
         }
     }
-    catch (const std::exception& ex)
+    catch (const ApiException& ex)
     {
-        showError(std::string("Error managing milestones: ") + ex.what());
+        showError(ex.what());
         ScreenUtils::readLine("Press Enter to continue");
+    }
+    catch (const std::exception&)
+    {
+        showError("Something went wrong. Please try again.");
     }
 }
 

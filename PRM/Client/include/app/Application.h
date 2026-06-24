@@ -1,18 +1,24 @@
 #ifndef APPLICATION_H
 #define APPLICATION_H
 
-#include "ApiClient.h"
-#include "AuthSession.h"
-#include "LoginScreen.h"
+#include <memory>
+#include <string>
+
+class Router;
+struct AppServices;
+namespace api { class ISessionStore; }
+class IApiClient;
 
 class Application
 {
    private:
-    ApiClient& apiClient;
     std::string baseUrl;
+    std::unique_ptr<AppServices> services_;
+    std::unique_ptr<Router> router_;
 
    public:
-    Application(const std::string& baseUrl, ApiClient& apiClient);
+    Application(const std::string& baseUrl, IApiClient& apiClient);
+    ~Application();
     void run();
 };
 

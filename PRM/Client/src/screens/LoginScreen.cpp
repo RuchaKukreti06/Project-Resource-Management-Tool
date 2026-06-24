@@ -1,8 +1,14 @@
 #include "LoginScreen.h"
 
-#include "AuthSession.h"
-#include "ChangePasswordScreen.h"
+#include "Router.h"
 #include "dto/AuthDTO.h"
+#include "api/ApiException.h"
+#include "services/AuthClientService.h"
+
+LoginScreen::LoginScreen(Router& router, AuthClientService& authService, api::ISessionStore& sessionStore, IApiClient& apiClient)
+    : router_(router), authService_(authService), sessionStore_(sessionStore), apiClient_(apiClient)
+{
+}
 
 ScreenDecorator LoginScreen::decorator() const
 {
@@ -18,13 +24,13 @@ void LoginScreen::displayMenu()
     ScreenOptions({"Login", "Exit"}).render();
 }
 
-void LoginScreen::show(ApiClient& apiClient)
+void LoginScreen::show()
 {
     displayMenu();
-    handleInput(apiClient);
+    handleInput();
 }
 
-void LoginScreen::handleInput(ApiClient& apiClient)
+void LoginScreen::handleInput()
 {
     while (true)
     {
@@ -50,9 +56,7 @@ void LoginScreen::handleInput(ApiClient& apiClient)
 
             try
             {
-                auto response = apiClient.post(
-                    "/auth/login", {{"username", username}, {"password", password}});
-                auto loginRes = AuthLoginResponse::fromJson(response);
+                auto loginRes = authService_.login(username, password);
                 if (!loginRes.success)
                 {
                     showError(loginRes.message);
@@ -67,15 +71,13 @@ void LoginScreen::handleInput(ApiClient& apiClient)
                 int userId = loginRes.user.id;
                 bool forcePasswordChange = loginRes.user.forcePasswordChange;
 
-                apiClient.setToken(token);
-                api::AuthSession::instance().login(token, respUsername, role, userId, forcePasswordChange);
+                apiClient_.setToken(token);
+                sessionStore_.login(token, respUsername, role, userId, forcePasswordChange);
 
                 if (forcePasswordChange)
                 {
                     showInfo("Password change is required on first login.");
-                    ChangePasswordScreen changePasswordScreen;
-                    changePasswordScreen.show(apiClient);
-                    showSuccess("Password updated. You are now logged in.");
+                    // Router will handle navigation to ChangePasswordScreen when LoginScreen returns
                 }
                 else
                 {
@@ -83,11 +85,15 @@ void LoginScreen::handleInput(ApiClient& apiClient)
                 }
                 break;
             }
-            catch (const std::exception& ex)
+            catch (const ApiException& ex)
             {
-                showError(std::string("Login failed: ") + ex.what());
+                showError(ex.what());
                 ScreenUtils::readLine("Press Enter to continue");
                 displayMenu();
+            }
+            catch (const std::exception&)
+            {
+                showError("Something went wrong. Please try again.");
             }
         }
         else if (choice == "2")

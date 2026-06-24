@@ -1,27 +1,31 @@
 #include "admin/SystemConfigScreen.h"
 #include "dto/SystemConfigDTO.h"
 #include "dto/ApiResponse.h"
+#include "api/ApiException.h"
+#include "services/ConfigClientService.h"
 
-SystemConfigScreen::SystemConfigScreen()
+SystemConfigScreen::SystemConfigScreen(ConfigClientService& configService)
+    : configService_(configService)
 {
 }
 
-void SystemConfigScreen::show(ApiClient& apiClient)
+void SystemConfigScreen::show()
 {
+    loadConfig();
+
     keepRunning_ = true;
-    loadConfig(apiClient);
     while (keepRunning_)
     {
         displayMenu();
-        handleInput(apiClient);
+        handleInput();
     }
 }
 
-void SystemConfigScreen::loadConfig(ApiClient& apiClient)
+void SystemConfigScreen::loadConfig()
 {
     try
     {
-        auto res = ApiResponse<SystemConfigDTO>::fromJson(apiClient.get("/system/config"));
+        auto res = configService_.getConfig();
         if (res.success && res.data.has_value())
         {
             const auto& data = res.data.value();
@@ -39,23 +43,21 @@ void SystemConfigScreen::loadConfig(ApiClient& apiClient)
             smtpUseTls_        = data.smtpUseTls;
         }
     }
-    catch (const std::exception& ex)
+    catch (const ApiException& ex)
     {
-        showError(std::string("Failed to load system config: ") + ex.what());
+        showError(ex.what());
+    }
+    catch (const std::exception&)
+    {
+        showError("Something went wrong. Please try again.");
     }
 }
 
-bool SystemConfigScreen::sendTestEmail(ApiClient& apiClient, const std::string& toEmail)
+bool SystemConfigScreen::sendTestEmail(const std::string& toEmail)
 {
     try
     {
-        auto response = apiClient.post(
-            "/notifications/test-email",
-            {{"to_email", toEmail},
-             {"subject", "PRM SMTP Test"},
-             {"body", "SMTP configuration test succeeded."}});
-
-        auto res = ApiEmptyResponse::fromJson(response);
+        auto res = configService_.sendTestEmail(toEmail, "PRM SMTP Test", "SMTP configuration test succeeded.");
         if (!res.success)
         {
             showError(res.message);
@@ -63,30 +65,39 @@ bool SystemConfigScreen::sendTestEmail(ApiClient& apiClient, const std::string& 
         }
         return true;
     }
-    catch (const std::exception& ex)
+    catch (const ApiException& ex)
     {
-        showError(std::string("Failed to send test email: ") + ex.what());
+        showError(ex.what());
+        return false;
+    }
+    catch (const std::exception&)
+    {
+        showError("Something went wrong. Please try again.");
         return false;
     }
 }
 
-bool SystemConfigScreen::saveConfig(ApiClient& apiClient, const nlohmann::json& patch)
+bool SystemConfigScreen::saveConfig(const nlohmann::json& patch)
 {
     try
     {
-        auto response = apiClient.put("/system/config", patch);
-        auto res = ApiEmptyResponse::fromJson(response);
+        auto res = configService_.updateConfig(patch);
         if (!res.success)
         {
             showError(res.message);
             return false;
         }
-        loadConfig(apiClient);  // Refresh local values from server
+        loadConfig();  // Refresh local values from server
         return true;
     }
-    catch (const std::exception& ex)
+    catch (const ApiException& ex)
     {
-        showError(std::string("Failed to save config: ") + ex.what());
+        showError(ex.what());
+        return false;
+    }
+    catch (const std::exception&)
+    {
+        showError("Something went wrong. Please try again.");
         return false;
     }
 }
@@ -128,7 +139,7 @@ void SystemConfigScreen::displayMenu()
     std::cout << "11. Back\n";
 }
 
-void SystemConfigScreen::handleInput(ApiClient& apiClient)
+void SystemConfigScreen::handleInput()
 {
     std::string choice = ScreenUtils::readLine("Enter option");
 
@@ -141,8 +152,11 @@ void SystemConfigScreen::handleInput(ApiClient& apiClient)
             ScreenUtils::readLine("Press Enter to continue");
             return;
         }
-        if (saveConfig(apiClient, {{"llm_api_key", key}}))
-            showSuccess("LLM API Key updated successfully.");
+        if (saveConfig({{"llm_api_key", key}}))
+        {
+            showSuccess("System Settings updated successfully. ✓");
+            loadConfig();
+        }
         ScreenUtils::readLine("Press Enter to continue");
     }
     else if (choice == "2")
@@ -162,7 +176,7 @@ void SystemConfigScreen::handleInput(ApiClient& apiClient)
             ScreenUtils::readLine("Press Enter to continue");
             return;
         }
-        if (saveConfig(apiClient, {{"llm_provider", providerName}}))
+        if (saveConfig({{"llm_provider", providerName}}))
             showSuccess("LLM Provider updated to " + providerName + ".");
         ScreenUtils::readLine("Press Enter to continue");
     }
@@ -183,7 +197,7 @@ void SystemConfigScreen::handleInput(ApiClient& apiClient)
             ScreenUtils::readLine("Press Enter to continue");
             return;
         }
-        if (saveConfig(apiClient, {{"scheduler_interval", hrs}}))
+        if (saveConfig({{"scheduler_interval", hrs}}))
             showSuccess("Scheduler Interval updated to " + std::to_string(hrs) + " hours.");
         ScreenUtils::readLine("Press Enter to continue");
     }
@@ -204,13 +218,13 @@ void SystemConfigScreen::handleInput(ApiClient& apiClient)
             ScreenUtils::readLine("Press Enter to continue");
             return;
         }
-        if (saveConfig(apiClient, {{"max_weekly_hours", h}}))
+        if (saveConfig({{"max_weekly_hours", h}}))
             showSuccess("Max Weekly Hours updated to " + std::to_string(h) + ".");
         ScreenUtils::readLine("Press Enter to continue");
     }
     else if (choice == "5")
     {
-        if (saveConfig(apiClient, {{"smtp_enabled", !smtpEnabled_}}))
+        if (saveConfig({{"smtp_enabled", !smtpEnabled_}}))
             showSuccess(std::string("SMTP ") + (!smtpEnabled_ ? "enabled." : "disabled."));
         ScreenUtils::readLine("Press Enter to continue");
     }
@@ -233,7 +247,7 @@ void SystemConfigScreen::handleInput(ApiClient& apiClient)
             return;
         }
 
-        if (saveConfig(apiClient, {{"smtp_host", host}, {"smtp_port", parsedPort}}))
+        if (saveConfig({{"smtp_host", host}, {"smtp_port", parsedPort}}))
             showSuccess("SMTP server updated.");
         ScreenUtils::readLine("Press Enter to continue");
     }
@@ -247,7 +261,7 @@ void SystemConfigScreen::handleInput(ApiClient& apiClient)
             ScreenUtils::readLine("Press Enter to continue");
             return;
         }
-        if (saveConfig(apiClient, {{"smtp_username", username}, {"smtp_password", password}}))
+        if (saveConfig({{"smtp_username", username}, {"smtp_password", password}}))
             showSuccess("SMTP credentials updated.");
         ScreenUtils::readLine("Press Enter to continue");
     }
@@ -261,13 +275,13 @@ void SystemConfigScreen::handleInput(ApiClient& apiClient)
             ScreenUtils::readLine("Press Enter to continue");
             return;
         }
-        if (saveConfig(apiClient, {{"smtp_from_email", fromEmail}, {"smtp_from_name", fromName}}))
+        if (saveConfig({{"smtp_from_email", fromEmail}, {"smtp_from_name", fromName}}))
             showSuccess("SMTP sender updated.");
         ScreenUtils::readLine("Press Enter to continue");
     }
     else if (choice == "9")
     {
-        if (saveConfig(apiClient, {{"smtp_use_tls", !smtpUseTls_}}))
+        if (saveConfig({{"smtp_use_tls", !smtpUseTls_}}))
             showSuccess(std::string("SMTP TLS ") + (!smtpUseTls_ ? "enabled." : "disabled."));
         ScreenUtils::readLine("Press Enter to continue");
     }
@@ -280,8 +294,10 @@ void SystemConfigScreen::handleInput(ApiClient& apiClient)
             ScreenUtils::readLine("Press Enter to continue");
             return;
         }
-        if (sendTestEmail(apiClient, toEmail))
-            showSuccess("Test email sent.");
+        if (sendTestEmail(toEmail))
+        {
+            showSuccess("Test email sent successfully. ✓");
+        }
         ScreenUtils::readLine("Press Enter to continue");
     }
     else if (choice == "11" || choice == "B" || choice == "b")

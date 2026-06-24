@@ -3,21 +3,24 @@
 
 #include "Screen.h"
 
+class EmployeeClientService;
+
 class ManageEmployeesScreen : public Screen
 {
    public:
-    ManageEmployeesScreen();
-    void show(ApiClient& apiClient) override;
+    ManageEmployeesScreen(EmployeeClientService& empService);
+    void show() override;
     void displayMenu() override;
-    void handleInput(ApiClient& apiClient) override;
+    void handleInput() override;
 
    private:
+    EmployeeClientService& empService_;
     bool keepRunning_ = true;
-    void viewAllEmployees(ApiClient& apiClient);
-    void updateEmployee(ApiClient& apiClient);
-    void deactivateEmployee(ApiClient& apiClient);
-    void manageEmployeeSkills(ApiClient& apiClient);
-    void assignManager(ApiClient& apiClient);
+    void viewAllEmployees();
+    void updateEmployee();
+    void deactivateEmployee();
+    void manageEmployeeSkills();
+    void assignManager();
 
    protected:
     ScreenDecorator decorator() const override;

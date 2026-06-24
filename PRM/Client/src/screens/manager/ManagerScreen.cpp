@@ -4,9 +4,10 @@
 #include "manager/MyProjectsScreen.h"
 #include "manager/TimesheetsScreen.h"
 #include "manager/AIAssistantScreen.h"
-#include "AuthSession.h"
+#include "app/Router.h"
 
-ManagerScreen::ManagerScreen()
+ManagerScreen::ManagerScreen(Router& router, api::ISessionStore& sessionStore)
+    : router_(router), sessionStore_(sessionStore)
 {
 }
 
@@ -22,46 +23,45 @@ void ManagerScreen::displayMenu()
     std::cout << "6. Logout\n";
 }
 
-void ManagerScreen::show(ApiClient& apiClient)
+void ManagerScreen::show()
 {
     while (true)
     {
         displayMenu();
-        handleInput(apiClient);
-        if (!api::AuthSession::instance().isLoggedIn())
+        handleInput();
+        if (!sessionStore_.isLoggedIn())
         {
             break;
         }
     }
 }
 
-void ManagerScreen::handleInput(ApiClient& apiClient)
+void ManagerScreen::handleInput()
 {
     std::string choice = ScreenUtils::readLine("Enter option");
     if (choice == "1")
     {
-        ResourceDashboardScreen().show(apiClient);
+        router_.navigateToResourceDashboard();
     }
     else if (choice == "2")
     {
-        AllocateResourceScreen().show(apiClient);
+        router_.navigateToAllocateResource();
     }
     else if (choice == "3")
     {
-        MyProjectsScreen().show(apiClient);
+        router_.navigateToMyProjects();
     }
     else if (choice == "4")
     {
-        TimesheetsScreen().show(apiClient);
+        router_.navigateToTimesheets();
     }
     else if (choice == "5")
     {
-        AIAssistantScreen().show(apiClient);
+        router_.navigateToAIAssistant();
     }
     else if (choice == "6")
     {
-        api::AuthSession::instance().logout();
-        apiClient.clearToken();
+        sessionStore_.logout();
         showSuccess("Logged out successfully.");
     }
     else
@@ -73,6 +73,6 @@ void ManagerScreen::handleInput(ApiClient& apiClient)
 
 ScreenDecorator ManagerScreen::decorator() const
 {
-    std::string username = api::AuthSession::instance().username();
+    std::string username = sessionStore_.username();
     return ScreenDecorator("Welcome, " + username + "!").withWidth(40).withPadding(2);
 }

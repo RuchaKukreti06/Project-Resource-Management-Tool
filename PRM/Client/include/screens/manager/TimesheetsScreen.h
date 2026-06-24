@@ -3,16 +3,19 @@
 
 #include "Screen.h"
 
+class TimesheetClientService;
+
 class TimesheetsScreen : public Screen
 {
    public:
-    TimesheetsScreen();
-    void show(ApiClient& apiClient) override;
+    TimesheetsScreen(TimesheetClientService& tsService);
+    void show() override;
     void displayMenu() override;
-    void handleInput(ApiClient& apiClient) override;
+    void handleInput() override;
 
    private:
-    void viewTimesheetDetail(ApiClient& apiClient);
+    TimesheetClientService& tsService_;
+    void viewTimesheetDetail();
 
    protected:
     ScreenDecorator decorator() const override;

@@ -7,8 +7,14 @@
 #include "dto/AiResponseDTO.h"
 #include <iomanip>
 #include <ctime>
+#include "api/ApiException.h"
+#include "services/ProjectClientService.h"
+#include "services/AllocationClientService.h"
+#include "services/EmployeeClientService.h"
+#include "services/AiClientService.h"
 
-MyProjectsScreen::MyProjectsScreen()
+MyProjectsScreen::MyProjectsScreen(ProjectClientService& projService, AllocationClientService& allocService, EmployeeClientService& empService, AiClientService& aiService)
+    : projService_(projService), allocService_(allocService), empService_(empService), aiService_(aiService)
 {
 }
 
@@ -16,14 +22,14 @@ void MyProjectsScreen::displayMenu()
 {
 }
 
-void MyProjectsScreen::show(ApiClient& apiClient)
+void MyProjectsScreen::show()
 {
     while (true)
     {
         try
         {
             int managerId = api::AuthSession::instance().userId();
-            auto response = ApiListResponse<ProjectDTO>::fromJson(apiClient.get("/managers/" + std::to_string(managerId) + "/projects"));
+            auto response = projService_.getManagerProjects(managerId);
             
             if (!response.success)
             {
@@ -50,7 +56,7 @@ void MyProjectsScreen::show(ApiClient& apiClient)
                 
                 // Fetch milestones to compute health
                 int projId = proj.id;
-                auto msRes = ApiListResponse<MilestoneDTO>::fromJson(apiClient.get("/projects/" + std::to_string(projId) + "/milestones"));
+                auto msRes = projService_.getProjectMilestones(projId);
                 
                 std::string health = "🟢 ON TRACK";
                 bool hasOverdue = false;
@@ -128,34 +134,38 @@ void MyProjectsScreen::show(ApiClient& apiClient)
             }
             if (selection >= 1 && selection <= (int)projList.size())
             {
-                viewProjectDetail(apiClient, projList[selection - 1].id);
+                viewProjectDetail(projList[selection - 1].id);
             }
         }
-        catch (const std::exception& ex)
+        catch (const ApiException& ex)
         {
-            showError(std::string("Error viewing projects: ") + ex.what());
+            showError(ex.what());
             ScreenUtils::readLine("Press Enter to continue");
             break;
+        }
+        catch (const std::exception&)
+        {
+            showError("Something went wrong. Please try again.");
         }
     }
 }
 
-void MyProjectsScreen::handleInput(ApiClient& apiClient)
+void MyProjectsScreen::handleInput()
 {
 }
 
-void MyProjectsScreen::viewProjectDetail(ApiClient& apiClient, int projectId)
+void MyProjectsScreen::viewProjectDetail(int projectId)
 {
     while (true)
     {
         try
         {
-            auto projRes = ApiResponse<ProjectDTO>::fromJson(apiClient.get("/projects/" + std::to_string(projectId)));
+            auto projRes = projService_.getProject(projectId);
             if (!projRes.success || !projRes.data) return;
             auto proj = *projRes.data;
 
-            auto msRes = ApiListResponse<MilestoneDTO>::fromJson(apiClient.get("/projects/" + std::to_string(projectId) + "/milestones"));
-            auto allocsRes = ApiListResponse<AllocationDTO>::fromJson(apiClient.get("/projects/" + std::to_string(projectId) + "/allocations"));
+            auto msRes = projService_.getProjectMilestones(projectId);
+            auto allocsRes = allocService_.getProjectAllocations(projectId);
 
             // clearScreen();
             std::cout << "\n── " << proj.name << " ───────────────────────────────\n";
@@ -246,10 +256,10 @@ void MyProjectsScreen::viewProjectDetail(ApiClient& apiClient, int projectId)
             {
                 int empId = alloc.employeeId;
                 std::string empName = "Emp " + std::to_string(empId);
-                auto empRes = ApiListResponse<EmployeeDTO>::fromJson(apiClient.get("/employees"));
-                if (empRes.success)
+                auto empsRes = empService_.viewAllEmployees();
+                if (empsRes.success)
                 {
-                    for (const auto& e : empRes.data)
+                    for (const auto& e : empsRes.data)
                     {
                         if (e.id == empId)
                         {
@@ -273,11 +283,10 @@ void MyProjectsScreen::viewProjectDetail(ApiClient& apiClient, int projectId)
                 std::cout << "\nGenerating AI summary...\n\n";
                 AiRiskSummaryRequest req;
                 req.projectId = projectId;
-                auto aiResponse = apiClient.post("/ai/risk-summary", req.toJson());
+                auto aiRes = aiService_.getRiskSummary(req);
 
                 std::cout << "\n── AI Risk Summary — " << proj.name << " ────────────\n\n";
 
-                auto aiRes = AiRiskSummaryResponse::fromJson(aiResponse);
                 if (!aiRes.fallback_message.has_value())
                 {
                     std::cout << "\"" << aiRes.data.summary << "\"\n";
@@ -295,11 +304,15 @@ void MyProjectsScreen::viewProjectDetail(ApiClient& apiClient, int projectId)
                 break;
             }
         }
-        catch (const std::exception& ex)
+        catch (const ApiException& ex)
         {
-            showError(std::string("Error viewing project detail: ") + ex.what());
+            showError(ex.what());
             ScreenUtils::readLine("Press Enter to continue");
             break;
+        }
+        catch (const std::exception&)
+        {
+            showError("Something went wrong. Please try again.");
         }
     }
 }

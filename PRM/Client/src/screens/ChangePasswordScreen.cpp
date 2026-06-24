@@ -1,6 +1,12 @@
 #include "ChangePasswordScreen.h"
-#include "AuthSession.h"
+#include "api/ISessionStore.h"
 #include "dto/ApiResponse.h"
+#include "api/ApiException.h"
+
+ChangePasswordScreen::ChangePasswordScreen(AuthClientService& authService, api::ISessionStore& sessionStore)
+    : authService_(authService), sessionStore_(sessionStore)
+{
+}
 
 ScreenDecorator ChangePasswordScreen::decorator() const
 {
@@ -13,13 +19,13 @@ void ChangePasswordScreen::displayMenu()
     decorator().render();
 }
 
-void ChangePasswordScreen::show(ApiClient& apiClient)
+void ChangePasswordScreen::show()
 {
     displayMenu();
-    handleInput(apiClient);
+    handleInput();
 }
 
-void ChangePasswordScreen::handleInput(ApiClient& apiClient)
+void ChangePasswordScreen::handleInput()
 {
     while (true)
     {
@@ -53,11 +59,8 @@ void ChangePasswordScreen::handleInput(ApiClient& apiClient)
 
         try
         {
-            auto response = apiClient.post(
-                "/auth/change-password",
-                {{"user_id", api::AuthSession::instance().userId()}, {"new_password", newPassword}});
+            auto res = authService_.changePassword(sessionStore_.userId(), newPassword);
 
-            auto res = ApiEmptyResponse::fromJson(response);
             if (!res.success)
             {
                 showError(res.message);
@@ -65,16 +68,20 @@ void ChangePasswordScreen::handleInput(ApiClient& apiClient)
             }
 
             std::cout << "\n  Password updated. Welcome!\n\n";
-            api::AuthSession::instance().login(api::AuthSession::instance().token(),
-                                               api::AuthSession::instance().username(),
-                                               api::AuthSession::instance().role(),
-                                               api::AuthSession::instance().userId(),
-                                               false);
+            sessionStore_.login(sessionStore_.token(),
+                                sessionStore_.username(),
+                                sessionStore_.role(),
+                                sessionStore_.userId(),
+                                false);
             break;
         }
-        catch (const std::exception& ex)
+        catch (const ApiException& ex)
         {
             showError(ex.what());
+        }
+        catch (const std::exception&)
+        {
+            showError("Something went wrong. Please try again.");
         }
     }
 }

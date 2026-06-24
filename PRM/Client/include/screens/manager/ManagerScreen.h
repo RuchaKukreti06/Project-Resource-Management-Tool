@@ -3,13 +3,21 @@
 
 #include "Screen.h"
 
+#include "api/ISessionStore.h"
+
+class Router;
+
 class ManagerScreen : public Screen
 {
+   private:
+    Router& router_;
+    api::ISessionStore& sessionStore_;
+
    public:
-    ManagerScreen();
-    void show(ApiClient& apiClient) override;
+    ManagerScreen(Router& router, api::ISessionStore& sessionStore);
+    void show() override;
     void displayMenu() override;
-    void handleInput(ApiClient& apiClient) override;
+    void handleInput() override;
 
    protected:
     ScreenDecorator decorator() const override;

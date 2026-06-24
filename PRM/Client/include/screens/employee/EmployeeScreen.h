@@ -3,18 +3,32 @@
 
 #include "Screen.h"
 
+class Router;
+namespace api { class ISessionStore; }
+class EmployeeClientService;
+class TimesheetClientService;
+class ProjectClientService;
+class AllocationClientService;
+
 class EmployeeScreen : public Screen
 {
    public:
-    EmployeeScreen();
-    void show(ApiClient& apiClient) override;
+    EmployeeScreen(Router& router, api::ISessionStore& sessionStore, EmployeeClientService& empService, TimesheetClientService& tsService, ProjectClientService& projService, AllocationClientService& allocService);
+    void show() override;
     void displayMenu() override;
-    void handleInput(ApiClient& apiClient) override;
+    void handleInput() override;
 
    private:
-    void viewMyTimesheets(ApiClient& apiClient);
-    void viewMyAllocations(ApiClient& apiClient);
-    void viewTimesheetDetails(ApiClient& apiClient, int timesheetId, const std::string& weekStart, const std::string& status);
+    Router& router_;
+    api::ISessionStore& sessionStore_;
+    EmployeeClientService& empService_;
+    TimesheetClientService& tsService_;
+    ProjectClientService& projService_;
+    AllocationClientService& allocService_;
+
+    void viewMyTimesheets();
+    void viewMyAllocations();
+    void viewTimesheetDetails(int timesheetId, const std::string& weekStart, const std::string& status);
 
     bool hasMissingTimesheet_ = false;
     std::string missingWeekStr_ = "";

@@ -4,18 +4,23 @@
 #include "Screen.h"
 #include "dto/AiResponseDTO.h"
 
+class AiClientService;
+class ProjectClientService;
+
 class AIAssistantScreen : public Screen
 {
    public:
-    AIAssistantScreen();
-    void show(ApiClient& apiClient) override;
+    AIAssistantScreen(AiClientService& aiService, ProjectClientService& projService);
+    void show() override;
     void displayMenu() override;
-    void handleInput(ApiClient& apiClient) override;
+    void handleInput() override;
 
    private:
-    void skillMatch(ApiClient& apiClient);
-    void riskSummary(ApiClient& apiClient);
-    void teamBuilder(ApiClient& apiClient);
+    AiClientService& aiService_;
+    ProjectClientService& projService_;
+    void skillMatch();
+    void riskSummary();
+    void teamBuilder();
 
    private:
     void displayTeamMatchResults(const AiTeamBuilderResponse& dto);
