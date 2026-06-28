@@ -1,10 +1,14 @@
 #include "admin/ManageUsersScreen.h"
-#include "AuthSession.h"
-#include "dto/ApiResponse.h"
-#include "dto/UserDTO.h"
 #include "api/ISessionStore.h"
 #include "api/ApiException.h"
+#include "utils/ConsoleInput.h"
 #include "services/UserClientService.h"
+#include "screens/ScreenUtils.h"
+#include <iomanip>
+#include <iostream>
+
+using namespace AdminConstants;
+using namespace AdminConstants::Users;
 
 ManageUsersScreen::ManageUsersScreen(UserClientService& userService, api::ISessionStore& sessionStore)
     : userService_(userService), sessionStore_(sessionStore)
@@ -13,13 +17,12 @@ ManageUsersScreen::ManageUsersScreen(UserClientService& userService, api::ISessi
 
 void ManageUsersScreen::displayMenu()
 {
-    // clearScreen();
     decorator().render();
-    std::cout << "1. Create User Account\n";
-    std::cout << "2. View All Users\n";
-    std::cout << "3. Reset User Password\n";
-    std::cout << "4. Deactivate User\n";
-    std::cout << "5. Back\n";
+    std::cout << OPT_CREATE_USER << ". Create User Account\n";
+    std::cout << OPT_VIEW_USERS << ". View All Users\n";
+    std::cout << OPT_RESET_PWD << ". Reset User Password\n";
+    std::cout << OPT_DEACTIVATE << ". Deactivate User\n";
+    std::cout << OPT_BACK << ". Back\n";
 }
 
 void ManageUsersScreen::show()
@@ -34,134 +37,191 @@ void ManageUsersScreen::show()
 
 void ManageUsersScreen::handleInput()
 {
-    std::string choice = ScreenUtils::readLine("Enter option");
-    if (choice == "1")
+    std::string choice = ConsoleInput::readLine("Enter option");
+    if (choice == OPT_CREATE_USER)
     {
         createUser();
     }
-    else if (choice == "2")
+    else if (choice == OPT_VIEW_USERS)
     {
         viewUsers();
     }
-    else if (choice == "3")
+    else if (choice == OPT_RESET_PWD)
     {
         resetUserPassword();
     }
-    else if (choice == "4")
+    else if (choice == OPT_DEACTIVATE)
     {
         deactivateUser();
     }
-    else if (choice == "5" || choice == "B" || choice == "b")
+    else if (choice == OPT_BACK || ScreenUtils::equalsIgnoreCase(choice, "B"))
     {
         keepRunning_ = false;
     }
     else
     {
         showError("Invalid option. Please enter 1–5.");
-        ScreenUtils::readLine("Press Enter to continue");
+        ConsoleInput::waitForEnter("Press Enter to continue\n");
     }
+}
+
+std::string ManageUsersScreen::promptForValidEmail()
+{
+    std::string email;
+    while (true)
+    {
+        email = ConsoleInput::readLine("Email");
+        if (email.empty())
+        {
+            std::cout << "\n  Email is mandatory.\n\n";
+            continue;
+        }
+        if (!ScreenUtils::isValidEmail(email))
+        {
+            std::cout << "\n  Invalid email format. Please try again.\n\n";
+            continue;
+        }
+        break;
+    }
+    return email;
+}
+
+std::string ManageUsersScreen::promptForValidPassword()
+{
+    std::string tempPassword;
+    while (true)
+    {
+        tempPassword = ScreenUtils::readPassword("Temporary Password");
+        if (tempPassword.empty())
+        {
+            std::cout << "\n  Temporary Password is mandatory.\n\n";
+            continue;
+        }
+
+        std::string errorMsg;
+        if (!ScreenUtils::isValidPassword(tempPassword, errorMsg))
+        {
+            std::cout << "\n  " << errorMsg << "\n\n";
+            continue;
+        }
+        break;
+    }
+    return tempPassword;
+}
+
+std::optional<std::string> ManageUsersScreen::promptForRole()
+{
+    std::cout << "Select Role:\n";
+    std::cout << "  1. ADMIN\n";
+    std::cout << "  2. MANAGER\n";
+    std::cout << "  3. EMPLOYEE\n";
+    std::string roleChoice = ConsoleInput::readLine("Choice (1-3)");
+    
+    if (roleChoice == "1") return ROLE_ADMIN;
+    if (roleChoice == "2") return ROLE_MANAGER;
+    if (roleChoice == "3") return ROLE_EMPLOYEE;
+    return std::nullopt;
+}
+
+bool ManageUsersScreen::promptForBasicUserInfo(CreateUserRequest& req)
+{
+    req.fullName = ConsoleInput::readLine("Full Name");
+    req.email = promptForValidEmail();
+    
+    req.username = ConsoleInput::readLine("Username");
+    if (req.username.empty())
+    {
+        showError("Username cannot be empty.");
+        ConsoleInput::waitForEnter("Press Enter to continue\n");
+        return false;
+    }
+    return true;
+}
+
+void ManageUsersScreen::promptForCredentials(CreateUserRequest& req)
+{
+    req.password = promptForValidPassword();
+    req.forcePasswordChange = true;
+}
+
+bool ManageUsersScreen::promptForRoleAndDepartmentDetails(CreateUserRequest& req)
+{
+    auto roleOpt = promptForRole();
+    if (!roleOpt)
+    {
+        showError("Invalid role choice.");
+        ConsoleInput::waitForEnter("Press Enter to continue\n");
+        return false;
+    }
+    req.role = roleOpt.value();
+
+    if (req.role == ROLE_MANAGER || req.role == ROLE_EMPLOYEE)
+    {
+        req.department = ConsoleInput::readLine("Department");
+        req.designation = ConsoleInput::readLine("Designation");
+    }
+    return true;
+}
+
+std::optional<CreateUserRequest> ManageUsersScreen::promptForUserDetails()
+{
+    std::cout << "\n========== CREATE USER ACCOUNT ==========\n";
+    
+    CreateUserRequest req;
+    
+    if (!promptForBasicUserInfo(req)) return std::nullopt;
+    promptForCredentials(req);
+    if (!promptForRoleAndDepartmentDetails(req)) return std::nullopt;
+
+    return req;
 }
 
 void ManageUsersScreen::createUser()
 {
     try
     {
-        std::cout << "\n========== CREATE USER ACCOUNT ==========\n";
-        std::string fullName = ScreenUtils::readLine("Full Name");
-        std::string email;
-        while (true)
-        {
-            email = ScreenUtils::readLine("Email");
-            if (email.empty())
-            {
-                std::cout << "\n  Email is mandatory.\n\n";
-                continue;
-            }
-            if (!ScreenUtils::isValidEmail(email))
-            {
-                std::cout << "\n  Invalid email format. Please try again.\n\n";
-                continue;
-            }
-            break;
-        }
-        std::string username = ScreenUtils::readLine("Username");
-        std::string tempPassword;
-        while (true)
-        {
-            tempPassword = ScreenUtils::readPassword("Temporary Password");
-            if (tempPassword.empty())
-            {
-                std::cout << "\n  Temporary Password is mandatory.\n\n";
-                continue;
-            }
+        auto createUserRequestOpt = promptForUserDetails();
+        if (!createUserRequestOpt) return;
 
-            std::string errorMsg;
-            if (!ScreenUtils::isValidPassword(tempPassword, errorMsg))
-            {
-                std::cout << "\n  " << errorMsg << "\n\n";
-                continue;
-            }
-            break;
-        }
-
-        std::cout << "Select Role:\n";
-        std::cout << "  1. ADMIN\n";
-        std::cout << "  2. MANAGER\n";
-        std::cout << "  3. EMPLOYEE\n";
-        std::string roleChoice = ScreenUtils::readLine("Choice (1-3)");
-
-        std::string role;
-        if (roleChoice == "1")
-            role = "ADMIN";
-        else if (roleChoice == "2")
-            role = "MANAGER";
-        else if (roleChoice == "3")
-            role = "EMPLOYEE";
-        else
-        {
-            showError("Invalid role choice.");
-            ScreenUtils::readLine("Press Enter to continue");
-            return;
-        }
-
-        std::string dept;
-        std::string desg;
-        if (role == "MANAGER" || role == "EMPLOYEE")
-        {
-            dept = ScreenUtils::readLine("Department");
-            desg = ScreenUtils::readLine("Designation");
-        }
-
-        CreateUserRequest req;
-        req.username = username;
-        req.password = tempPassword;
-        req.role = role;
-        req.email = email;
-        req.fullName = fullName;
-        req.department = dept;
-        req.designation = desg;
-        req.forcePasswordChange = true;
-
-        auto response = userService_.createUser(req);
-
+        auto response = userService_.createUser(createUserRequestOpt.value());
         if (!response.success)
         {
             showError(response.message);
-            ScreenUtils::readLine("Press Enter to continue");
+            ConsoleInput::waitForEnter("Press Enter to continue\n");
             return;
         }
 
         showSuccess("Account created. User must change password on first login.");
-        ScreenUtils::readLine("Press Enter to continue");
+        ConsoleInput::waitForEnter("Press Enter to continue\n");
     }
     catch (const ApiException& ex)
     {
         showError(ex.what());
-        ScreenUtils::readLine("Press Enter to continue");
+        ConsoleInput::waitForEnter("Press Enter to continue\n");
     }
     catch (const std::exception&)
     {
         showError("Something went wrong. Please try again.");
+    }
+}
+
+void ManageUsersScreen::handleReactivation()
+{
+    std::cout << "[R] Reactivate a user      [B] Back\n";
+    std::string act = ConsoleInput::readLine("Enter choice");
+    if (ScreenUtils::equalsIgnoreCase(act, "R"))
+    {
+        std::string targetUserId = ConsoleInput::readLine("Enter User ID to reactivate");
+        auto reactResponse = userService_.reactivateUser(targetUserId);
+        if (reactResponse.success)
+        {
+            showSuccess("Account reactivated. ✓");
+        }
+        else
+        {
+            showError(reactResponse.message);
+        }
+        ConsoleInput::waitForEnter("Press Enter to continue\n");
     }
 }
 
@@ -173,56 +233,18 @@ void ManageUsersScreen::viewUsers()
         if (!response.success)
         {
             showError(response.message);
-            ScreenUtils::readLine("Press Enter to continue");
+            ConsoleInput::waitForEnter("Press Enter to continue\n");
             return;
         }
 
         auto users = response.data;
-        // clearScreen();
-        std::cout << "\n================ ALL USERS ================\n";
-        std::cout << std::left << std::setw(6) << "ID" << std::setw(20) << "Username"
-                  << std::setw(12) << "Role" << std::setw(12) << "Status" << "\n";
-        ScreenUtils::printDivider();
-
-        int activeCount = 0;
-        int inactiveCount = 0;
-
-        for (const auto& user : users)
-        {
-            std::cout << std::left << std::setw(6) << user.id << std::setw(20)
-                      << user.username << std::setw(12)
-                      << user.role << std::setw(12) << user.status << "\n";
-
-            if (user.status == "ACTIVE" || user.status == "Active")
-                activeCount++;
-            else
-                inactiveCount++;
-        }
-        ScreenUtils::printDivider();
-        std::cout << "Total: " << users.size() << "  |  Active: " << activeCount
-                  << "  |  Inactive: " << inactiveCount << "\n\n";
-
-        std::cout << "[R] Reactivate a user      [B] Back\n";
-        std::string act = ScreenUtils::readLine("Enter choice");
-        if (act == "R" || act == "r")
-        {
-            std::string uId = ScreenUtils::readLine("Enter User ID to reactivate");
-            auto reactResponse = userService_.reactivateUser(uId);
-            if (reactResponse.success)
-            {
-                showSuccess("Account reactivated. ✓");
-            }
-            else
-            {
-                showError(reactResponse.message);
-            }
-            ScreenUtils::readLine("Press Enter to continue");
-        }
+        displayUsers(users);
+        handleReactivation();
     }
     catch (const ApiException& ex)
     {
         showError(ex.what());
-        ScreenUtils::readLine("Press Enter to continue");
+        ConsoleInput::waitForEnter("Press Enter to continue\n");
     }
     catch (const std::exception&)
     {
@@ -234,50 +256,27 @@ void ManageUsersScreen::resetUserPassword()
 {
     try
     {
-        std::string identifier = ScreenUtils::readLine("Enter Username or User ID");
+        auto targetUserIdOpt = promptForTargetUserId("Enter Username or User ID");
+        if (!targetUserIdOpt) return;
 
-        // Find user to get ID if username was entered
-        std::string userId = identifier;
-        auto usersResponse = userService_.viewUsers();
-        if (usersResponse.success)
-        {
-            for (const auto& u : usersResponse.data)
-            {
-                if (u.username == identifier || std::to_string(u.id) == identifier)
-                {
-                    userId = std::to_string(u.id);
-                    std::cout << "\nUser found: " << u.username << " ("
-                              << u.role << ")\n";
-                    break;
-                }
-            }
-        }
+        std::string newTempPwd = promptForValidPassword();
 
-        std::string newTempPwd = ScreenUtils::readPassword("New Temporary Password");
-        std::string errorMsg;
-        if (!ScreenUtils::isValidPassword(newTempPwd, errorMsg))
-        {
-            showError("Temporary password complexity error: " + errorMsg);
-            ScreenUtils::readLine("Press Enter to continue");
-            return;
-        }
-
-        auto response = userService_.resetPassword(userId, newTempPwd, true);
+        auto response = userService_.resetPassword(targetUserIdOpt.value(), newTempPwd, true);
 
         if (!response.success)
         {
             showError(response.message);
-            ScreenUtils::readLine("Press Enter to continue");
+            ConsoleInput::waitForEnter("Press Enter to continue\n");
             return;
         }
 
         showSuccess("Password reset. User will be prompted to change it on next login. ✓");
-        ScreenUtils::readLine("Press Enter to continue");
+        ConsoleInput::waitForEnter("Press Enter to continue\n");
     }
     catch (const ApiException& ex)
     {
         showError(ex.what());
-        ScreenUtils::readLine("Press Enter to continue");
+        ConsoleInput::waitForEnter("Press Enter to continue\n");
     }
     catch (const std::exception&)
     {
@@ -289,54 +288,40 @@ void ManageUsersScreen::deactivateUser()
 {
     try
     {
-        std::string identifier = ScreenUtils::readLine("Enter Username or User ID");
-
-        // Find user to get ID if username was entered
-        std::string userId = identifier;
-        auto usersResponse = userService_.viewUsers();
-        if (usersResponse.success)
-        {
-            for (const auto& u : usersResponse.data)
-            {
-                if (u.username == identifier || std::to_string(u.id) == identifier)
-                {
-                    userId = std::to_string(u.id);
-                    std::cout << "\nUser found: " << u.username << " ("
-                              << u.role << ")\n";
-                    break;
-                }
-            }
-        }
+        auto targetUserIdOpt = promptForTargetUserId("Enter Username or User ID to deactivate");
+        if (!targetUserIdOpt) return;
+        
+        std::string targetUserId = targetUserIdOpt.value();
 
         // Prevent admin from deactivating their own account
         int currentUserId = sessionStore_.userId();
-        if (!userId.empty() && ScreenUtils::safeParseInt(userId).value_or(-1) == currentUserId)
+        if (ScreenUtils::safeParseInt(targetUserId).value_or(-1) == currentUserId)
         {
             showError("You cannot deactivate your own account.");
-            ScreenUtils::readLine("Press Enter to continue");
+            ConsoleInput::waitForEnter("Press Enter to continue\n");
             return;
         }
 
         std::cout << "\nAre you sure you want to deactivate this account?\n";
         std::cout << "[Y] Yes, Deactivate      [B] Back\n";
-        std::string choice = ScreenUtils::readLine("Choice");
-        if (choice == "Y" || choice == "y")
+        std::string choice = ConsoleInput::readLine("Choice");
+        if (ScreenUtils::equalsIgnoreCase(choice, "Y"))
         {
-            auto response = userService_.deactivateUser(userId);
+            auto response = userService_.deactivateUser(targetUserId);
             if (!response.success)
             {
                 showError(response.message);
-                ScreenUtils::readLine("Press Enter to continue");
+                ConsoleInput::waitForEnter("Press Enter to continue\n");
                 return;
             }
             showSuccess("User deactivated. ✓");
         }
-        ScreenUtils::readLine("Press Enter to continue");
+        ConsoleInput::waitForEnter("Press Enter to continue\n");
     }
     catch (const ApiException& ex)
     {
         showError(ex.what());
-        ScreenUtils::readLine("Press Enter to continue");
+        ConsoleInput::waitForEnter("Press Enter to continue\n");
     }
     catch (const std::exception&)
     {
@@ -346,5 +331,59 @@ void ManageUsersScreen::deactivateUser()
 
 ScreenDecorator ManageUsersScreen::decorator() const
 {
-    return ScreenDecorator("MANAGE USERS").withWidth(40).withPadding(2);
+    return ScreenDecorator("MANAGE USERS").withWidth(DEFAULT_PANEL_WIDTH).withPadding(DEFAULT_PADDING);
+}
+
+void ManageUsersScreen::displayUsers(const std::vector<UserDTO>& users)
+{
+    std::cout << "\n================ ALL USERS ================\n";
+    std::cout << std::left
+              << std::setw(ID_COLUMN_WIDTH) << "ID"
+              << std::setw(USERNAME_COLUMN_WIDTH) << "Username"
+              << std::setw(ROLE_COLUMN_WIDTH) << "Role"
+              << std::setw(STATUS_COLUMN_WIDTH) << "Status" << "\n";
+    ScreenUtils::printDivider();
+
+    int activeCount = 0;
+    int inactiveCount = 0;
+
+    for (const auto& user : users)
+    {
+        std::cout << std::left
+                  << std::setw(ID_COLUMN_WIDTH) << user.id
+                  << std::setw(USERNAME_COLUMN_WIDTH) << ScreenUtils::truncate(ScreenUtils::valueOrDash(user.username), USERNAME_COLUMN_WIDTH - 1)
+                  << std::setw(ROLE_COLUMN_WIDTH) << ScreenUtils::valueOrDash(user.role)
+                  << std::setw(STATUS_COLUMN_WIDTH) << ScreenUtils::valueOrDash(user.status) << "\n";
+        
+        if (ScreenUtils::equalsIgnoreCase(user.status, STATUS_ACTIVE))
+            activeCount++;
+        else
+            inactiveCount++;
+    }
+    ScreenUtils::printDivider();
+    std::cout << "Total: " << users.size() << "  |  Active: " << activeCount
+              << "  |  Inactive: " << inactiveCount << "\n\n";
+}
+
+std::optional<std::string> ManageUsersScreen::promptForTargetUserId(const std::string& prompt)
+{
+    std::string identifier = ConsoleInput::readLine(prompt);
+    if (identifier.empty()) return std::nullopt;
+
+    std::string userId = identifier;
+    auto usersResponse = userService_.viewUsers();
+    if (usersResponse.success)
+    {
+        for (const auto& u : usersResponse.data)
+        {
+            if (u.username == identifier || std::to_string(u.id) == identifier)
+            {
+                userId = std::to_string(u.id);
+                std::cout << "\nUser found: " << u.username << " (" << u.role << ")\n";
+                return userId;
+            }
+        }
+    }
+    
+    return userId;
 }

@@ -1,8 +1,19 @@
 #include "admin/ManageEmployeesScreen.h"
+
+#include <algorithm>
+#include <cctype>
+#include <iomanip>
+
+#include "api/ApiException.h"
 #include "dto/ApiResponse.h"
 #include "dto/EmployeeDTO.h"
-#include "api/ApiException.h"
+#include "screens/ScreenUtils.h"
 #include "services/EmployeeClientService.h"
+#include "utils/ConsoleInput.h"
+
+using namespace AdminConstants;
+using namespace AdminConstants::Employees;
+
 ManageEmployeesScreen::ManageEmployeesScreen(EmployeeClientService& empService)
     : empService_(empService)
 {
@@ -10,14 +21,13 @@ ManageEmployeesScreen::ManageEmployeesScreen(EmployeeClientService& empService)
 
 void ManageEmployeesScreen::displayMenu()
 {
-    // clearScreen();
     decorator().render();
-    std::cout << "1. View All Employees\n";
-    std::cout << "2. Update Employee\n";
-    std::cout << "3. Deactivate Employee\n";
-    std::cout << "4. Manage Employee Skills\n";
-    std::cout << "5. Assign Manager\n";
-    std::cout << "6. Back\n";
+    std::cout << OPT_VIEW_ALL << ". View All Employees\n";
+    std::cout << OPT_UPDATE << ". Update Employee\n";
+    std::cout << OPT_DEACTIVATE << ". Deactivate Employee\n";
+    std::cout << OPT_SKILLS << ". Manage Employee Skills\n";
+    std::cout << OPT_ASSIGN_MGR << ". Assign Manager\n";
+    std::cout << OPT_BACK << ". Back\n";
 }
 
 void ManageEmployeesScreen::show()
@@ -32,35 +42,35 @@ void ManageEmployeesScreen::show()
 
 void ManageEmployeesScreen::handleInput()
 {
-    std::string choice = ScreenUtils::readLine("Enter option");
-    if (choice == "1")
+    std::string choice = ConsoleInput::readLine("Enter option");
+    if (choice == OPT_VIEW_ALL)
     {
         viewAllEmployees();
     }
-    else if (choice == "2")
+    else if (choice == OPT_UPDATE)
     {
         updateEmployee();
     }
-    else if (choice == "3")
-    {
-        assignManager();
-    }
-    else if (choice == "4")
-    {
-        manageEmployeeSkills();
-    }
-    else if (choice == "5")
+    else if (choice == OPT_DEACTIVATE)
     {
         deactivateEmployee();
     }
-    else if (choice == "6" || choice == "B" || choice == "b")
+    else if (choice == OPT_SKILLS)
+    {
+        manageEmployeeSkills();
+    }
+    else if (choice == OPT_ASSIGN_MGR)
+    {
+        assignManager();
+    }
+    else if (choice == OPT_BACK || ScreenUtils::equalsIgnoreCase(choice, "B"))
     {
         keepRunning_ = false;
     }
     else
     {
         showError("Invalid option. Please enter 1–6.");
-        ScreenUtils::readLine("Press Enter to continue");
+        ConsoleInput::waitForEnter("Press Enter to continue\n");
     }
 }
 
@@ -72,250 +82,221 @@ void ManageEmployeesScreen::viewAllEmployees()
         if (!response.success)
         {
             showError(response.message);
-            ScreenUtils::readLine("Press Enter to continue");
+            ConsoleInput::waitForEnter("Press Enter to continue\n");
             return;
         }
 
-        auto employees = response.data;
-        
         std::string filterStatus = "";
         std::string filterDept = "";
 
         while (true)
         {
-            // clearScreen();
-            std::cout << "\n================ ALL EMPLOYEES ================\n";
-            std::cout << std::left << std::setw(6) << "ID"
-                      << std::setw(20) << "Name"
-                      << std::setw(15) << "Department"
-                      << std::setw(12) << "Status" << "\n";
-            ScreenUtils::printDivider();
-
-            int allocatedCount = 0;
-            int benchCount = 0;
-            int totalShown = 0;
-
-            for (const auto& emp : employees)
-            {
-                if (!emp.isActive) continue;
-
-                std::string status = emp.status;
-                std::string dept = emp.department;
-
-                if (!filterStatus.empty() && status != filterStatus) continue;
-                if (!filterDept.empty() && dept != filterDept) continue;
-
-                std::cout << std::left << std::setw(6) << emp.id
-                          << std::setw(20) << emp.fullName
-                          << std::setw(15) << dept
-                          << std::setw(12) << status << "\n";
-                
-                if (status == "ALLOCATED") allocatedCount++;
-                else benchCount++;
-                totalShown++;
-            }
-            ScreenUtils::printDivider();
-            std::cout << "Total: " << totalShown << "  |  Allocated: " << allocatedCount << "  |  Bench: " << benchCount << "\n\n";
-
-            std::cout << "[F] Filter by Status / Department     [B] Back\n";
-            std::string choice = ScreenUtils::readLine("Enter choice");
-            if (choice == "F" || choice == "f")
-            {
-                std::cout << "\nFilter options:\n";
-                std::cout << "1. Filter by Status only\n";
-                std::cout << "2. Filter by Department only\n";
-                std::cout << "3. Filter by both Status AND Department\n";
-                std::cout << "4. Clear all filters\n";
-                std::string fOpt = ScreenUtils::readLine("Choice");
-                if (fOpt == "1")
-                {
-                    std::cout << "1. ALLOCATED   2. BENCH\n";
-                    std::string stVal = ScreenUtils::readLine("Status choice");
-                    if (stVal == "1") filterStatus = "ALLOCATED";
-                    else if (stVal == "2") filterStatus = "BENCH";
-                    filterDept = "";
-                }
-                else if (fOpt == "2")
-                {
-                    filterStatus = "";
-                    filterDept = ScreenUtils::readLine("Department name");
-                }
-                else if (fOpt == "3")
-                {
-                    std::cout << "1. ALLOCATED   2. BENCH\n";
-                    std::string stVal = ScreenUtils::readLine("Status choice");
-                    if (stVal == "1") filterStatus = "ALLOCATED";
-                    else if (stVal == "2") filterStatus = "BENCH";
-                    filterDept = ScreenUtils::readLine("Department name");
-                }
-                else if (fOpt == "4")
-                {
-                    filterStatus = "";
-                    filterDept = "";
-                }
-            }
-            else if (choice == "B" || choice == "b")
+            displayEmployees(response.data, filterStatus, filterDept);
+            if (!promptFilterOptions(filterStatus, filterDept))
             {
                 break;
             }
         }
     }
-    catch (const ApiException& ex)
+    catch (const std::exception& ex)
     {
-        showError(ex.what());
-        ScreenUtils::readLine("Press Enter to continue");
+        handleStandardExceptions(ex);
     }
-    catch (const std::exception&)
+}
+
+void ManageEmployeesScreen::displayFilterMenu()
+{
+    std::cout << "\nFilter options:\n";
+    std::cout << "1. Filter by Status only\n";
+    std::cout << "2. Filter by Department only\n";
+    std::cout << "3. Filter by both Status AND Department\n";
+    std::cout << "4. Clear all filters\n";
+}
+
+std::optional<std::string> ManageEmployeesScreen::promptForStatusFilter()
+{
+    std::cout << "1. ALLOCATED   2. BENCH\n";
+    std::string stVal = ConsoleInput::readLine("Status choice");
+    if (stVal == "1") return STATUS_ALLOCATED;
+    if (stVal == "2") return STATUS_BENCH;
+
+    showError("Invalid status filter option.");
+    ConsoleInput::waitForEnter("Press Enter to continue\n");
+    return std::nullopt;
+}
+
+std::string ManageEmployeesScreen::promptForDepartmentFilter()
+{
+    return ConsoleInput::readLine("Department name");
+}
+
+void ManageEmployeesScreen::applyFilterChoice(const std::string& filterChoice,
+                                              std::string& filterStatus, std::string& filterDept)
+{
+    if (filterChoice == "1")
     {
-        showError("Something went wrong. Please try again.");
+        auto stOpt = promptForStatusFilter();
+        if (stOpt) filterStatus = stOpt.value();
+        filterDept = "";
     }
+    else if (filterChoice == "2")
+    {
+        filterStatus = "";
+        filterDept = promptForDepartmentFilter();
+    }
+    else if (filterChoice == "3")
+    {
+        auto stOpt = promptForStatusFilter();
+        if (stOpt) filterStatus = stOpt.value();
+        filterDept = promptForDepartmentFilter();
+    }
+    else if (filterChoice == "4")
+    {
+        filterStatus = "";
+        filterDept = "";
+    }
+    else
+    {
+        showError("Invalid filter option.");
+        ConsoleInput::waitForEnter("Press Enter to continue\n");
+    }
+}
+
+bool ManageEmployeesScreen::promptFilterOptions(std::string& filterStatus, std::string& filterDept)
+{
+    std::cout << "[F] Filter by Status / Department     [B] Back\n";
+    std::string choice = ConsoleInput::readLine("Enter choice");
+
+    if (ScreenUtils::equalsIgnoreCase(choice, "B"))
+    {
+        return false;
+    }
+
+    if (ScreenUtils::equalsIgnoreCase(choice, "F"))
+    {
+        displayFilterMenu();
+        std::string fOpt = ConsoleInput::readLine("Choice");
+        applyFilterChoice(fOpt, filterStatus, filterDept);
+    }
+    return true;
 }
 
 void ManageEmployeesScreen::updateEmployee()
 {
     try
     {
-        std::string empId = ScreenUtils::readLine("Enter Employee ID");
-        auto response = empService_.viewAllEmployees();
-        if (!response.success)
-        {
-            showError("Failed to fetch employees list.");
-            ScreenUtils::readLine("Press Enter to continue");
-            return;
-        }
+        auto empIdOpt = promptForId("Enter Employee ID");
+        if (!empIdOpt) return;
 
-        EmployeeDTO targetEmp;
-        bool found = false;
-        for (const auto& emp : response.data)
-        {
-            if (std::to_string(emp.id) == empId)
-            {
-                targetEmp = emp;
-                found = true;
-                break;
-            }
-        }
+        auto targetEmpOpt = fetchEmployeeById(empIdOpt.value());
+        if (!targetEmpOpt) return;
 
-        if (!found)
-        {
-            showError("Employee not found.");
-            ScreenUtils::readLine("Press Enter to continue");
-            return;
-        }
+        UpdateEmployeeRequest updateEmployeeRequest =
+            promptForEmployeeUpdateRequest(targetEmpOpt.value());
 
-        // clearScreen();
-        std::cout << "\n── " << targetEmp.fullName << " ─────────────────────────────────\n";
-        std::string newName = ScreenUtils::readLine("Name (" + targetEmp.fullName + ")");
-        std::string newEmail = ScreenUtils::readLine("Email (" + targetEmp.email + ")");
-        std::string newDept = ScreenUtils::readLine("Department (" + targetEmp.department + ")");
-        std::string newDesg = ScreenUtils::readLine("Designation (" + targetEmp.designation + ")");
-
-        std::cout << "Status:\n";
-        std::cout << "1. BENCH\n";
-        std::cout << "2. ALLOCATED\n";
-        std::string statusChoice = ScreenUtils::readLine("Choice");
-        std::string newStatus = targetEmp.status;
-        if (statusChoice == "1") newStatus = "BENCH";
-        else if (statusChoice == "2") newStatus = "ALLOCATED";
-
-        if (newName.empty()) newName = targetEmp.fullName;
-        if (newEmail.empty()) newEmail = targetEmp.email;
-        if (newDept.empty()) newDept = targetEmp.department;
-        if (newDesg.empty()) newDesg = targetEmp.designation;
-
-        UpdateEmployeeRequest req;
-        req.fullName = newName;
-        req.email = newEmail;
-        req.department = newDept;
-        req.designation = newDesg;
-        req.status = newStatus;
-        req.isActive = targetEmp.isActive;
-
-        auto putRes = empService_.updateEmployee(std::stoi(empId), req);
-
-        if (putRes.success)
+        auto updateResponse = empService_.updateEmployee(empIdOpt.value(), updateEmployeeRequest);
+        if (updateResponse.success)
         {
             showSuccess("Employee updated successfully. ✓");
         }
         else
         {
-            showError(putRes.message);
+            showError(updateResponse.message);
         }
-        ScreenUtils::readLine("Press Enter to continue");
+        ConsoleInput::waitForEnter("Press Enter to continue\n");
     }
-    catch (const ApiException& ex)
+    catch (const std::exception& ex)
     {
-        showError(ex.what());
-        ScreenUtils::readLine("Press Enter to continue");
+        handleStandardExceptions(ex);
     }
-    catch (const std::exception&)
-    {
-        showError("Something went wrong. Please try again.");
-    }
+}
+
+void ManageEmployeesScreen::promptForBasicDetails(const EmployeeDTO& targetEmp,
+                                                  UpdateEmployeeRequest& req)
+{
+    std::string newName = ConsoleInput::readLine("Name (" + targetEmp.fullName + ")");
+    std::string newEmail = ConsoleInput::readLine("Email (" + targetEmp.email + ")");
+    std::string newDept = ConsoleInput::readLine("Department (" + targetEmp.department + ")");
+    std::string newDesg = ConsoleInput::readLine("Designation (" + targetEmp.designation + ")");
+
+    req.fullName = newName.empty() ? targetEmp.fullName : newName;
+    req.email = newEmail.empty() ? targetEmp.email : newEmail;
+    req.department = newDept.empty() ? targetEmp.department : newDept;
+    req.designation = newDesg.empty() ? targetEmp.designation : newDesg;
+}
+
+void ManageEmployeesScreen::promptForEmployeeStatus(const EmployeeDTO& targetEmp,
+                                                    UpdateEmployeeRequest& req)
+{
+    std::cout << "Status:\n";
+    std::cout << "1. BENCH\n";
+    std::cout << "2. ALLOCATED\n";
+    std::string statusChoice = ConsoleInput::readLine("Choice");
+
+    req.status = targetEmp.status;
+    if (statusChoice == "1")
+        req.status = STATUS_BENCH;
+    else if (statusChoice == "2")
+        req.status = STATUS_ALLOCATED;
+}
+
+UpdateEmployeeRequest ManageEmployeesScreen::promptForEmployeeUpdateRequest(
+    const EmployeeDTO& targetEmp)
+{
+    std::cout << "\n── " << targetEmp.fullName << " ─────────────────────────────────\n";
+
+    UpdateEmployeeRequest updateEmployeeRequest;
+    promptForBasicDetails(targetEmp, updateEmployeeRequest);
+    promptForEmployeeStatus(targetEmp, updateEmployeeRequest);
+    updateEmployeeRequest.isActive = targetEmp.isActive;
+
+    return updateEmployeeRequest;
 }
 
 void ManageEmployeesScreen::deactivateEmployee()
 {
     try
     {
-        std::string empId = ScreenUtils::readLine("Enter Employee ID");
-        auto response = empService_.viewAllEmployees();
-        if (!response.success)
+        auto empIdOpt = promptForId("Enter Employee ID");
+        if (!empIdOpt) return;
+
+        auto targetEmpOpt = fetchEmployeeById(empIdOpt.value());
+        if (!targetEmpOpt) return;
+
+        auto targetEmp = targetEmpOpt.value();
+        if (!targetEmp.isActive)
         {
-            showError("Failed to fetch employees list.");
-            ScreenUtils::readLine("Press Enter to continue");
+            showError("Employee is already deactivated.");
+            ConsoleInput::waitForEnter("Press Enter to continue\n");
             return;
         }
-
-        EmployeeDTO targetEmp;
-        bool found = false;
-        for (const auto& emp : response.data)
-        {
-            if (std::to_string(emp.id) == empId)
-            {
-                targetEmp = emp;
-                found = true;
-                break;
-            }
-        }
-
-        if (!found)
-        {
-            showError("Employee not found.");
-            ScreenUtils::readLine("Press Enter to continue");
-            return;
-        }
-
-        // clearScreen();
         std::cout << "\n── " << targetEmp.fullName << " ─────────────────────────────────\n";
         std::cout << "Department: " << targetEmp.department << "\n";
         std::cout << "Status    : " << targetEmp.status << "\n\n";
 
-        std::cout << "⚠ Warning: This employee's active allocations will end immediately.\n";
-        std::cout << "Are you sure you want to deactivate? (Y/N): ";
-        std::string confirm = ScreenUtils::readLine("Choice");
-        if (confirm == "Y" || confirm == "y")
+        if (targetEmp.status == STATUS_ALLOCATED)
         {
-            auto patchRes = empService_.deactivateEmployee(std::stoi(empId));
-            if (patchRes.success)
+            std::cout << "⚠ Warning: This employee's active allocations will end immediately.\n";
+        }
+        std::cout << "[D] Deactivate      [B] Back\n";
+        std::string act = ConsoleInput::readLine("Enter choice");
+        if (ScreenUtils::equalsIgnoreCase(act, "D"))
+        {
+            auto deactivateResponse = empService_.deactivateEmployee(empIdOpt.value());
+            if (deactivateResponse.success)
             {
-                showSuccess("Employee deactivated. ✓");
+                showSuccess("Employee deactivated successfully. ✓");
             }
             else
             {
-                showError(patchRes.message);
+                showError(deactivateResponse.message);
             }
         }
-        ScreenUtils::readLine("Press Enter to continue");
+        ConsoleInput::waitForEnter("Press Enter to continue\n");
     }
-    catch (const ApiException& ex)
+    catch (const std::exception& ex)
     {
-        showError(ex.what());
-        ScreenUtils::readLine("Press Enter to continue");
-    }
-    catch (const std::exception&)
-    {
-        showError("Something went wrong. Please try again.");
+        handleStandardExceptions(ex);
     }
 }
 
@@ -323,193 +304,360 @@ void ManageEmployeesScreen::manageEmployeeSkills()
 {
     try
     {
-        std::string empId = ScreenUtils::readLine("Enter Employee ID");
+        auto empIdOpt = promptForId("Enter Employee ID");
+        if (!empIdOpt) return;
+        int empId = empIdOpt.value();
 
         while (true)
         {
-            auto skillsRes = empService_.getEmployeeSkills(std::stoi(empId));
+            auto skillsRes = empService_.getEmployeeSkills(empId);
             if (!skillsRes.success)
             {
                 showError(skillsRes.message);
-                ScreenUtils::readLine("Press Enter to continue");
+                ConsoleInput::waitForEnter("Press Enter to continue\n");
                 return;
             }
 
-            // clearScreen();
-            std::cout << "\n================ CURRENT SKILLS ================\n";
             auto skills = skillsRes.data;
-            int idx = 1;
-            for (const auto& sk : skills)
-            {
-                std::cout << idx++ << ". " << sk.skillName
-                          << " (" << sk.category << ") — "
-                          << sk.proficiency << "\n";
-            }
-            ScreenUtils::printDivider();
+            displayCurrentSkills(skills);
 
-            std::cout << "1. Add Skill\n";
-            std::cout << "2. Update Proficiency Level\n";
-            std::cout << "3. Remove Skill\n";
-            std::cout << "4. Back\n";
-            std::string opt = ScreenUtils::readLine("Enter option");
+            std::cout << ADD_SKILL_OPTION << ". Add Skill\n";
+            std::cout << UPDATE_SKILL_OPTION << ". Update Proficiency Level\n";
+            std::cout << REMOVE_SKILL_OPTION << ". Remove Skill\n";
+            std::cout << BACK_SKILL_OPTION << ". Back\n";
+            std::string selectedOption = ConsoleInput::readLine("Enter option");
 
-            if (opt == "1")
-            {
-                std::string skillName = ScreenUtils::readLine("Skill Name");
-                std::cout << "Category:\n";
-                std::cout << "1. Backend\n";
-                std::cout << "2. Frontend\n";
-                std::cout << "3. DevOps\n";
-                std::cout << "4. QA\n";
-                std::cout << "5. Other\n";
-                std::string catChoice = ScreenUtils::readLine("Enter choice");
-                std::string category = "OTHER";
-                if (catChoice == "1") category = "BACKEND";
-                else if (catChoice == "2") category = "FRONTEND";
-                else if (catChoice == "3") category = "DEVOPS";
-                else if (catChoice == "4") category = "QA";
-
-                std::cout << "Proficiency Level:\n";
-                std::cout << "1. Beginner\n";
-                std::cout << "2. Intermediate\n";
-                std::cout << "3. Advanced\n";
-                std::string profChoice = ScreenUtils::readLine("Enter choice");
-                std::string proficiency = "BEGINNER";
-                if (profChoice == "2") proficiency = "INTERMEDIATE";
-                else if (profChoice == "3") proficiency = "ADVANCED";
-
-                AddSkillRequest req;
-                req.skillName = skillName;
-                req.category = category;
-                req.proficiency = proficiency;
-
-                auto addRes = empService_.addSkill(std::stoi(empId), req);
-
-                if (addRes.success)
-                {
-                    showSuccess("Skill added successfully. ✓");
-                }
-                else
-                {
-                    showError(addRes.message);
-                }
-                ScreenUtils::readLine("Press Enter to continue");
-            }
-            else if (opt == "2")
-            {
-                std::string inputStr = ScreenUtils::readLine("Enter Skill # to update");
-                auto parsedInput = ScreenUtils::safeParseInt(inputStr);
-                if (!parsedInput) throw std::invalid_argument("Invalid skill number format");
-                int itemNum = parsedInput.value();
-                if (itemNum < 1 || itemNum > (int)skills.size())
-                {
-                    showError("Invalid skill number.");
-                    ScreenUtils::readLine("Press Enter to continue");
-                    continue;
-                }
-                int skillId = skills[itemNum - 1].skillId;
-
-                std::cout << "New Proficiency Level:\n";
-                std::cout << "1. Beginner\n";
-                std::cout << "2. Intermediate\n";
-                std::cout << "3. Advanced\n";
-                std::string profChoice = ScreenUtils::readLine("Enter choice");
-                std::string proficiency = "BEGINNER";
-                if (profChoice == "2") proficiency = "INTERMEDIATE";
-                else if (profChoice == "3") proficiency = "ADVANCED";
-
-                UpdateSkillRequest req;
-                req.proficiency = proficiency;
-
-                auto putRes = empService_.updateSkill(std::stoi(empId), skillId, req);
-
-                if (putRes.success)
-                {
-                    showSuccess("Skill updated successfully. ✓");
-                }
-                else
-                {
-                    showError(putRes.message);
-                }
-                ScreenUtils::readLine("Press Enter to continue");
-            }
-            else if (opt == "3")
-            {
-                std::string inputStr = ScreenUtils::readLine("Enter Skill # to remove");
-                auto parsedInput = ScreenUtils::safeParseInt(inputStr);
-                if (!parsedInput) throw std::invalid_argument("Invalid skill number format");
-                int itemNum = parsedInput.value();
-                if (itemNum < 1 || itemNum > (int)skills.size())
-                {
-                    showError("Invalid skill number.");
-                    ScreenUtils::readLine("Press Enter to continue");
-                    continue;
-                }
-                int skillId = skills[itemNum - 1].skillId;
-
-                auto delRes = empService_.removeSkill(std::stoi(empId), skillId);
-                if (delRes.success)
-                {
-                    showSuccess("Skill removed. ✓");
-                }
-                else
-                {
-                    showError(delRes.message);
-                }
-                ScreenUtils::readLine("Press Enter to continue");
-            }
-            else if (opt == "4" || opt == "B" || opt == "b")
+            if (!handleSkillOption(selectedOption, empId, skills))
             {
                 break;
             }
         }
     }
-    catch (const ApiException& ex)
+    catch (const std::exception& ex)
     {
-        showError(ex.what());
-        ScreenUtils::readLine("Press Enter to continue");
+        handleStandardExceptions(ex);
     }
-    catch (const std::exception&)
+}
+
+bool ManageEmployeesScreen::handleSkillOption(const std::string& selectedOption, int empId,
+                                              const std::vector<SkillDTO>& skills)
+{
+    if (selectedOption == ADD_SKILL_OPTION)
     {
-        showError("Something went wrong. Please try again.");
+        executeAddSkill(empId);
     }
+    else if (selectedOption == UPDATE_SKILL_OPTION)
+    {
+        executeUpdateSkill(empId, skills);
+    }
+    else if (selectedOption == REMOVE_SKILL_OPTION)
+    {
+        executeRemoveSkill(empId, skills);
+    }
+    else if (selectedOption == BACK_SKILL_OPTION ||
+             ScreenUtils::equalsIgnoreCase(selectedOption, "B"))
+    {
+        return false;
+    }
+    else
+    {
+        showError("Invalid option.");
+        ConsoleInput::waitForEnter("Press Enter to continue\n");
+    }
+    return true;
+}
+
+void ManageEmployeesScreen::displayCurrentSkills(const std::vector<SkillDTO>& skills)
+{
+    std::cout << "\n================ CURRENT SKILLS ================\n";
+    int idx = 1;
+    for (const auto& sk : skills)
+    {
+        std::cout << idx++ << ". " << sk.skillName << " (" << sk.category << ") — "
+                  << sk.proficiency << "\n";
+    }
+    ScreenUtils::printDivider();
+}
+
+std::string ManageEmployeesScreen::promptForSkillCategory()
+{
+    std::cout << "Category:\n";
+    std::cout << "1. Backend\n";
+    std::cout << "2. Frontend\n";
+    std::cout << "3. DevOps\n";
+    std::cout << "4. QA\n";
+    std::cout << "5. Other\n";
+    std::string catChoice = ConsoleInput::readLine("Enter choice");
+    if (catChoice == "1") return CATEGORY_BACKEND;
+    if (catChoice == "2") return CATEGORY_FRONTEND;
+    if (catChoice == "3") return CATEGORY_DEVOPS;
+    if (catChoice == "4") return CATEGORY_QA;
+    return CATEGORY_OTHER;
+}
+
+std::string ManageEmployeesScreen::promptForProficiency()
+{
+    std::cout << "Proficiency Level:\n";
+    std::cout << "1. Beginner\n";
+    std::cout << "2. Intermediate\n";
+    std::cout << "3. Advanced\n";
+    std::string profChoice = ConsoleInput::readLine("Enter choice");
+    if (profChoice == "2") return PROFICIENCY_INTERMEDIATE;
+    if (profChoice == "3") return PROFICIENCY_ADVANCED;
+    return PROFICIENCY_BEGINNER;
+}
+
+AddSkillRequest ManageEmployeesScreen::promptForAddSkillRequest()
+{
+    AddSkillRequest addSkillRequest;
+    addSkillRequest.skillName = ConsoleInput::readLine("Skill Name");
+    addSkillRequest.category = promptForSkillCategory();
+    addSkillRequest.proficiency = promptForProficiency();
+    return addSkillRequest;
+}
+
+void ManageEmployeesScreen::executeAddSkill(int empId)
+{
+    AddSkillRequest addSkillRequest = promptForAddSkillRequest();
+    auto addSkillResponse = empService_.addSkill(empId, addSkillRequest);
+    if (addSkillResponse.success)
+    {
+        showSuccess("Skill added successfully");
+    }
+    else
+    {
+        showError(addSkillResponse.message);
+    }
+    ConsoleInput::waitForEnter("Press Enter to continue\n");
+}
+
+std::optional<int> ManageEmployeesScreen::promptForSkillIdFromList(
+    const std::vector<SkillDTO>& skills, const std::string& prompt)
+{
+    auto itemNumOpt = promptForId(prompt);
+    if (!itemNumOpt) return std::nullopt;
+    int itemNum = itemNumOpt.value();
+
+    if (itemNum < 1 || itemNum > (int)skills.size())
+    {
+        showError("Invalid skill number.");
+        ConsoleInput::waitForEnter("Press Enter to continue\n");
+        return std::nullopt;
+    }
+    return skills[itemNum - 1].skillId;
+}
+
+UpdateSkillRequest ManageEmployeesScreen::promptForUpdateSkillRequest()
+{
+    std::cout << "New Proficiency Level:\n";
+    UpdateSkillRequest updateSkillRequest;
+    updateSkillRequest.proficiency = promptForProficiency();
+    return updateSkillRequest;
+}
+
+void ManageEmployeesScreen::executeUpdateSkill(int empId, const std::vector<SkillDTO>& skills)
+{
+    auto skillIdOpt = promptForSkillIdFromList(skills, "Enter Skill # to update");
+    if (!skillIdOpt) return;
+
+    UpdateSkillRequest updateSkillRequest = promptForUpdateSkillRequest();
+    auto updateResponse = empService_.updateSkill(empId, skillIdOpt.value(), updateSkillRequest);
+    if (updateResponse.success)
+    {
+        showSuccess("Skill updated successfully. ✓");
+    }
+    else
+    {
+        showError(updateResponse.message);
+    }
+    ConsoleInput::waitForEnter("Press Enter to continue\n");
+}
+
+void ManageEmployeesScreen::executeRemoveSkill(int empId, const std::vector<SkillDTO>& skills)
+{
+    auto skillIdOpt = promptForSkillIdFromList(skills, "Enter Skill # to remove");
+    if (!skillIdOpt) return;
+
+    auto removeSkillResponse = empService_.removeSkill(empId, skillIdOpt.value());
+    if (removeSkillResponse.success)
+    {
+        showSuccess("Skill removed successfully. ✓");
+    }
+    else
+    {
+        showError(removeSkillResponse.message);
+    }
+    ConsoleInput::waitForEnter("Press Enter to continue\n");
 }
 
 void ManageEmployeesScreen::assignManager()
 {
     try
     {
-        std::string empUserId = ScreenUtils::readLine("Employee User ID");
-        std::string mgrUserId = ScreenUtils::readLine("Manager User ID");
-        auto parsedMgrId = ScreenUtils::safeParseInt(mgrUserId);
-        if (!parsedMgrId) throw std::invalid_argument("Invalid manager ID format");
-        int mgrId = parsedMgrId.value();
+        auto employeeUserIdOpt = promptForId("Employee User ID");
+        if (!employeeUserIdOpt) return;
+        int employeeUserId = employeeUserIdOpt.value();
 
-        auto res = empService_.assignManager(std::stoi(empUserId), mgrId);
+        auto managerUserIdOpt = promptForId("Manager User ID");
+        if (!managerUserIdOpt) return;
+        int managerUserId = managerUserIdOpt.value();
 
-        if (res.success)
+        if (employeeUserId == managerUserId)
+        {
+            showError("Employee and manager cannot be the same user.");
+            ConsoleInput::waitForEnter("Press Enter to continue\n");
+            return;
+        }
+
+        auto response = empService_.assignManager(employeeUserId, managerUserId);
+
+        if (response.success)
         {
             showSuccess("Manager assigned successfully.");
         }
         else
         {
-            showError(res.message);
+            showError(response.message);
         }
-        ScreenUtils::readLine("Press Enter to continue");
+        ConsoleInput::waitForEnter("Press Enter to continue\n");
     }
     catch (const ApiException& ex)
     {
         showError(ex.what());
-        ScreenUtils::readLine("Press Enter to continue");
+        ConsoleInput::waitForEnter("Press Enter to continue\n");
     }
     catch (const std::exception&)
     {
         showError("Something went wrong. Please try again.");
+        ConsoleInput::waitForEnter("Press Enter to continue\n");
     }
 }
 
-
 ScreenDecorator ManageEmployeesScreen::decorator() const
 {
-    return ScreenDecorator("MANAGE EMPLOYEES").withWidth(40).withPadding(2);
+    return ScreenDecorator("MANAGE EMPLOYEES")
+        .withWidth(DEFAULT_PANEL_WIDTH)
+        .withPadding(DEFAULT_PADDING);
+}
+
+std::vector<EmployeeDTO> ManageEmployeesScreen::filterEmployees(
+    const std::vector<EmployeeDTO>& employees, const std::string& filterStatus,
+    const std::string& filterDept)
+{
+    std::vector<EmployeeDTO> filtered;
+    for (const auto& emp : employees)
+    {
+        if (!emp.isActive) continue;
+
+        if (!filterStatus.empty() && !ScreenUtils::equalsIgnoreCase(emp.status, filterStatus))
+            continue;
+        if (!filterDept.empty() && !ScreenUtils::equalsIgnoreCase(emp.department, filterDept))
+            continue;
+
+        filtered.push_back(emp);
+    }
+    return filtered;
+}
+
+void ManageEmployeesScreen::displayEmployeeTable(const std::vector<EmployeeDTO>& employees)
+{
+    std::cout << std::left << std::setw(ID_COLUMN_WIDTH) << "ID"
+              << std::setw(EMPLOYEE_NAME_COLUMN_WIDTH) << "Name"
+              << std::setw(DEPARTMENT_COLUMN_WIDTH) << "Department"
+              << std::setw(STATUS_COLUMN_WIDTH) << "Status" << "\n";
+    ScreenUtils::printDivider();
+
+    for (const auto& emp : employees)
+    {
+        std::cout << std::left << std::setw(ID_COLUMN_WIDTH) << emp.id
+                  << std::setw(EMPLOYEE_NAME_COLUMN_WIDTH)
+                  << ScreenUtils::truncate(ScreenUtils::valueOrDash(emp.fullName),
+                                           EMPLOYEE_NAME_COLUMN_WIDTH - 1)
+                  << std::setw(DEPARTMENT_COLUMN_WIDTH)
+                  << ScreenUtils::truncate(ScreenUtils::valueOrDash(emp.department),
+                                           DEPARTMENT_COLUMN_WIDTH - 1)
+                  << std::setw(STATUS_COLUMN_WIDTH) << ScreenUtils::valueOrDash(emp.status) << "\n";
+    }
+    ScreenUtils::printDivider();
+}
+
+void ManageEmployeesScreen::displayEmployeeSummary(const std::vector<EmployeeDTO>& employees)
+{
+    int allocatedCount = 0;
+    int benchCount = 0;
+    int unknownCount = 0;
+    for (const auto& emp : employees)
+    {
+        if (ScreenUtils::equalsIgnoreCase(emp.status, STATUS_ALLOCATED))
+            allocatedCount++;
+        else if (ScreenUtils::equalsIgnoreCase(emp.status, STATUS_BENCH))
+            benchCount++;
+        else
+            unknownCount++;
+    }
+    std::cout << "Total: " << employees.size() << "  |  Allocated: " << allocatedCount
+              << "  |  Bench: " << benchCount;
+    if (unknownCount > 0)
+    {
+        std::cout << "  |  Unknown: " << unknownCount;
+    }
+    std::cout << "\n\n";
+}
+
+void ManageEmployeesScreen::displayEmployees(const std::vector<EmployeeDTO>& employees,
+                                             const std::string& filterStatus,
+                                             const std::string& filterDept)
+{
+    std::cout << "\n================ ALL EMPLOYEES ================\n";
+    auto filtered = filterEmployees(employees, filterStatus, filterDept);
+    displayEmployeeTable(filtered);
+    displayEmployeeSummary(filtered);
+}
+
+std::optional<int> ManageEmployeesScreen::promptForId(const std::string& prompt)
+{
+    std::string inputStr = ConsoleInput::readLine(prompt);
+    auto parsed = ScreenUtils::safeParseInt(inputStr);
+    if (!parsed)
+    {
+        showError("Invalid ID format.");
+        ConsoleInput::waitForEnter("Press Enter to continue\n");
+    }
+    return parsed;
+}
+
+std::optional<EmployeeDTO> ManageEmployeesScreen::fetchEmployeeById(int empId)
+{
+    auto response = empService_.viewAllEmployees();
+    if (!response.success)
+    {
+        showError("Failed to fetch employees list.");
+        ConsoleInput::waitForEnter("Press Enter to continue\n");
+        return std::nullopt;
+    }
+
+    for (const auto& emp : response.data)
+    {
+        if (emp.id == empId)
+        {
+            return emp;
+        }
+    }
+
+    showError("Employee not found.");
+    ConsoleInput::waitForEnter("Press Enter to continue\n");
+    return std::nullopt;
+}
+
+void ManageEmployeesScreen::handleStandardExceptions(const std::exception& ex)
+{
+    if (dynamic_cast<const ApiException*>(&ex))
+    {
+        showError(ex.what());
+    }
+    else
+    {
+        showError("Something went wrong. Please try again.");
+    }
+    ConsoleInput::waitForEnter("Press Enter to continue\n");
 }

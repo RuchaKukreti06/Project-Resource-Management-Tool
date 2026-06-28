@@ -2,7 +2,13 @@
 #include "dto/SystemConfigDTO.h"
 #include "dto/ApiResponse.h"
 #include "api/ApiException.h"
+#include "utils/ConsoleInput.h"
 #include "services/ConfigClientService.h"
+#include "screens/ScreenUtils.h"
+#include <iostream>
+
+using namespace AdminConstants;
+using namespace AdminConstants::Config;
 
 SystemConfigScreen::SystemConfigScreen(ConfigClientService& configService)
     : configService_(configService)
@@ -21,26 +27,30 @@ void SystemConfigScreen::show()
     }
 }
 
+void SystemConfigScreen::applyConfig(const SystemConfigDTO& config)
+{
+    llmProvider_       = config.llmProvider;
+    llmApiKey_         = config.llmApiKey;
+    schedulerInterval_ = config.schedulerIntervalHours;
+    maxWeeklyHours_    = config.maxWeeklyHours;
+    smtpEnabled_       = config.smtpEnabled;
+    smtpHost_          = config.smtpHost;
+    smtpPort_          = config.smtpPort;
+    smtpUsername_      = config.smtpUsername;
+    smtpPasswordMasked_ = config.smtpPassword;
+    smtpFromEmail_     = config.smtpFromEmail;
+    smtpFromName_      = config.smtpFromName;
+    smtpUseTls_        = config.smtpUseTls;
+}
+
 void SystemConfigScreen::loadConfig()
 {
     try
     {
-        auto res = configService_.getConfig();
-        if (res.success && res.data.has_value())
+        auto configResponse = configService_.getConfig();
+        if (configResponse.success && configResponse.data.has_value())
         {
-            const auto& data = res.data.value();
-            llmProvider_       = data.llmProvider;
-            llmApiKey_         = data.llmApiKey;
-            schedulerInterval_ = data.schedulerIntervalHours;
-            maxWeeklyHours_    = data.maxWeeklyHours;
-            smtpEnabled_       = data.smtpEnabled;
-            smtpHost_          = data.smtpHost;
-            smtpPort_          = data.smtpPort;
-            smtpUsername_      = data.smtpUsername;
-            smtpPasswordMasked_ = data.smtpPassword;
-            smtpFromEmail_     = data.smtpFromEmail;
-            smtpFromName_      = data.smtpFromName;
-            smtpUseTls_        = data.smtpUseTls;
+            applyConfig(configResponse.data.value());
         }
     }
     catch (const ApiException& ex)
@@ -57,10 +67,10 @@ bool SystemConfigScreen::sendTestEmail(const std::string& toEmail)
 {
     try
     {
-        auto res = configService_.sendTestEmail(toEmail, "PRM SMTP Test", "SMTP configuration test succeeded.");
-        if (!res.success)
+        auto testEmailResponse = configService_.sendTestEmail(toEmail, "PRM SMTP Test", "SMTP configuration test succeeded.");
+        if (!testEmailResponse.success)
         {
-            showError(res.message);
+            showError(testEmailResponse.message);
             return false;
         }
         return true;
@@ -77,14 +87,14 @@ bool SystemConfigScreen::sendTestEmail(const std::string& toEmail)
     }
 }
 
-bool SystemConfigScreen::saveConfig(const nlohmann::json& patch)
+bool SystemConfigScreen::saveConfig(const nlohmann::json& configPatch)
 {
     try
     {
-        auto res = configService_.updateConfig(patch);
-        if (!res.success)
+        auto updateResponse = configService_.updateConfig(configPatch);
+        if (!updateResponse.success)
         {
-            showError(res.message);
+            showError(updateResponse.message);
             return false;
         }
         loadConfig();  // Refresh local values from server
@@ -102,10 +112,8 @@ bool SystemConfigScreen::saveConfig(const nlohmann::json& patch)
     }
 }
 
-void SystemConfigScreen::displayMenu()
+void SystemConfigScreen::displayCurrentSettings()
 {
-    decorator().render();
-
     std::cout << "\nCurrent Settings:\n";
     std::cout << "  LLM Provider        :  " << llmProvider_ << "\n";
     std::cout << "  LLM API Key         :  "
@@ -125,194 +133,241 @@ void SystemConfigScreen::displayMenu()
               << (smtpFromName_.empty() ? "(not set)" : smtpFromName_) << "\n";
     std::cout << "  SMTP TLS            :  " << (smtpUseTls_ ? "Enabled" : "Disabled") << "\n";
     ScreenUtils::printDivider();
+}
 
-    std::cout << "1. Update LLM API Key\n";
-    std::cout << "2. Change LLM Provider (Gemini / Groq / Gemma Remote)\n";
-    std::cout << "3. Update Scheduler Interval\n";
-    std::cout << "4. Update Max Weekly Hours\n";
-    std::cout << "5. Enable/Disable SMTP\n";
-    std::cout << "6. Update SMTP Server (Host + Port)\n";
-    std::cout << "7. Update SMTP Credentials\n";
-    std::cout << "8. Update SMTP Sender\n";
-    std::cout << "9. Toggle SMTP TLS\n";
-    std::cout << "10. Send Test Email\n";
-    std::cout << "11. Back\n";
+void SystemConfigScreen::displayConfigOptions()
+{
+    std::cout << OPT_LLM_KEY << ". Update LLM API Key\n";
+    std::cout << OPT_LLM_PROV << ". Change LLM Provider (Gemini / Groq / Gemma Remote)\n";
+    std::cout << OPT_SCHED << ". Update Scheduler Interval\n";
+    std::cout << OPT_HOURS << ". Update Max Weekly Hours\n";
+    std::cout << OPT_SMTP_EN << ". Enable/Disable SMTP\n";
+    std::cout << OPT_SMTP_SRV << ". Update SMTP Server (Host + Port)\n";
+    std::cout << OPT_SMTP_CRED << ". Update SMTP Credentials\n";
+    std::cout << OPT_SMTP_SND << ". Update SMTP Sender\n";
+    std::cout << OPT_SMTP_TLS << ". Toggle SMTP TLS\n";
+    std::cout << OPT_TEST_EMAIL << ". Send Test Email\n";
+    std::cout << OPT_BACK << ". Back\n";
+}
+
+void SystemConfigScreen::displayMenu()
+{
+    decorator().render();
+    displayCurrentSettings();
+    displayConfigOptions();
 }
 
 void SystemConfigScreen::handleInput()
 {
-    std::string choice = ScreenUtils::readLine("Enter option");
+    std::string choice = ConsoleInput::readLine("Enter option");
 
-    if (choice == "1")
+    if (choice == OPT_LLM_KEY)
     {
-        std::string key = ScreenUtils::readLine("Enter new LLM API Key");
-        if (key.empty())
-        {
-            showError("API Key cannot be empty.");
-            ScreenUtils::readLine("Press Enter to continue");
-            return;
-        }
-        if (saveConfig({{"llm_api_key", key}}))
-        {
-            showSuccess("System Settings updated successfully. ✓");
-            loadConfig();
-        }
-        ScreenUtils::readLine("Press Enter to continue");
+        handleUpdateLlmKey();
     }
-    else if (choice == "2")
+    else if (choice == OPT_LLM_PROV)
     {
-        std::cout << "Select Provider:\n";
-        std::cout << "1. Google Gemini\n";
-        std::cout << "2. Groq\n";
-        std::cout << "3. Gemma (Remote) - http://164.52.211.238\n";
-        std::string prov = ScreenUtils::readLine("Choice");
-        std::string providerName;
-        if      (prov == "1") providerName = "Google Gemini";
-        else if (prov == "2") providerName = "Groq";
-        else if (prov == "3") providerName = "Gemma (Remote)";
-        else
-        {
-            showError("Invalid choice.");
-            ScreenUtils::readLine("Press Enter to continue");
-            return;
-        }
-        if (saveConfig({{"llm_provider", providerName}}))
-            showSuccess("LLM Provider updated to " + providerName + ".");
-        ScreenUtils::readLine("Press Enter to continue");
+        handleChangeLlmProvider();
     }
-    else if (choice == "3")
+    else if (choice == OPT_SCHED)
     {
-        std::string val = ScreenUtils::readLine("Enter Scheduler Interval in hours (1-168)");
-        auto parsedVal = ScreenUtils::safeParseInt(val);
-        if (!parsedVal) {
-            showError("Invalid interval format");
-            ScreenUtils::readLine("Press Enter to continue");
-            return;
-        }
-        int hrs = parsedVal.value();
-
-        if (hrs < 1 || hrs > 168)
-        {
-            showError("Interval must be between 1 and 168.");
-            ScreenUtils::readLine("Press Enter to continue");
-            return;
-        }
-        if (saveConfig({{"scheduler_interval", hrs}}))
-            showSuccess("Scheduler Interval updated to " + std::to_string(hrs) + " hours.");
-        ScreenUtils::readLine("Press Enter to continue");
+        handleUpdateSchedulerInterval();
     }
-    else if (choice == "4")
+    else if (choice == OPT_HOURS)
     {
-        std::string hrsStr = ScreenUtils::readLine("Enter Max Weekly Hours (1-168)");
-        auto parsedH = ScreenUtils::safeParseInt(hrsStr);
-        if (!parsedH) {
-            showError("Invalid hours format");
-            ScreenUtils::readLine("Press Enter to continue");
-            return;
-        }
-        int h = parsedH.value();
-
-        if (h < 1 || h > 168)
-        {
-            showError("Hours must be between 1 and 168.");
-            ScreenUtils::readLine("Press Enter to continue");
-            return;
-        }
-        if (saveConfig({{"max_weekly_hours", h}}))
-            showSuccess("Max Weekly Hours updated to " + std::to_string(h) + ".");
-        ScreenUtils::readLine("Press Enter to continue");
+        handleUpdateWeeklyHours();
     }
-    else if (choice == "5")
+    else if (choice == OPT_SMTP_EN)
     {
-        if (saveConfig({{"smtp_enabled", !smtpEnabled_}}))
-            showSuccess(std::string("SMTP ") + (!smtpEnabled_ ? "enabled." : "disabled."));
-        ScreenUtils::readLine("Press Enter to continue");
+        handleToggleSmtp();
     }
-    else if (choice == "6")
+    else if (choice == OPT_SMTP_SRV)
     {
-        std::string host = ScreenUtils::readLine("Enter SMTP host");
-        std::string port = ScreenUtils::readLine("Enter SMTP port");
-        auto parsedPortOpt = ScreenUtils::safeParseInt(port);
-        if (!parsedPortOpt) {
-            showError("Invalid port format");
-            ScreenUtils::readLine("Press Enter to continue");
-            return;
-        }
-        int parsedPort = parsedPortOpt.value();
-
-        if (parsedPort < 1 || parsedPort > 65535)
-        {
-            showError("SMTP port must be between 1 and 65535.");
-            ScreenUtils::readLine("Press Enter to continue");
-            return;
-        }
-
-        if (saveConfig({{"smtp_host", host}, {"smtp_port", parsedPort}}))
-            showSuccess("SMTP server updated.");
-        ScreenUtils::readLine("Press Enter to continue");
+        handleUpdateSmtpServer();
     }
-    else if (choice == "7")
+    else if (choice == OPT_SMTP_CRED)
     {
-        std::string username = ScreenUtils::readLine("Enter SMTP username");
-        std::string password = ScreenUtils::readLine("Enter SMTP password");
-        if (password.empty())
-        {
-            showError("SMTP password cannot be empty.");
-            ScreenUtils::readLine("Press Enter to continue");
-            return;
-        }
-        if (saveConfig({{"smtp_username", username}, {"smtp_password", password}}))
-            showSuccess("SMTP credentials updated.");
-        ScreenUtils::readLine("Press Enter to continue");
+        handleUpdateSmtpCredentials();
     }
-    else if (choice == "8")
+    else if (choice == OPT_SMTP_SND)
     {
-        std::string fromEmail = ScreenUtils::readLine("Enter SMTP from email");
-        std::string fromName = ScreenUtils::readLine("Enter SMTP from name (optional)");
-        if (fromEmail.empty())
-        {
-            showError("SMTP from email cannot be empty.");
-            ScreenUtils::readLine("Press Enter to continue");
-            return;
-        }
-        if (saveConfig({{"smtp_from_email", fromEmail}, {"smtp_from_name", fromName}}))
-            showSuccess("SMTP sender updated.");
-        ScreenUtils::readLine("Press Enter to continue");
+        handleUpdateSmtpSender();
     }
-    else if (choice == "9")
+    else if (choice == OPT_SMTP_TLS)
     {
-        if (saveConfig({{"smtp_use_tls", !smtpUseTls_}}))
-            showSuccess(std::string("SMTP TLS ") + (!smtpUseTls_ ? "enabled." : "disabled."));
-        ScreenUtils::readLine("Press Enter to continue");
+        handleToggleSmtpTls();
     }
-    else if (choice == "10")
+    else if (choice == OPT_TEST_EMAIL)
     {
-        std::string toEmail = ScreenUtils::readLine("Enter recipient email");
-        if (toEmail.empty())
-        {
-            showError("Recipient email cannot be empty.");
-            ScreenUtils::readLine("Press Enter to continue");
-            return;
-        }
-        if (sendTestEmail(toEmail))
-        {
-            showSuccess("Test email sent successfully. ✓");
-        }
-        ScreenUtils::readLine("Press Enter to continue");
+        handleSendTestEmail();
     }
-    else if (choice == "11" || choice == "B" || choice == "b")
+    else if (choice == OPT_BACK || ScreenUtils::equalsIgnoreCase(choice, "B"))
     {
         keepRunning_ = false;
     }
     else
     {
         showError("Invalid option. Please enter 1-11.");
-        ScreenUtils::readLine("Press Enter to continue");
+        ConsoleInput::waitForEnter("Press Enter to continue\n");
     }
+}
+
+void SystemConfigScreen::saveConfigAndNotify(const nlohmann::json& configPatch, const std::string& successMsg)
+{
+    if (saveConfig(configPatch))
+    {
+        showSuccess(successMsg);
+    }
+    ConsoleInput::waitForEnter("Press Enter to continue\n");
+}
+
+std::optional<int> SystemConfigScreen::promptForIntInRange(const std::string& prompt, int minVal, int maxVal)
+{
+    std::string input = ConsoleInput::readLine(prompt);
+    auto parsedValOpt = ScreenUtils::safeParseInt(input);
+    
+    if (!parsedValOpt)
+    {
+        showError("Invalid number format");
+        return std::nullopt;
+    }
+    
+    int parsedValue = parsedValOpt.value();
+    if (parsedValue < minVal || parsedValue > maxVal)
+    {
+        showError("Value must be between " + std::to_string(minVal) + " and " + std::to_string(maxVal) + ".");
+        return std::nullopt;
+    }
+    
+    return parsedValue;
+}
+
+void SystemConfigScreen::handleUpdateLlmKey()
+{
+    std::string key = ConsoleInput::readLine("Enter new LLM API Key");
+    if (key.empty())
+    {
+        showError("API Key cannot be empty.");
+        ConsoleInput::waitForEnter("Press Enter to continue\n");
+        return;
+    }
+    saveConfigAndNotify({{"llm_api_key", key}}, "System Settings updated successfully. ✓");
+}
+
+void SystemConfigScreen::handleChangeLlmProvider()
+{
+    std::cout << "Select Provider:\n";
+    std::cout << "1. Google Gemini\n";
+    std::cout << "2. Groq\n";
+    std::cout << "3. Gemma (Remote)\n";
+    std::string prov = ConsoleInput::readLine("Choice");
+    std::string providerName;
+    if      (prov == "1") providerName = "Google Gemini";
+    else if (prov == "2") providerName = "Groq";
+    else if (prov == "3") providerName = "Gemma (Remote)";
+    else
+    {
+        showError("Invalid choice.");
+        ConsoleInput::waitForEnter("Press Enter to continue\n");
+        return;
+    }
+    saveConfigAndNotify({{"llm_provider", providerName}}, "LLM Provider updated to " + providerName + ".");
+}
+
+void SystemConfigScreen::handleUpdateSchedulerInterval()
+{
+    auto schedulerIntervalHoursOpt = promptForIntInRange("Enter Scheduler Interval in hours (1-168)", MIN_HOURS_PER_WEEK, MAX_HOURS_PER_WEEK);
+    if (!schedulerIntervalHoursOpt)
+    {
+        ConsoleInput::waitForEnter("Press Enter to continue\n");
+        return;
+    }
+    saveConfigAndNotify({{"scheduler_interval", schedulerIntervalHoursOpt.value()}}, "Scheduler Interval updated to " + std::to_string(schedulerIntervalHoursOpt.value()) + " hours.");
+}
+
+void SystemConfigScreen::handleUpdateWeeklyHours()
+{
+    auto maxWeeklyHoursOpt = promptForIntInRange("Enter Max Weekly Hours (1-168)", MIN_HOURS_PER_WEEK, MAX_HOURS_PER_WEEK);
+    if (!maxWeeklyHoursOpt)
+    {
+        ConsoleInput::waitForEnter("Press Enter to continue\n");
+        return;
+    }
+    saveConfigAndNotify({{"max_weekly_hours", maxWeeklyHoursOpt.value()}}, "Max Weekly Hours updated to " + std::to_string(maxWeeklyHoursOpt.value()) + ".");
+}
+
+void SystemConfigScreen::handleToggleSmtp()
+{
+    saveConfigAndNotify({{"smtp_enabled", !smtpEnabled_}}, std::string("SMTP ") + (!smtpEnabled_ ? "enabled." : "disabled."));
+}
+
+void SystemConfigScreen::handleUpdateSmtpServer()
+{
+    std::string host = ConsoleInput::readLine("Enter SMTP host");
+    if (host.empty())
+    {
+        showError("SMTP host cannot be empty.");
+        ConsoleInput::waitForEnter("Press Enter to continue\n");
+        return;
+    }
+    auto portOpt = promptForIntInRange("Enter SMTP port", MIN_SMTP_PORT, MAX_SMTP_PORT);
+    if (!portOpt)
+    {
+        ConsoleInput::waitForEnter("Press Enter to continue\n");
+        return;
+    }
+    saveConfigAndNotify({{"smtp_host", host}, {"smtp_port", portOpt.value()}}, "SMTP server updated.");
+}
+
+void SystemConfigScreen::handleUpdateSmtpCredentials()
+{
+    std::string username = ConsoleInput::readLine("Enter SMTP username");
+    std::string password = ScreenUtils::readPassword("Enter SMTP password");
+    if (password.empty())
+    {
+        showError("SMTP password cannot be empty.");
+        ConsoleInput::waitForEnter("Press Enter to continue\n");
+        return;
+    }
+    saveConfigAndNotify({{"smtp_username", username}, {"smtp_password", password}}, "SMTP credentials updated.");
+}
+
+void SystemConfigScreen::handleUpdateSmtpSender()
+{
+    std::string fromEmail = ConsoleInput::readLine("Enter SMTP from email");
+    if (fromEmail.empty() || !ScreenUtils::isValidEmail(fromEmail))
+    {
+        showError("Valid SMTP from email is required.");
+        ConsoleInput::waitForEnter("Press Enter to continue\n");
+        return;
+    }
+    std::string fromName = ConsoleInput::readLine("Enter SMTP from name (optional)");
+    
+    saveConfigAndNotify({{"smtp_from_email", fromEmail}, {"smtp_from_name", fromName}}, "SMTP sender updated.");
+}
+
+void SystemConfigScreen::handleToggleSmtpTls()
+{
+    saveConfigAndNotify({{"smtp_use_tls", !smtpUseTls_}}, std::string("SMTP TLS ") + (!smtpUseTls_ ? "enabled." : "disabled."));
+}
+
+void SystemConfigScreen::handleSendTestEmail()
+{
+    std::string toEmail = ConsoleInput::readLine("Enter recipient email");
+    if (toEmail.empty() || !ScreenUtils::isValidEmail(toEmail))
+    {
+        showError("Valid recipient email is required.");
+        ConsoleInput::waitForEnter("Press Enter to continue\n");
+        return;
+    }
+    if (sendTestEmail(toEmail))
+    {
+        showSuccess("Test email sent successfully. ✓");
+    }
+    ConsoleInput::waitForEnter("Press Enter to continue\n");
 }
 
 ScreenDecorator SystemConfigScreen::decorator() const
 {
-    return ScreenDecorator("SYSTEM CONFIGURATION").withWidth(40).withPadding(2);
+    return ScreenDecorator("SYSTEM CONFIGURATION").withWidth(DEFAULT_PANEL_WIDTH).withPadding(DEFAULT_PADDING);
 }
-
