@@ -16,6 +16,9 @@ class ApiClient : public IApiClient
     std::unique_ptr<httplib::Client> client_;
 
     nlohmann::json handleResponse(const httplib::Result& response);
+    nlohmann::json parseSuccessResponse(const httplib::Result& response);
+    std::string parseErrorMessage(const httplib::Result& response);
+    [[noreturn]] void throwExceptionForStatus(int status, const std::string& errorMessage);
 
    public:
     ApiClient(const std::string& baseUrl);

@@ -9,19 +9,14 @@ namespace api
 
 class AuthSession : public ISessionStore
 {
-   private:
+   public:
     AuthSession() = default;
-    std::string token_;
-    std::string username_;
-    std::string role_;
-    int userId_ = 0;
-    bool forcePasswordChange_ = false;
+   private:
+    SessionData data_;
     bool loggedIn_ = false;
 
    public:
-    static AuthSession& instance();
-    void login(const std::string& token, const std::string& username, const std::string& role,
-               int userId, bool forcePasswordChange) override;
+    void login(const SessionData& data) override;
     void logout() override;
     bool isLoggedIn() const override;
     const std::string& token() const override;

@@ -12,12 +12,11 @@ class IApiClient;
 class Application
 {
    private:
-    std::string baseUrl;
     std::unique_ptr<AppServices> services_;
     std::unique_ptr<Router> router_;
 
    public:
-    Application(const std::string& baseUrl, IApiClient& apiClient);
+    Application(IApiClient& apiClient, api::ISessionStore& sessionStore);
     ~Application();
     void run();
 };

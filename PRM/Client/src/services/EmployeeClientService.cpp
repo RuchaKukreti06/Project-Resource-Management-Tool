@@ -10,6 +10,11 @@ ApiListResponse<EmployeeDTO> EmployeeClientService::viewAllEmployees()
     return ApiListResponse<EmployeeDTO>::fromJson(apiClient_.get("/employees"));
 }
 
+ApiResponse<EmployeeDTO> EmployeeClientService::getMe()
+{
+    return ApiResponse<EmployeeDTO>::fromJson(apiClient_.get("/employees/me"));
+}
+
 ApiEmptyResponse EmployeeClientService::updateEmployee(int employeeId, const UpdateEmployeeRequest& request)
 {
     return ApiEmptyResponse::fromJson(apiClient_.put("/employees/" + std::to_string(employeeId), request.toJson()));

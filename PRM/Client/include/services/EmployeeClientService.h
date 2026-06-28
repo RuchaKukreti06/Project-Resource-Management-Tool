@@ -16,6 +16,7 @@ public:
     explicit EmployeeClientService(IApiClient& apiClient);
 
     ApiListResponse<EmployeeDTO> viewAllEmployees();
+    ApiResponse<EmployeeDTO> getMe();
     ApiEmptyResponse updateEmployee(int employeeId, const UpdateEmployeeRequest& request);
     ApiEmptyResponse deactivateEmployee(int employeeId);
     

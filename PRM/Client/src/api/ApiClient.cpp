@@ -2,14 +2,14 @@
 #include "ApiException.h"
 
 #include <httplib.h>
+#include "utils/Constants.h"
 
 ApiClient::ApiClient(const std::string& baseUrl)
     : baseUrl_(baseUrl),
-      client_(std::make_unique<httplib::Client>("127.0.0.1", 8080))  // constructed once, correctly
+      client_(std::make_unique<httplib::Client>(baseUrl_))
 {
-    client_->set_connection_timeout(5, 0);
-    client_->set_read_timeout(60, 0);  // 60 s — LLM calls may take up to 60 s
-
+    client_->set_connection_timeout(constants::CONNECTION_TIMEOUT_SEC, 0);
+    client_->set_read_timeout(constants::READ_TIMEOUT_SEC, 0);
 }
 
 nlohmann::json ApiClient::get(const std::string& endpoint)
@@ -84,18 +84,29 @@ nlohmann::json ApiClient::handleResponse(const httplib::Result& response)
         throw NetworkException("Could not connect to server. Please check if the server is running.");
     }
 
-    if (response->status >= 200 && response->status < 300)
+    if (response->status >= constants::HTTP_STATUS_OK_MIN && response->status <= constants::HTTP_STATUS_OK_MAX)
     {
-        if (response->body.empty()) {
-            return nlohmann::json::object();
-        }
-        try {
-            return nlohmann::json::parse(response->body);
-        } catch (...) {
-            throw ServerException("Invalid JSON response from server.", response->status);
-        }
+        return parseSuccessResponse(response);
     }
 
+    std::string errorMessage = parseErrorMessage(response);
+    throwExceptionForStatus(response->status, errorMessage);
+}
+
+nlohmann::json ApiClient::parseSuccessResponse(const httplib::Result& response)
+{
+    if (response->body.empty()) {
+        return nlohmann::json::object();
+    }
+    try {
+        return nlohmann::json::parse(response->body);
+    } catch (...) {
+        throw ServerException("Invalid JSON response from server.", response->status);
+    }
+}
+
+std::string ApiClient::parseErrorMessage(const httplib::Result& response)
+{
     std::string errorMessage = "An unknown error occurred.";
     try
     {
@@ -111,26 +122,29 @@ nlohmann::json ApiClient::handleResponse(const httplib::Result& response)
     }
     catch (...)
     {
-        // If it's not JSON, maybe use a default message or raw body if we have to, but instructions say no raw body.
-        if (response->status == 404) errorMessage = "Resource not found.";
-        else if (response->status == 500) errorMessage = "Internal server error.";
+        if (response->status == constants::HTTP_STATUS_NOT_FOUND) errorMessage = "Resource not found.";
+        else if (response->status == constants::HTTP_STATUS_INTERNAL_SERVER_ERROR) errorMessage = "Internal server error.";
     }
+    return errorMessage;
+}
 
-    switch (response->status)
+void ApiClient::throwExceptionForStatus(int status, const std::string& errorMessage)
+{
+    switch (status)
     {
-        case 400:
+        case constants::HTTP_STATUS_BAD_REQUEST:
             throw ValidationException(errorMessage);
-        case 401:
+        case constants::HTTP_STATUS_UNAUTHORIZED:
             throw AuthenticationException(errorMessage);
-        case 403:
+        case constants::HTTP_STATUS_FORBIDDEN:
             throw AuthorizationException("You are not allowed to perform this action.");
-        case 404:
+        case constants::HTTP_STATUS_NOT_FOUND:
             throw NotFoundException(errorMessage);
         default:
-            if (response->status >= 500)
+            if (status >= constants::HTTP_STATUS_INTERNAL_SERVER_ERROR)
             {
-                throw ServerException(errorMessage, response->status);
+                throw ServerException(errorMessage, status);
             }
-            throw ApiException(errorMessage, response->status);
+            throw ApiException(errorMessage, status);
     }
 }

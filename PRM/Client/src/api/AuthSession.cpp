@@ -1,32 +1,17 @@
-﻿#include "AuthSession.h"
+#include "AuthSession.h"
 
 namespace api
 {
 
-AuthSession& AuthSession::instance()
+void AuthSession::login(const SessionData& data)
 {
-    static AuthSession session;
-    return session;
-}
-
-void AuthSession::login(const std::string& token, const std::string& username,
-                        const std::string& role, int userId, bool forcePasswordChange)
-{
-    token_ = token;
-    username_ = username;
-    role_ = role;
-    userId_ = userId;
-    forcePasswordChange_ = forcePasswordChange;
+    data_ = data;
     loggedIn_ = true;
 }
 
 void AuthSession::logout()
 {
-    token_.clear();
-    username_.clear();
-    role_.clear();
-    userId_ = 0;
-    forcePasswordChange_ = false;
+    data_ = SessionData{};
     loggedIn_ = false;
 }
 
@@ -37,27 +22,27 @@ bool AuthSession::isLoggedIn() const
 
 const std::string& AuthSession::token() const
 {
-    return token_;
+    return data_.token;
 }
 
 const std::string& AuthSession::username() const
 {
-    return username_;
+    return data_.username;
 }
 
 const std::string& AuthSession::role() const
 {
-    return role_;
+    return data_.role;
 }
 
 int AuthSession::userId() const
 {
-    return userId_;
+    return data_.userId;
 }
 
 bool AuthSession::forcePasswordChange() const
 {
-    return forcePasswordChange_;
+    return data_.forcePasswordChange;
 }
 
 }  // namespace api

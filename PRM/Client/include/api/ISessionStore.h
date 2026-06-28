@@ -5,13 +5,20 @@
 namespace api
 {
 
+struct SessionData {
+    std::string token;
+    std::string username;
+    std::string role;
+    int userId = 0;
+    bool forcePasswordChange = false;
+};
+
 class ISessionStore
 {
 public:
     virtual ~ISessionStore() = default;
 
-    virtual void login(const std::string& token, const std::string& username, const std::string& role,
-                       int userId, bool forcePasswordChange) = 0;
+    virtual void login(const SessionData& data) = 0;
     virtual void logout() = 0;
     
     virtual bool isLoggedIn() const = 0;
