@@ -1,4 +1,5 @@
 #include "employee/EmployeeScreen.h"
+#include "utils/ConsoleInput.h"
 #include "employee/SubmitTimesheetScreen.h"
 #include "AuthSession.h"
 #include "dto/ApiResponse.h"
@@ -6,7 +7,6 @@
 #include "dto/TimesheetDTO.h"
 #include "dto/ProjectDTO.h"
 #include "dto/AllocationDTO.h"
-#include "AuthSession.h"
 #include <iomanip>
 #include <map>
 #include "api/ApiException.h"
@@ -14,6 +14,7 @@
 #include "services/TimesheetClientService.h"
 #include "services/ProjectClientService.h"
 #include "services/AllocationClientService.h"
+#include "screens/ScreenUtils.h"
 
 #include "app/Router.h"
 #include "api/ISessionStore.h"
@@ -43,19 +44,11 @@ void EmployeeScreen::displayMenu()
 void EmployeeScreen::show()
 {
     // Fetch Employee ID
-    int userId = sessionStore_.userId();
     int empId = 0;
-    auto empRes = empService_.viewAllEmployees();
-    if (empRes.success)
+    auto empRes = empService_.getMe();
+    if (empRes.success && empRes.data)
     {
-        for (const auto& e : empRes.data)
-        {
-            if (e.userId == userId)
-            {
-                empId = e.id;
-                break;
-            }
-        }
+        empId = empRes.data->id;
     }
 
     while (true)
@@ -111,7 +104,7 @@ void EmployeeScreen::show()
 
 void EmployeeScreen::handleInput()
 {
-    std::string choice = ScreenUtils::readLine("Enter option");
+    std::string choice = ConsoleInput::readLine("Enter option");
     if (choice == "1")
     {
         router_.navigateToSubmitTimesheet();
@@ -132,7 +125,7 @@ void EmployeeScreen::handleInput()
     else
     {
         showError("Invalid option. Please enter 1–4.");
-        ScreenUtils::readLine("Press Enter to continue");
+        ConsoleInput::waitForEnter("Press Enter to continue\n");
     }
 }
 
@@ -159,7 +152,7 @@ void EmployeeScreen::viewMyTimesheets()
         if (empId == 0)
         {
             showError("No employee profile linked to your user account.");
-            ScreenUtils::readLine("Press Enter to continue");
+            ConsoleInput::waitForEnter("Press Enter to continue\n");
             return;
         }
 
@@ -167,17 +160,13 @@ void EmployeeScreen::viewMyTimesheets()
         if (!response.success)
         {
             showError(response.message);
-            ScreenUtils::readLine("Press Enter to continue");
+            ConsoleInput::waitForEnter("Press Enter to continue\n");
             return;
         }
 
         auto timesheets = response.data;
-        // clearScreen();
-        std::cout << "\n================ MY TIMESHEETS ================\n";
-        std::cout << std::left << std::setw(15) << "Week Start"
-                  << std::setw(15) << "Total Hrs"
-                  << "Status\n";
-        ScreenUtils::printDivider();
+        
+        std::vector<TimesheetDisplayData> displayData;
 
         std::vector<TimesheetDTO> tsList;
         for (const auto& ts : timesheets)
@@ -198,19 +187,22 @@ void EmployeeScreen::viewMyTimesheets()
                 dispDate = b;
             }
 
-            std::cout << std::left << std::setw(15) << dispDate
-                      << std::setw(15) << (std::to_string(ts.totalHours) + " hrs")
-                      << ts.status << "\n";
+            displayData.push_back({
+                dispDate,
+                std::to_string(ts.totalHours) + " hrs",
+                ts.status
+            });
         }
-        ScreenUtils::printDivider();
+        
+        displayMyTimesheets(displayData);
         
         while (true)
         {
             std::cout << "\n[V] View week details     [B] Back\n";
-            std::string choice = ScreenUtils::readLine("Enter option");
+            std::string choice = ConsoleInput::readLine("Enter option");
             if (choice == "V" || choice == "v")
             {
-                std::string dateToView = ScreenUtils::readLine("Enter Week Start Date (YYYY-MM-DD)");
+                std::string dateToView = ConsoleInput::readLine("Enter Week Start Date (YYYY-MM-DD)");
 
                 // Validate format before searching
                 int yy, mm, dd;
@@ -253,7 +245,7 @@ void EmployeeScreen::viewMyTimesheets()
     catch (const ApiException& ex)
     {
         showError(ex.what());
-        ScreenUtils::readLine("Press Enter to continue");
+        ConsoleInput::waitForEnter("Press Enter to continue\n");
     }
     catch (const std::exception&)
     {
@@ -284,18 +276,11 @@ void EmployeeScreen::viewMyAllocations()
         if (empId == 0)
         {
             showError("No employee profile linked to your user account.");
-            ScreenUtils::readLine("Press Enter to continue");
+            ConsoleInput::waitForEnter("Press Enter to continue\n");
             return;
         }
 
-        // clearScreen();
-        std::cout << "\n================ MY ALLOCATIONS ================\n";
-        std::cout << std::left << std::setw(20) << "Project"
-                  << std::setw(8) << "%"
-                  << std::setw(12) << "From"
-                  << std::setw(12) << "To"
-                  << "Status\n";
-        ScreenUtils::printDivider();
+        std::vector<AllocationDisplayData> allocData;
 
         auto projRes = projService_.viewAllProjects();
         std::map<int, std::string> projectNames;
@@ -315,28 +300,30 @@ void EmployeeScreen::viewMyAllocations()
             for (const auto& alloc : allocs.data)
             {
                 std::string pName = projectNames.count(alloc.projectId) ? projectNames[alloc.projectId] : "Unknown Project";
-                std::cout << std::left << std::setw(20) << pName.substr(0, 19)
-                          << std::setw(8) << (std::to_string(alloc.utilizationPercentage) + "%")
-                          << std::setw(12) << alloc.fromDate
-                          << std::setw(12) << alloc.toDate
-                          << "ACTIVE\n";
+                allocData.push_back({
+                    pName.substr(0, 19),
+                    std::to_string(alloc.utilizationPercentage) + "%",
+                    alloc.fromDate,
+                    alloc.toDate,
+                    "ACTIVE"
+                });
                 totalUtil += alloc.utilizationPercentage;
                 count++;
             }
         }
-        ScreenUtils::printDivider();
-        std::cout << "Total Utilisation: " << totalUtil << "%\n\n";
+        
+        displayMyAllocations(allocData, totalUtil);
 
         if (count == 0)
         {
             showInfo("You have no active allocations.");
         }
-        ScreenUtils::readLine("Press Enter to go back");
+        ConsoleInput::waitForEnter("Press Enter to go back\n");
     }
     catch (const ApiException& ex)
     {
         showError(ex.what());
-        ScreenUtils::readLine("Press Enter to continue");
+        ConsoleInput::waitForEnter("Press Enter to continue\n");
     }
     catch (const std::exception&)
     {
@@ -350,7 +337,7 @@ void EmployeeScreen::viewTimesheetDetails(int timesheetId, const std::string& we
     if (!response.success)
     {
         showError(response.message);
-        ScreenUtils::readLine("Press Enter to continue");
+        ConsoleInput::waitForEnter("Press Enter to continue\n");
         return;
     }
 
@@ -367,28 +354,82 @@ void EmployeeScreen::viewTimesheetDetails(int timesheetId, const std::string& we
         dispDate = b;
     }
 
-    std::cout << "\n\n── Week: " << dispDate << " — Status: " << status << " ─────\n\n";
-    std::cout << std::left << std::setw(20) << "Project"
-              << std::setw(10) << "Hrs"
-              << "Activity Tags\n";
-    ScreenUtils::printDivider();
-
     int total = 0;
     for (const auto& row : response.data)
     {
-        int hrs = row.hoursWorked;
-        total += hrs;
-        std::cout << std::left << std::setw(20) << row.projectName.substr(0, 19)
-                  << std::setw(10) << hrs
-                  << row.tags << "\n";
+        total += row.hoursWorked;
     }
-    ScreenUtils::printDivider();
-    std::cout << "Total: " << total << " hrs\n\n";
-    ScreenUtils::readLine("Press Enter to go back");
+
+    std::string title = "Week: " + dispDate + " — Status: " + status;
+    displayTimesheetDetailsList(title, response.data, total);
+    ConsoleInput::waitForEnter("Press Enter to go back\n");
 }
 
 ScreenDecorator EmployeeScreen::decorator() const
 {
     std::string username = sessionStore_.username();
     return ScreenDecorator("Welcome, " + username + "!").withWidth(40).withPadding(2);
+}
+
+void EmployeeScreen::displayMyTimesheets(const std::vector<TimesheetDisplayData>& timesheets)
+{
+    std::cout << "\n================ MY TIMESHEETS ================\n";
+    std::cout << std::left
+              << std::setw(15) << "Week Start"
+              << std::setw(15) << "Total Hrs"
+              << std::setw(15) << "Status" << "\n";
+    std::cout << "─────────────────────────────────────────────\n";
+
+    for (const auto& ts : timesheets)
+    {
+        std::cout << std::left
+                  << std::setw(15) << ScreenUtils::valueOrDash(ts.dispDate)
+                  << std::setw(15) << ScreenUtils::valueOrDash(ts.totalHrs)
+                  << std::setw(15) << ScreenUtils::valueOrDash(ts.status) << "\n";
+    }
+    std::cout << "─────────────────────────────────────────────\n";
+}
+
+void EmployeeScreen::displayMyAllocations(const std::vector<AllocationDisplayData>& allocations, int totalUtil)
+{
+    std::cout << "\n================ MY ALLOCATIONS ================\n";
+    std::cout << std::left
+              << std::setw(20) << "Project"
+              << std::setw(8) << "%"
+              << std::setw(12) << "From"
+              << std::setw(12) << "To"
+              << std::setw(12) << "Status" << "\n";
+    std::cout << "────────────────────────────────────────────────────────────────\n";
+
+    for (const auto& alloc : allocations)
+    {
+        std::cout << std::left
+                  << std::setw(20) << ScreenUtils::truncate(ScreenUtils::valueOrDash(alloc.projectName), 19)
+                  << std::setw(8) << ScreenUtils::valueOrDash(alloc.utilPercent)
+                  << std::setw(12) << ScreenUtils::valueOrDash(alloc.fromDate)
+                  << std::setw(12) << ScreenUtils::valueOrDash(alloc.toDate)
+                  << std::setw(12) << ScreenUtils::valueOrDash(alloc.status) << "\n";
+    }
+    std::cout << "────────────────────────────────────────────────────────────────\n";
+    std::cout << "Total Utilisation: " << totalUtil << "%\n\n";
+}
+
+void EmployeeScreen::displayTimesheetDetailsList(const std::string& title, const std::vector<TimesheetEntryDTO>& entries, int totalHrs)
+{
+    std::cout << "\n================ " << title << " ================\n";
+    std::cout << std::left
+              << std::setw(20) << "Project"
+              << std::setw(10) << "Hrs"
+              << std::setw(30) << "Activity Tags" << "\n";
+    std::cout << "────────────────────────────────────────────────────────────\n";
+
+    for (const auto& row : entries)
+    {
+        std::cout << std::left
+                  << std::setw(20) << ScreenUtils::truncate(ScreenUtils::valueOrDash(row.projectName), 19)
+                  << std::setw(10) << row.hoursWorked
+                  << std::setw(30) << ScreenUtils::truncate(ScreenUtils::valueOrDash(row.tags), 29) << "\n";
+    }
+    std::cout << "────────────────────────────────────────────────────────────\n";
+    std::cout << "Total: " << totalHrs << " hrs\n\n";
 }

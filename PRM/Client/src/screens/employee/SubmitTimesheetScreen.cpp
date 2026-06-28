@@ -1,19 +1,18 @@
 #include "employee/SubmitTimesheetScreen.h"
+#include "utils/ConsoleInput.h"
 #include <sstream>
 #include "AuthSession.h"
 #include "dto/ProjectDTO.h"
 #include "dto/AllocationDTO.h"
 #include "dto/ApiResponse.h"
 #include "dto/TimesheetDTO.h"
-#include "dto/ApiResponse.h"
 #include "dto/EmployeeDTO.h"
-#include "dto/ProjectDTO.h"
-#include "dto/AllocationDTO.h"
 #include <iomanip>
 #include "services/EmployeeClientService.h"
 #include "services/ProjectClientService.h"
 #include "services/AllocationClientService.h"
 #include "services/TimesheetClientService.h"
+#include "screens/ScreenUtils.h"
 
 SubmitTimesheetScreen::SubmitTimesheetScreen(TimesheetClientService& tsService, AllocationClientService& allocService, ProjectClientService& projService, EmployeeClientService& empService, api::ISessionStore& sessionStore)
     : tsService_(tsService), allocService_(allocService), projService_(projService), empService_(empService), sessionStore_(sessionStore)
@@ -36,31 +35,22 @@ void SubmitTimesheetScreen::handleInput()
 {
     try
     {
-        // Find Employee ID
-        int userId = sessionStore_.userId();
         int empId = 0;
-        auto empRes = empService_.viewAllEmployees();
-        if (empRes.success)
+        auto empRes = empService_.getMe();
+        if (empRes.success && empRes.data)
         {
-            for (const auto& e : empRes.data)
-            {
-                if (e.userId == userId)
-                {
-                    empId = e.id;
-                    break;
-                }
-            }
+            empId = empRes.data->id;
         }
 
         if (empId == 0)
         {
             showError("No employee profile linked to your user account.");
-            ScreenUtils::readLine("Press Enter to continue");
+            ConsoleInput::waitForEnter("Press Enter to continue\n");
             return;
         }
 
         std::cout << "Week Start: Enter date (DD-MM-YYYY) or press Enter for last Monday\n";
-        std::string weekInput = ScreenUtils::readLine("Week");
+        std::string weekInput = ConsoleInput::readLine("Week");
         
         std::string weekStart = weekInput;
         if (weekInput.empty())
@@ -141,7 +131,7 @@ void SubmitTimesheetScreen::handleInput()
             if (benchProjId == 0)
             {
                 showError("No Bench or Operations project found to log hours.");
-                ScreenUtils::readLine("Press Enter to continue");
+                ConsoleInput::waitForEnter("Press Enter to continue\n");
                 return;
             }
             activeAllocs.push_back({
@@ -163,7 +153,7 @@ void SubmitTimesheetScreen::handleInput()
             std::cout << "  Allocation: " << alloc["utilisation_percent"].get<int>() << "%   |   Expected: " << expected << " hrs max\n";
             std::cout << "──────────────────────────────────────────────\n";
 
-            std::string hrsStr = ScreenUtils::readLine("Hours worked this week");
+            std::string hrsStr = ConsoleInput::readLine("Hours worked this week");
             auto parsedHours = ScreenUtils::safeParseInt(hrsStr);
             if (!parsedHours) throw std::invalid_argument("Invalid hours format");
             int hours = parsedHours.value();
@@ -182,7 +172,7 @@ void SubmitTimesheetScreen::handleInput()
             std::cout << "  10. Documentation\n";
             std::cout << "  11. Other\n";
 
-            std::string tagsInput = ScreenUtils::readLine("Select tags (comma-separated, e.g., 1,7)");
+            std::string tagsInput = ConsoleInput::readLine("Select tags (comma-separated, e.g., 1,7)");
             
             // Map tag choices to string values
             std::vector<std::string> tags;
@@ -210,8 +200,8 @@ void SubmitTimesheetScreen::handleInput()
             });
         }
 
-        // clearScreen();
-        std::cout << "\n================ TIMESHEET SUMMARY ================\n";
+        std::vector<TimesheetSummaryData> summaryData;
+
         for (const auto& line : timesheetLines)
         {
             int pId = line["project_id"].get<int>();
@@ -225,22 +215,27 @@ void SubmitTimesheetScreen::handleInput()
                 }
             }
 
-            std::cout << "  " << std::left << std::setw(25) << pName.substr(0, 24)
-                      << line["hours_worked"].get<int>() << " hrs  [";
+            std::string tagsStr = "[";
             int tCount = 0;
             for (const auto& t : line["tags"])
             {
-                if (tCount > 0) std::cout << ", ";
-                std::cout << t.get<std::string>();
+                if (tCount > 0) tagsStr += ", ";
+                tagsStr += t.get<std::string>();
                 tCount++;
             }
-            std::cout << "]\n";
+            tagsStr += "]";
+
+            summaryData.push_back({
+                pName,
+                std::to_string(line["hours_worked"].get<int>()) + " hrs",
+                tagsStr
+            });
         }
-        std::cout << "  ────────────────────────────────────────────\n";
-        std::cout << "  Total           " << totalHours << " hrs / 40 hrs max   " << (totalHours <= 40 ? "✓" : "⚠") << "\n\n";
+        
+        displayTimesheetSummary(summaryData, totalHours);
 
         std::cout << "[S] Submit Timesheet      [B] Back\n";
-        std::string submitChoice = ScreenUtils::readLine("Choice");
+        std::string submitChoice = ConsoleInput::readLine("Choice");
         if (submitChoice == "S" || submitChoice == "s")
         {
             SubmitTimesheetRequest tsReq;
@@ -275,16 +270,36 @@ void SubmitTimesheetScreen::handleInput()
                 showError(response.message);
             }
         }
-        ScreenUtils::readLine("Press Enter to continue");
+        ConsoleInput::waitForEnter("Press Enter to continue\n");
     }
     catch (const std::exception& ex)
     {
         showError(std::string("Error during timesheet submission: ") + ex.what());
-        ScreenUtils::readLine("Press Enter to continue");
+        ConsoleInput::waitForEnter("Press Enter to continue\n");
     }
 }
 
 ScreenDecorator SubmitTimesheetScreen::decorator() const
 {
     return ScreenDecorator("SUBMIT TIMESHEET").withWidth(40).withPadding(2);
+}
+
+void SubmitTimesheetScreen::displayTimesheetSummary(const std::vector<TimesheetSummaryData>& summaryLines, int totalHours)
+{
+    std::cout << "\n================ TIMESHEET SUMMARY ================\n";
+    std::cout << std::left
+              << std::setw(25) << "Project"
+              << std::setw(8) << "Hrs"
+              << std::setw(40) << "Tags" << "\n";
+    std::cout << "─────────────────────────────────────────────────────────────────────────\n";
+
+    for (const auto& line : summaryLines)
+    {
+        std::cout << std::left
+                  << std::setw(25) << ScreenUtils::truncate(ScreenUtils::valueOrDash(line.projectName), 24)
+                  << std::setw(8) << ScreenUtils::valueOrDash(line.hours)
+                  << std::setw(40) << ScreenUtils::truncate(ScreenUtils::valueOrDash(line.tags), 39) << "\n";
+    }
+    std::cout << "─────────────────────────────────────────────────────────────────────────\n";
+    std::cout << "  Total           " << totalHours << " hrs / 40 hrs max   " << (totalHours <= 40 ? "✓" : "⚠") << "\n\n";
 }

@@ -18,6 +18,14 @@ class SubmitTimesheetScreen : public Screen
     void handleInput() override;
 
    private:
+    struct TimesheetSummaryData {
+        std::string projectName;
+        std::string hours;
+        std::string tags;
+    };
+    
+    void displayTimesheetSummary(const std::vector<TimesheetSummaryData>& summaryLines, int totalHours);
+
     TimesheetClientService& tsService_;
     AllocationClientService& allocService_;
     ProjectClientService& projService_;
