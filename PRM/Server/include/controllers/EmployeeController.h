@@ -16,6 +16,7 @@ class EmployeeController
     IEmployeeService& employeeService_;
     ITokenService& tokenService_;
 
+    void handleGetMe(const httplib::Request& req, httplib::Response& res);
     void handleGetAllEmployees(const httplib::Request& req, httplib::Response& res);
     void handleGetTeamEmployees(const httplib::Request& req, httplib::Response& res);
     void handleCreateEmployee(const httplib::Request& req, httplib::Response& res);

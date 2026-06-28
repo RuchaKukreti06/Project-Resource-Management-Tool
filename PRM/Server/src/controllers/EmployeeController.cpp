@@ -3,12 +3,10 @@
 #include <nlohmann/json.hpp>
 
 #include "exceptions/Exceptions.h"
+#include "dto/DTOMapper.h"
 
 namespace
 {
-
-#include "dto/DTOMapper.h"
-
 }  // namespace
 
 EmployeeController::EmployeeController(IEmployeeService& employeeService, ITokenService& tokenService)
@@ -18,6 +16,9 @@ EmployeeController::EmployeeController(IEmployeeService& employeeService, IToken
 
 void EmployeeController::registerRoutes(httplib::Server& server)
 {
+    server.Get("/employees/me", [this](const httplib::Request& req, httplib::Response& res)
+               { handleGetMe(req, res); });
+
     server.Get("/employees", [this](const httplib::Request& req, httplib::Response& res)
                { handleGetAllEmployees(req, res); });
 
@@ -49,6 +50,24 @@ void EmployeeController::registerRoutes(httplib::Server& server)
     server.Delete(R"(/employees/(\d+)/skills/(\d+))",
                   [this](const httplib::Request& req, httplib::Response& res)
                   { this->handleRemoveSkill(req, res); });
+}
+
+void EmployeeController::handleGetMe(const httplib::Request& req, httplib::Response& res)
+{
+    std::string authHeader = req.get_header_value("Authorization");
+    std::string token = authHeader.substr(7);
+    int tokenUserId = tokenService_.getClaimUserId(token);
+
+    auto employeeOpt = employeeService_.getEmployeeByUserId(tokenUserId);
+    if (!employeeOpt.has_value()) {
+        throw exceptions::NotFoundException("Employee profile not found for this user.");
+    }
+    
+    // Map to EmployeeResponse DTO
+    EmployeeResponse dto = DTOMapper::mapToEmployeeResponse(employeeOpt.value());
+
+    res.status = 200;
+    res.set_content(nlohmann::json({{"success", true}, {"data", dto}}).dump(), "application/json");
 }
 
 void EmployeeController::handleGetAllEmployees(const httplib::Request& req, httplib::Response& res)

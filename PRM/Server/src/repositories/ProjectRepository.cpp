@@ -75,7 +75,7 @@ bool ProjectRepository::createProject(const Project& project)
         database_.getSession()
             .sql("INSERT INTO projects "
                  "(name, description, start_date, end_date, total_story_points, status, health_status, manager_id) "
-                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+                 "VALUES (?, ?, NULLIF(?, ''), NULLIF(?, ''), ?, ?, ?, ?)")
             .bind(project.name)
             .bind(project.description)
             .bind(project.startDate)
@@ -99,7 +99,7 @@ bool ProjectRepository::updateProject(const Project& project)
     try
     {
         database_.getSession()
-            .sql("UPDATE projects SET name=?, description=?, start_date=?, end_date=?, "
+            .sql("UPDATE projects SET name=?, description=?, start_date=NULLIF(?, ''), end_date=NULLIF(?, ''), "
                  "total_story_points=?, status=?, health_status=?, manager_id=? WHERE id=?")
             .bind(project.name)
             .bind(project.description)
@@ -223,7 +223,7 @@ std::vector<Milestone> ProjectRepository::getMilestonesByProject(int projectId)
     try
     {
         auto result = database_.getSession()
-                          .sql("SELECT id, project_id, title, due_date, story_points, status, health_flag "
+                          .sql("SELECT id, project_id, title, COALESCE(DATE_FORMAT(due_date, '%Y-%m-%d'), ''), story_points, status, health_flag "
                                "FROM milestones WHERE project_id = ?")
                           .bind(projectId)
                           .execute();

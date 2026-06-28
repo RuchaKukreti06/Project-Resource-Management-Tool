@@ -77,8 +77,8 @@ bool UserRepository::createUser(const User& user)
             .bind(user.isActive)
             .execute();
 
-        // If the user is an EMPLOYEE, they also need a record in the `resources` table
-        if (user.role == "EMPLOYEE")
+        // If the user is an EMPLOYEE or MANAGER, they also need a record in the `resources` table
+        if (user.role == "EMPLOYEE" || user.role == "MANAGER")
         {
             database_.getSession()
                 .sql("INSERT INTO resources (user_id, status, total_utilisation) "
