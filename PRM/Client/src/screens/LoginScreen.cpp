@@ -4,6 +4,9 @@
 #include "dto/AuthDTO.h"
 #include "api/ApiException.h"
 #include "services/AuthClientService.h"
+#include "services/AuthClientService.h"
+#include "utils/ConsoleInput.h"
+#include "utils/Constants.h"
 
 LoginScreen::LoginScreen(Router& router, AuthClientService& authService, api::ISessionStore& sessionStore, IApiClient& apiClient)
     : router_(router), authService_(authService), sessionStore_(sessionStore), apiClient_(apiClient)
@@ -19,7 +22,6 @@ ScreenDecorator LoginScreen::decorator() const
 
 void LoginScreen::displayMenu()
 {
-    // clearScreen();
     decorator().render();
     ScreenOptions({"Login", "Exit"}).render();
 }
@@ -34,78 +36,131 @@ void LoginScreen::handleInput()
 {
     while (true)
     {
-        std::string choice = ScreenUtils::readLine("Enter option");
-        if (choice == "1")
+        std::string choice = ConsoleInput::readLine(ui_constants::PROMPT_ENTER_OPTION);
+        if (choice == ui_constants::OPT_LOGIN)
         {
-            std::string username = ScreenUtils::readLine("Username");
-            std::string password = ScreenUtils::readPassword("Password");
-            if (username.empty())
+            if (processLoginOption())
             {
-                showError("Username cannot be empty. Please try again.");
-                ScreenUtils::readLine("Press Enter to continue");
-                displayMenu();
-                continue;
-            }
-            if (password.empty())
-            {
-                showError("Password cannot be empty. Please try again.");
-                ScreenUtils::readLine("Press Enter to continue");
-                displayMenu();
-                continue;
-            }
-
-            try
-            {
-                auto loginRes = authService_.login(username, password);
-                if (!loginRes.success)
-                {
-                    showError(loginRes.message);
-                    ScreenUtils::readLine("Press Enter to continue");
-                    displayMenu();
-                    continue;
-                }
-
-                std::string token = loginRes.token;
-                std::string respUsername = loginRes.user.username;
-                std::string role = loginRes.user.role;
-                int userId = loginRes.user.id;
-                bool forcePasswordChange = loginRes.user.forcePasswordChange;
-
-                apiClient_.setToken(token);
-                sessionStore_.login(token, respUsername, role, userId, forcePasswordChange);
-
-                if (forcePasswordChange)
-                {
-                    showInfo("Password change is required on first login.");
-                    // Router will handle navigation to ChangePasswordScreen when LoginScreen returns
-                }
-                else
-                {
-                    showSuccess("Login successful.");
-                }
                 break;
             }
-            catch (const ApiException& ex)
-            {
-                showError(ex.what());
-                ScreenUtils::readLine("Press Enter to continue");
-                displayMenu();
-            }
-            catch (const std::exception&)
-            {
-                showError("Something went wrong. Please try again.");
-            }
         }
-        else if (choice == "2")
+        else if (choice == ui_constants::OPT_EXIT)
         {
-            std::cout << "Goodbye.\n";
-            std::exit(0);
+            handleExitOption();
         }
         else
         {
-            showError("Please select a valid option.");
-            ScreenUtils::readLine("Press Enter to continue");
+            showError(ui_constants::MSG_ERR_INVALID_OPTION);
+            ConsoleInput::waitForEnter(ui_constants::MSG_PRESS_ENTER);
             displayMenu();
         }
     }
+}
+
+bool LoginScreen::processLoginOption()
+{
+    auto credentials = promptCredentials();
+    if (!validateCredentials(credentials.first, credentials.second))
+    {
+        return false;
+    }
+    return executeLogin(credentials.first, credentials.second);
+}
+
+std::pair<std::string, std::string> LoginScreen::promptCredentials()
+{
+    std::string username = ConsoleInput::readLine(ui_constants::PROMPT_USERNAME);
+    std::string password = ScreenUtils::readPassword(ui_constants::PROMPT_PASSWORD);
+    return {username, password};
+}
+
+bool LoginScreen::validateCredentials(const std::string& username, const std::string& password)
+{
+    if (username.empty())
+    {
+        showError(ui_constants::MSG_ERR_USERNAME_EMPTY);
+        ConsoleInput::waitForEnter(ui_constants::MSG_PRESS_ENTER);
+        displayMenu();
+        return false;
+    }
+    if (password.empty())
+    {
+        showError(ui_constants::MSG_ERR_PASSWORD_EMPTY);
+        ConsoleInput::waitForEnter(ui_constants::MSG_PRESS_ENTER);
+        displayMenu();
+        return false;
+    }
+    return true;
+}
+
+bool LoginScreen::executeLogin(const std::string& username, const std::string& password)
+{
+    try
+    {
+        auto loginRes = authService_.login(username, password);
+        if (!loginRes.success)
+        {
+            return handleFailedLogin(loginRes.message);
+        }
+
+        updateSessionContext(loginRes);
+        displayLoginResult(loginRes.user.forcePasswordChange);
+        return true;
+    }
+    catch (const ApiException& ex)
+    {
+        return handleLoginException(ex.what());
+    }
+    catch (const std::exception&)
+    {
+        return handleLoginException(ui_constants::MSG_ERR_UNKNOWN);
+    }
+}
+
+bool LoginScreen::handleFailedLogin(const std::string& message)
+{
+    showError(message);
+    ConsoleInput::waitForEnter(ui_constants::MSG_PRESS_ENTER);
+    displayMenu();
+    return false;
+}
+
+void LoginScreen::updateSessionContext(const AuthLoginResponse& loginRes)
+{
+    apiClient_.setToken(loginRes.token);
+    
+    api::SessionData sessionData{
+        loginRes.token, 
+        loginRes.user.username, 
+        loginRes.user.role, 
+        loginRes.user.id, 
+        loginRes.user.forcePasswordChange
+    };
+    sessionStore_.login(sessionData);
+}
+
+void LoginScreen::displayLoginResult(bool forcePasswordChange)
+{
+    if (forcePasswordChange)
+    {
+        showInfo(ui_constants::MSG_PASSWORD_CHANGE_REQD);
+    }
+    else
+    {
+        showSuccess(ui_constants::MSG_LOGIN_SUCCESS);
+    }
+}
+
+bool LoginScreen::handleLoginException(const std::string& errorMessage)
+{
+    showError(errorMessage);
+    ConsoleInput::waitForEnter(ui_constants::MSG_PRESS_ENTER);
+    displayMenu();
+    return false;
+}
+
+void LoginScreen::handleExitOption()
+{
+    std::cout << ui_constants::MSG_GOODBYE;
+    std::exit(0);
 }

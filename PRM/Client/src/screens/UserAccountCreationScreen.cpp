@@ -1,6 +1,7 @@
 #include "UserAccountCreationScreen.h"
 #include "dto/ApiResponse.h"
 #include "api/ApiException.h"
+#include "utils/ConsoleInput.h"
 #include "services/UserClientService.h"
 void UserAccountCreationScreen::show(IApiClient& apiClient)
 {
@@ -20,11 +21,11 @@ void UserAccountCreationScreen::displayMenu()
 
 void UserAccountCreationScreen::handleInput(IApiClient& apiClient)
 {
-    std::string fullName        = ScreenUtils::readLine("Full Name       ");
-    std::string email           = ScreenUtils::readLine("Email           ");
-    std::string username        = ScreenUtils::readLine("Username        ");
-    std::string password        = ScreenUtils::readLine("Password        ");
-    std::string confirmPassword = ScreenUtils::readLine("Confirm Password");
+    std::string fullName        = ConsoleInput::readLine("Full Name       ");
+    std::string email           = ConsoleInput::readLine("Email           ");
+    std::string username        = ConsoleInput::readLine("Username        ");
+    std::string password        = ConsoleInput::readLine("Password        ");
+    std::string confirmPassword = ConsoleInput::readLine("Confirm Password");
 
     std::cout << "\n";
     ScreenUtils::printDivider();
