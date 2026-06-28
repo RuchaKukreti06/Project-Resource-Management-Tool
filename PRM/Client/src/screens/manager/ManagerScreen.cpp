@@ -1,10 +1,11 @@
 #include "manager/ManagerScreen.h"
-#include "manager/ResourceDashboardScreen.h"
-#include "manager/AllocateResourceScreen.h"
-#include "manager/MyProjectsScreen.h"
-#include "manager/TimesheetsScreen.h"
-#include "manager/AIAssistantScreen.h"
 #include "app/Router.h"
+#include <iostream>
+#include <string>
+#include "screens/ScreenUtils.h"
+
+using namespace ManagerConstants;
+using namespace ManagerConstants::MainMenu;
 
 ManagerScreen::ManagerScreen(Router& router, api::ISessionStore& sessionStore)
     : router_(router), sessionStore_(sessionStore)
@@ -15,12 +16,12 @@ void ManagerScreen::displayMenu()
 {
     // clearScreen();
     decorator().render();
-    std::cout << "1. Resource Dashboard\n";
-    std::cout << "2. Allocate Resource\n";
-    std::cout << "3. My Projects\n";
-    std::cout << "4. Timesheets\n";
-    std::cout << "5. AI Assistant\n";
-    std::cout << "6. Logout\n";
+    std::cout << OPT_RESOURCE_DASHBOARD << ". Resource Dashboard\n";
+    std::cout << OPT_ALLOCATE_RESOURCE << ". Allocate Resource\n";
+    std::cout << OPT_MY_PROJECTS << ". My Projects\n";
+    std::cout << OPT_TIMESHEETS << ". Timesheets\n";
+    std::cout << OPT_AI_ASSISTANT << ". AI Assistant\n";
+    std::cout << OPT_LOGOUT << ". Logout\n";
 }
 
 void ManagerScreen::show()
@@ -39,27 +40,27 @@ void ManagerScreen::show()
 void ManagerScreen::handleInput()
 {
     std::string choice = ScreenUtils::readLine("Enter option");
-    if (choice == "1")
+    if (choice == OPT_RESOURCE_DASHBOARD)
     {
         router_.navigateToResourceDashboard();
     }
-    else if (choice == "2")
+    else if (choice == OPT_ALLOCATE_RESOURCE)
     {
         router_.navigateToAllocateResource();
     }
-    else if (choice == "3")
+    else if (choice == OPT_MY_PROJECTS)
     {
         router_.navigateToMyProjects();
     }
-    else if (choice == "4")
+    else if (choice == OPT_TIMESHEETS)
     {
         router_.navigateToTimesheets();
     }
-    else if (choice == "5")
+    else if (choice == OPT_AI_ASSISTANT)
     {
         router_.navigateToAIAssistant();
     }
-    else if (choice == "6")
+    else if (choice == OPT_LOGOUT)
     {
         sessionStore_.logout();
         showSuccess("Logged out successfully.");
@@ -74,5 +75,7 @@ void ManagerScreen::handleInput()
 ScreenDecorator ManagerScreen::decorator() const
 {
     std::string username = sessionStore_.username();
-    return ScreenDecorator("Welcome, " + username + "!").withWidth(40).withPadding(2);
+    return ScreenDecorator("Welcome, " + username + "!")
+        .withWidth(ManagerConstants::DEFAULT_PANEL_WIDTH)
+        .withPadding(ManagerConstants::DEFAULT_PADDING);
 }

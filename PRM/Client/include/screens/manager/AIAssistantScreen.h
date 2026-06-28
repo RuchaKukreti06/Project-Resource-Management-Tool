@@ -1,8 +1,12 @@
 #ifndef AI_ASSISTANT_SCREEN_H
 #define AI_ASSISTANT_SCREEN_H
 
-#include "Screen.h"
+#include "screens/Screen.h"
+#include "manager/managerConstants.h"
 #include "dto/AiResponseDTO.h"
+#include "dto/ProjectDTO.h"
+#include <vector>
+#include <optional>
 
 class AiClientService;
 class ProjectClientService;
@@ -10,7 +14,7 @@ class ProjectClientService;
 class AIAssistantScreen : public Screen
 {
    public:
-    AIAssistantScreen(AiClientService& aiService, ProjectClientService& projService);
+    AIAssistantScreen(AiClientService& aiService, ProjectClientService& projService, int currentUserId);
     void show() override;
     void displayMenu() override;
     void handleInput() override;
@@ -18,12 +22,24 @@ class AIAssistantScreen : public Screen
    private:
     AiClientService& aiService_;
     ProjectClientService& projService_;
+    int currentUserId_;
     void skillMatch();
+    std::string promptSkillRequirement();
+    AiSkillMatchResponse fetchAIAndHandleFallback(const std::string& reqText);
+
     void riskSummary();
+    std::vector<ProjectDTO> fetchProjectsForRiskSummary();
+    AiRiskSummaryResponse generateAIRiskSummary(int projectId);
+
     void teamBuilder();
 
    private:
+    void displaySkillMatchResults(const std::vector<AiCandidateDTO>& candidates);
     void displayTeamMatchResults(const AiTeamBuilderResponse& dto);
+    void printTeamMemberRow(const AiTeamMemberDTO& item);
+
+    bool keepRunning_ = true;
+    std::optional<int> promptForProjectSelection(const std::vector<ProjectDTO>& projects);
 
    protected:
     ScreenDecorator decorator() const override;

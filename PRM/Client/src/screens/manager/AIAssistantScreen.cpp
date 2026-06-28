@@ -1,61 +1,68 @@
 #include "manager/AIAssistantScreen.h"
-#include "manager/AllocateResourceScreen.h"
-#include "AuthSession.h"
+
 #include <iomanip>
-#include <nlohmann/json.hpp>
-#include "dto/AiResponseDTO.h"
-#include "dto/ProjectDTO.h"
-#include "dto/ApiResponse.h"
+
 #include "api/ApiException.h"
+#include "dto/AiResponseDTO.h"
+#include "dto/ApiResponse.h"
+#include "dto/ProjectDTO.h"
+#include "screens/ScreenUtils.h"
 #include "services/AiClientService.h"
 #include "services/ProjectClientService.h"
+#include "utils/ConsoleInput.h"
 
-AIAssistantScreen::AIAssistantScreen(AiClientService& aiService, ProjectClientService& projService)
-    : aiService_(aiService), projService_(projService)
+using namespace ManagerConstants;
+using namespace ManagerConstants::AIAssistant;
+
+AIAssistantScreen::AIAssistantScreen(AiClientService& aiService, ProjectClientService& projService,
+                                     int currentUserId)
+    : aiService_(aiService), projService_(projService), currentUserId_(currentUserId)
 {
 }
 
 void AIAssistantScreen::displayMenu()
 {
     decorator().render();
-    std::cout << "1. Skill Match    — Find best employees for a project requirement\n";
-    std::cout << "2. Risk Summary   — Get a health analysis for a project\n";
-    std::cout << "3. Team Builder   — Build a whole project team in one go\n";
-    std::cout << "4. Back\n";
+    std::cout << OPT_SKILL_MATCH
+              << ". Skill Match    — Find best employees for a project requirement\n";
+    std::cout << OPT_RISK_SUMMARY << ". Risk Summary   — Get a health analysis for a project\n";
+    std::cout << OPT_TEAM_BUILDER << ". Team Builder   — Build a whole project team in one go\n";
+    std::cout << OPT_BACK << ". Back\n";
 }
 
 void AIAssistantScreen::show()
 {
-    while (true)
+    keepRunning_ = true;
+    while (keepRunning_)
     {
         displayMenu();
         handleInput();
-        break; // Return after one action or back
     }
 }
 
 void AIAssistantScreen::handleInput()
 {
-    std::string choice = ScreenUtils::readLine("Enter option");
-    if (choice == "1")
+    std::string choice = ConsoleInput::readLine("Enter option");
+    if (choice == OPT_SKILL_MATCH)
     {
         skillMatch();
     }
-    else if (choice == "2")
+    else if (choice == OPT_RISK_SUMMARY)
     {
         riskSummary();
     }
-    else if (choice == "3")
+    else if (choice == OPT_TEAM_BUILDER)
     {
         teamBuilder();
     }
-    else if (choice == "4" || choice == "B" || choice == "b")
+    else if (choice == OPT_BACK || ScreenUtils::equalsIgnoreCase(choice, "B"))
     {
-        return;
+        keepRunning_ = false;
     }
     else
     {
         showError("Invalid option. Please enter 1–4.");
+        ConsoleInput::waitForEnter("Press Enter to continue\n");
     }
 }
 
@@ -63,85 +70,32 @@ void AIAssistantScreen::skillMatch()
 {
     try
     {
-        std::cout << "\n── Skill Match ────────────────────────────────\n\n";
-        std::string reqText = ScreenUtils::readLine("Type what kind of resource you need (e.g. 'Senior C++ dev')");
-
-        std::cout << "\nSearching... (AI matching in progress)\n";
-
-        AiSkillMatchRequest req;
-        req.requirement = reqText;
-        auto dto = aiService_.getSkillMatch(req);
-
-        if (dto.fallback_message.has_value())
+        std::string reqText = promptSkillRequirement();
+        if (reqText.empty())
         {
-            std::cout << "  (The AI service provided a plain text response)\n";
-            std::cout << "  " << dto.fallback_message.value() << "\n\n";
+            showError("Requirement cannot be empty.");
+            ConsoleInput::waitForEnter("Press Enter to continue\n");
+            return;
         }
-
-        // ── Table header ──────────────────────────────────────────
-        const int W_NO     = 4;
-        const int W_ID     = 6;
-        const int W_NAME   = 22;
-        const int W_REASON = 55;
-        std::string divider(W_NO + W_ID + W_NAME + W_REASON + 3, '-');
-
-        std::cout << "\nAI-MATCHED RESULTS\n";
-        std::cout << divider << "\n";
-        std::cout << std::left
-                  << std::setw(W_NO)   << "#"
-                  << std::setw(W_ID)   << "ID"
-                  << std::setw(W_NAME) << "Employee"
-                  << "Reason\n";
-        std::cout << divider << "\n";
+        auto dto = fetchAIAndHandleFallback(reqText);
 
         if (!dto.candidates.empty())
         {
-            int idx = 1;
-            for (const auto& item : dto.candidates)
-            {
-                std::string reason = item.reason;
-
-                // Word-wrap reason into lines of W_REASON chars
-                std::vector<std::string> reasonLines;
-                while ((int)reason.size() > W_REASON)
-                {
-                    int cut = W_REASON;
-                    while (cut > 0 && reason[cut] != ' ') cut--;
-                    if (cut == 0) cut = W_REASON;
-                    reasonLines.push_back(reason.substr(0, cut));
-                    reason = reason.substr(cut + 1);
-                }
-                reasonLines.push_back(reason);
-
-                // First line — print all columns
-                std::cout << std::left
-                          << std::setw(W_NO)   << idx++
-                          << std::setw(W_ID)   << item.employee_id
-                          << std::setw(W_NAME) << item.name.substr(0, W_NAME - 1)
-                          << reasonLines[0] << "\n";
-
-                // Continuation lines — indent to reason column
-                std::string indent(W_NO + W_ID + W_NAME, ' ');
-                for (size_t i = 1; i < reasonLines.size(); ++i)
-                    std::cout << indent << reasonLines[i] << "\n";
-
-                std::cout << "\n";
-            }
+            displaySkillMatchResults(dto.candidates);
         }
         else if (!dto.fallback_message.has_value())
         {
             std::cout << "  (No structured results returned by AI)\n\n";
         }
-
-        std::cout << divider << "\n";
         std::cout << "  Note: AI-generated suggestions. Always verify before allocating.\n\n";
 
-        std::cout << "[A] Go to Allocate Resource     [B] Back\n";
-        std::string choice = ScreenUtils::readLine("Choice");
-        if (choice == "A" || choice == "a")
+        std::cout << "[" << OPT_GO_ALLOCATE << "] Go to Allocate Resource     [" << OPT_BACK
+                  << "] Back\n";
+        std::string choice = ConsoleInput::readLine("Choice");
+        if (ScreenUtils::equalsIgnoreCase(choice, OPT_GO_ALLOCATE))
         {
             std::cout << "\nPlease navigate to 'Allocate Resource' from the main menu.\n";
-            ScreenUtils::readLine("Press Enter to continue");
+            ConsoleInput::waitForEnter("Press Enter to continue\n");
         }
     }
     catch (const ApiException& ex)
@@ -154,52 +108,40 @@ void AIAssistantScreen::skillMatch()
     }
 }
 
+std::string AIAssistantScreen::promptSkillRequirement()
+{
+    std::cout << "\n── Skill Match ────────────────────────────────\n\n";
+    return ConsoleInput::readLine("Type what kind of resource you need (e.g. 'Senior C++ dev')");
+}
+
+AiSkillMatchResponse AIAssistantScreen::fetchAIAndHandleFallback(const std::string& reqText)
+{
+    std::cout << "\nSearching... (AI matching in progress)\n";
+    AiSkillMatchRequest req;
+    req.requirement = reqText;
+    auto dto = aiService_.getSkillMatch(req);
+
+    if (dto.fallback_message.has_value())
+    {
+        std::cout << "  (The AI service provided a plain text response)\n";
+        std::cout << "  " << dto.fallback_message.value() << "\n\n";
+    }
+    return dto;
+}
+
 void AIAssistantScreen::riskSummary()
 {
     try
     {
         std::cout << "\n── Risk Summary ───────────────────────────────\n\n";
+        auto projects = fetchProjectsForRiskSummary();
+        if (projects.empty()) return;
 
-        int managerId  = api::AuthSession::instance().userId();
-        auto projResp = projService_.getManagerProjects(managerId);
-        if (!projResp.success)
-        {
-            showError("Could not load projects.");
-            return;
-        }
+        auto selectionOpt = promptForProjectSelection(projects);
+        if (!selectionOpt) return;
 
-        auto projects = projResp.data;
-        if (projects.empty())
-        {
-            std::cout << "No projects found.\n\n";
-            return;
-        }
-
-        std::cout << "Select project:\n";
-        int idx = 1;
-        for (const auto& proj : projects)
-        {
-            const std::string hs   = proj.healthStatus.empty() ? "ON_TRACK" : proj.healthStatus;
-            const std::string icon  = (hs == "AT_RISK") ? "🔴" : (hs == "ATTENTION") ? "🟡" : "🟢";
-            std::cout << "  " << idx++ << ".  " << icon << " "
-                      << proj.name << "\n";
-        }
-
-        std::cout << "\n";
-        std::string pNum = ScreenUtils::readLine("Enter project number (or 0 to cancel)");
-        auto parsedSelection = ScreenUtils::safeParseInt(pNum);
-        if (!parsedSelection) throw std::invalid_argument("Invalid selection format");
-        int selection = parsedSelection.value();
-        if (selection < 1 || selection > static_cast<int>(projects.size()))
-            return;
-
-        const int projectId = projects[selection - 1].id;
-
-        std::cout << "\nGenerating AI summary...\n\n";
-
-        AiRiskSummaryRequest req;
-        req.projectId = projectId;
-        auto dto = aiService_.getRiskSummary(req);
+        const int projectId = projects[selectionOpt.value() - 1].id;
+        auto dto = generateAIRiskSummary(projectId);
 
         if (dto.fallback_message.has_value())
         {
@@ -209,9 +151,8 @@ void AIAssistantScreen::riskSummary()
             return;
         }
 
-        const std::string summary = dto.data.summary;
         std::cout << "── AI Risk Summary ──────────────────────────────\n\n";
-        std::cout << "\"" << summary << "\"\n\n";
+        std::cout << "\"" << dto.data.summary << "\"\n\n";
         std::cout << "  Note: AI-generated from current milestone and timesheet data.\n\n";
     }
     catch (const ApiException& ex)
@@ -224,9 +165,47 @@ void AIAssistantScreen::riskSummary()
     }
 }
 
+std::vector<ProjectDTO> AIAssistantScreen::fetchProjectsForRiskSummary()
+{
+    auto projResp = projService_.getManagerProjects(currentUserId_);
+    if (!projResp.success)
+    {
+        showError("Could not load projects.");
+        return {};
+    }
+
+    auto projects = projResp.data;
+    if (projects.empty())
+    {
+        std::cout << "No projects found.\n\n";
+        return {};
+    }
+
+    std::cout << "Select project:\n";
+    int idx = 1;
+    for (const auto& proj : projects)
+    {
+        const std::string hs = proj.healthStatus.empty() ? "ON_TRACK" : proj.healthStatus;
+        const std::string icon = (hs == "AT_RISK") ? "🔴" : (hs == "ATTENTION") ? "🟡" : "🟢";
+        std::cout << "  " << idx++ << ".  " << icon << " " << proj.name << "\n";
+    }
+    std::cout << "\n";
+    return projects;
+}
+
+AiRiskSummaryResponse AIAssistantScreen::generateAIRiskSummary(int projectId)
+{
+    std::cout << "\nGenerating AI summary...\n\n";
+    AiRiskSummaryRequest req;
+    req.projectId = projectId;
+    return aiService_.getRiskSummary(req);
+}
+
 ScreenDecorator AIAssistantScreen::decorator() const
 {
-    return ScreenDecorator("AI ASSISTANT").withWidth(40).withPadding(2);
+    return ScreenDecorator("AI ASSISTANT")
+        .withWidth(ManagerConstants::DEFAULT_PANEL_WIDTH)
+        .withPadding(ManagerConstants::DEFAULT_PADDING);
 }
 
 void AIAssistantScreen::teamBuilder()
@@ -235,7 +214,14 @@ void AIAssistantScreen::teamBuilder()
     {
         std::cout << "\n── Team Builder ───────────────────────────────\n\n";
         std::string reqText =
-            ScreenUtils::readLine("Describe your full team requirement in plain English");
+            ConsoleInput::readLine("Describe your full team requirement in plain English");
+            
+        if (reqText.empty())
+        {
+            showError("Requirement cannot be empty.");
+            ConsoleInput::waitForEnter("Press Enter to continue\n");
+            return;
+        }
 
         std::cout << "\nSearching the entire organization... (calling AI)\n\n";
 
@@ -253,7 +239,7 @@ void AIAssistantScreen::teamBuilder()
         // ── Output results ──────────────────────────────────────────
         displayTeamMatchResults(dto);
 
-        ScreenUtils::readLine("\nPress Enter to continue");
+        ConsoleInput::readLine("\nPress Enter to continue");
     }
     catch (const ApiException& ex)
     {
@@ -265,62 +251,116 @@ void AIAssistantScreen::teamBuilder()
     }
 }
 
+void AIAssistantScreen::displaySkillMatchResults(const std::vector<AiCandidateDTO>& candidates)
+{
+    std::cout << "\n================ AI-MATCHED RESULTS ================\n";
+    std::cout << std::left << std::setw(6) << "#" << std::setw(8) << "ID" << std::setw(22)
+              << "Employee"
+              << "Reason\n";
+    std::cout << "─────────────────────────────────────────────────────────\n";
+
+    int idx = 1;
+    for (const auto& item : candidates)
+    {
+        std::string reason = item.reason;
+
+        // Word-wrap reason into lines of 55 chars
+        std::vector<std::string> reasonLines;
+        while ((int)reason.size() > 55)
+        {
+            int cut = 55;
+            while (cut > 0 && reason[cut] != ' ') cut--;
+            if (cut == 0) cut = 55;
+            reasonLines.push_back(reason.substr(0, cut));
+            reason = reason.substr(cut + 1);
+        }
+        reasonLines.push_back(reason);
+
+        std::cout << std::left << std::setw(6) << idx++ << std::setw(8) << item.employee_id
+                  << std::setw(22) << ScreenUtils::truncate(ScreenUtils::valueOrDash(item.name), 21)
+                  << reasonLines[0] << "\n";
+
+        for (size_t i = 1; i < reasonLines.size(); ++i)
+        {
+            std::cout << std::left << std::setw(6) << " " << std::setw(8) << " " << std::setw(22)
+                      << " " << reasonLines[i] << "\n";
+        }
+        std::cout << "\n";
+    }
+    std::cout << "─────────────────────────────────────────────────────────\n";
+}
+
 void AIAssistantScreen::displayTeamMatchResults(const AiTeamBuilderResponse& dto)
 {
-    const int W_ROLE   = 20;
-    const int W_ID     = 6;
-    const int W_NAME   = 22;
-    const int W_REASON = 50;
-    std::string divider(W_ROLE + W_ID + W_NAME + W_REASON + 3, '-');
-
-    std::cout << "\nTEAM MATCH RESULTS\n";
-    std::cout << divider << "\n";
-    std::cout << std::left
-              << std::setw(W_ROLE) << "Role"
-              << std::setw(W_ID)   << "ID"
-              << std::setw(W_NAME) << "Employee"
+    std::cout << "\n================ TEAM MATCH RESULTS ================\n";
+    std::cout << std::left << std::setw(20) << "Role" << std::setw(8) << "ID" << std::setw(22)
+              << "Employee"
               << "Reason\n";
-    std::cout << divider << "\n";
+    std::cout << "─────────────────────────────────────────────────────────\n";
 
     if (!dto.team.empty())
     {
         for (const auto& item : dto.team)
         {
-            std::string role   = item.role.substr(0, W_ROLE - 1);
-            std::string reason = item.reason;
-            int empId          = item.employee_id;
-            std::string name   = item.name.substr(0, W_NAME - 1);
-
-            // Word-wrap reason
-            std::vector<std::string> reasonLines;
-            while ((int)reason.size() > W_REASON)
-            {
-                int cut = W_REASON;
-                while (cut > 0 && reason[cut] != ' ') cut--;
-                if (cut == 0) cut = W_REASON;
-                reasonLines.push_back(reason.substr(0, cut));
-                reason = reason.substr(cut + 1);
-            }
-            reasonLines.push_back(reason);
-
-            std::cout << std::left
-                      << std::setw(W_ROLE) << role
-                      << std::setw(W_ID)   << (empId == 0 ? "-" : std::to_string(empId))
-                      << std::setw(W_NAME) << name
-                      << reasonLines[0] << "\n";
-
-            std::string indent(W_ROLE + W_ID + W_NAME, ' ');
-            for (size_t i = 1; i < reasonLines.size(); ++i)
-                std::cout << indent << reasonLines[i] << "\n";
-
-            std::cout << "\n";
+            printTeamMemberRow(item);
         }
     }
     else if (!dto.fallback_message.has_value())
     {
         std::cout << "  (No structured results returned by AI)\n\n";
     }
-
-    std::cout << divider << "\n";
+    std::cout << "─────────────────────────────────────────────────────────\n";
     std::cout << "  Note: AI-generated suggestions. Verify before allocating.\n\n";
+}
+
+void AIAssistantScreen::printTeamMemberRow(const AiTeamMemberDTO& item)
+{
+    std::string reason = item.reason;
+    int empId          = item.employee_id;
+
+    // Word-wrap reason
+    std::vector<std::string> reasonLines;
+    while ((int)reason.size() > 50)
+    {
+        int cut = 50;
+        while (cut > 0 && reason[cut] != ' ') cut--;
+        if (cut == 0) cut = 50;
+        reasonLines.push_back(reason.substr(0, cut));
+        reason = reason.substr(cut + 1);
+    }
+    reasonLines.push_back(reason);
+
+    std::cout << std::left
+              << std::setw(20) << ScreenUtils::truncate(ScreenUtils::valueOrDash(item.role), 19)
+              << std::setw(8) << (empId == 0 ? "-" : std::to_string(empId))
+              << std::setw(22) << ScreenUtils::truncate(ScreenUtils::valueOrDash(item.name), 21)
+              << reasonLines[0] << "\n";
+
+    for (size_t i = 1; i < reasonLines.size(); ++i)
+    {
+        std::cout << std::left
+                  << std::setw(20) << " "
+                  << std::setw(8) << " "
+                  << std::setw(22) << " "
+                  << reasonLines[i] << "\n";
+    }
+    std::cout << "\n";
+}
+
+std::optional<int> AIAssistantScreen::promptForProjectSelection(
+    const std::vector<ProjectDTO>& projects)
+{
+    std::string pNum = ConsoleInput::readLine("Enter project number (or 0 to cancel)");
+    auto parsedSelection = ScreenUtils::safeParseInt(pNum);
+    if (!parsedSelection)
+    {
+        showError("Invalid selection format");
+        return std::nullopt;
+    }
+    int selection = parsedSelection.value();
+    if (selection < 1 || selection > static_cast<int>(projects.size()))
+    {
+        return std::nullopt;
+    }
+    return selection;
 }

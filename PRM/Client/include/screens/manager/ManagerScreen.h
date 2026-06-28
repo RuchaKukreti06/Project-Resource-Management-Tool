@@ -1,7 +1,8 @@
 #ifndef MANAGER_SCREEN_H
 #define MANAGER_SCREEN_H
 
-#include "Screen.h"
+#include "screens/Screen.h"
+#include "manager/managerConstants.h"
 
 #include "api/ISessionStore.h"
 
