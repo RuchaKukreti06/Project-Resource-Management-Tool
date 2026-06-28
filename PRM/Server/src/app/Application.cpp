@@ -87,9 +87,16 @@ bool Application::run()
                                                                       employeeRepository,
                                                                       projectRepository);
         auto emailService = std::make_shared<EmailService>(systemConfigRepository);
+        auto aiService = std::make_shared<AIService>(employeeRepository,
+                                                     allocationRepository,
+                                                     projectRepository,
+                                                     timesheetRepository);
         auto notificationService = std::make_shared<NotificationService>(notificationRepository,
                                                                          userRepository,
-                                                                         emailService);
+                                                                         emailService,
+                                                                         projectService,
+                                                                         aiService,
+                                                                         systemConfigRepository);
         auto timesheetService = std::make_shared<TimesheetService>(timesheetRepository,
                                                                     employeeRepository,
                                                            allocationRepository,
@@ -99,10 +106,7 @@ bool Application::run()
                                                                     allocationService,
                                                            timesheetService,
                                                            notificationService);
-           auto aiService = std::make_shared<AIService>(employeeRepository,
-                                                      allocationRepository,
-                                                      projectRepository,
-                                                      timesheetRepository);
+
 
         // ── Controllers ───────────────────────────────────────────────────────
         AuthMiddleware      authMiddleware(*tokenService);

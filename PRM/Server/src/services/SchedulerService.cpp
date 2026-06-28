@@ -129,6 +129,11 @@ void SchedulerService::recomputeProjectHealth(const std::string& todayDate)
             {
                 projectService_->updateProjectHealth(project.id, health);
                 spdlog::info("Scheduler: project {} health updated to {}", project.id, health);
+
+                if (health == "AT_RISK" && notificationService_)
+                {
+                    notificationService_->processProjectAtRisk(project.id, todayDate);
+                }
             }
             catch (const std::exception& e)
             {

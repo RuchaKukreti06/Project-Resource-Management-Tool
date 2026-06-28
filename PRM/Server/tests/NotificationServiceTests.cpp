@@ -18,8 +18,8 @@ protected:
     {
         mockRepo = std::make_shared<MockNotificationRepository>();
         mockUserRepo = std::make_shared<MockUserRepository>();
-        // emailService is not needed for restoreTimesheetAccess tests, pass nullptr
-        service = std::make_unique<NotificationService>(mockRepo, mockUserRepo, nullptr);
+        // emailService and others are not needed for restoreTimesheetAccess tests, pass nullptr
+        service = std::make_unique<NotificationService>(mockRepo, mockUserRepo, nullptr, nullptr, nullptr, nullptr);
     }
 
     std::shared_ptr<MockNotificationRepository> mockRepo;

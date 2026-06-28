@@ -119,10 +119,10 @@ protected:
         allocationService = std::make_shared<AllocationService>(allocationRepo, employeeRepo, projectRepo);
         
         auto emailService = std::make_shared<EmailService>(mockConfigRepo);
-        notificationService = std::make_shared<NotificationService>(mockNotifRepo, userRepo, emailService);
+        aiService = std::make_shared<AIService>(employeeRepo, allocationRepo, projectRepo, timesheetRepo);
+        notificationService = std::make_shared<NotificationService>(mockNotifRepo, userRepo, emailService, projectService, aiService, mockConfigRepo);
         
         timesheetService = std::make_shared<TimesheetService>(timesheetRepo, employeeRepo, allocationRepo, notificationService);
-        aiService = std::make_shared<AIService>(employeeRepo, allocationRepo, projectRepo, timesheetRepo);
         schedulerService = std::make_unique<SchedulerService>(employeeService, projectService, allocationService, timesheetService, notificationService);
 
         // 3. Initialize Controllers

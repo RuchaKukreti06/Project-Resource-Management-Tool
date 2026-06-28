@@ -4,13 +4,20 @@
 
 #include <sstream>
 #include "exceptions/Exceptions.h"
+#include <nlohmann/json.hpp>
 
 NotificationService::NotificationService(
     std::shared_ptr<INotificationRepository> notificationRepository,
-    std::shared_ptr<IUserRepository> userRepository, std::shared_ptr<EmailService> emailService)
+    std::shared_ptr<IUserRepository> userRepository, std::shared_ptr<EmailService> emailService,
+    std::shared_ptr<IProjectService> projectService,
+    std::shared_ptr<AIService> aiService,
+    std::shared_ptr<ISystemConfigRepository> systemConfigRepo)
     : notificationRepository_(std::move(notificationRepository)),
       userRepository_(std::move(userRepository)),
-      emailService_(std::move(emailService))
+      emailService_(std::move(emailService)),
+      projectService_(std::move(projectService)),
+      aiService_(std::move(aiService)),
+      systemConfigRepo_(std::move(systemConfigRepo))
 {
 }
 
@@ -182,4 +189,141 @@ bool NotificationService::isTimesheetAccessLocked(int userId) const
         return false;
     }
     return notificationRepository_->isTimesheetAccessLocked(userId);
+}
+
+void NotificationService::processProjectAtRisk(int projectId, const std::string& todayDate)
+{
+    spdlog::info("NotificationService: processing AT_RISK project {}", projectId);
+    try
+    {
+        if (!projectService_)
+        {
+            spdlog::error("Project service dependency is missing in NotificationService.");
+            return;
+        }
+
+        auto projectOpt = projectService_->getProjectById(projectId);
+        if (!projectOpt)
+        {
+            spdlog::error("Project not found: {}", projectId);
+            return;
+        }
+        const auto& project = *projectOpt;
+
+        if (project.managerId <= 0)
+        {
+            spdlog::warn("Project {} has no manager assigned. Skipping AT_RISK email.", projectId);
+            return;
+        }
+
+        User manager = userRepository_->getUserById(project.managerId);
+        if (manager.id <= 0)
+        {
+            spdlog::error("Manager {} not found for project {}", project.managerId, projectId);
+            return;
+        }
+        if (manager.email.empty())
+        {
+            spdlog::warn("Manager {} for project {} has no email. Skipping.", project.managerId, projectId);
+            return;
+        }
+
+        std::string aiSummary = "No AI summary available.";
+        std::string suggestedHelp = "No automatic suggestions available.";
+
+        if (aiService_ && systemConfigRepo_)
+        {
+            int maxWeeklyHours = 40;
+            try
+            {
+                auto config = systemConfigRepo_->getConfig();
+                maxWeeklyHours = config.maxWeeklyHours;
+                if (!config.llmApiKey.empty())
+                {
+                    aiSummary = aiService_->riskSummary(projectId, todayDate, config.llmApiKey, config.llmProvider);
+                    suggestedHelp = aiService_->skillMatch("Available employees who can help with project delays", maxWeeklyHours, config.llmApiKey, config.llmProvider);
+                }
+                
+                // If API call failed or keys were empty, fetch the deterministic fallback
+                if (aiSummary.empty() || config.llmApiKey.empty())
+                {
+                    aiSummary = aiService_->riskSummary(projectId, todayDate, "", "");
+                }
+                
+                if (suggestedHelp.empty() || config.llmApiKey.empty())
+                {
+                    suggestedHelp = aiService_->skillMatch("Available employees who can help with project delays", maxWeeklyHours, "", "");
+                }
+            }
+            catch (const std::exception& e)
+            {
+                spdlog::warn("AI fallback triggered for project {} due to error: {}", projectId, e.what());
+                // Ensure we still have a fallback if exception thrown
+                if (aiSummary.empty() || aiSummary == "No AI summary available.") 
+                    aiSummary = aiService_->riskSummary(projectId, todayDate, "", "");
+                if (suggestedHelp.empty() || suggestedHelp == "No automatic suggestions available.") 
+                    suggestedHelp = aiService_->skillMatch("Available employees who can help with project delays", maxWeeklyHours, "", "");
+            }
+        }
+
+        const auto milestones = projectService_->getProjectMilestones(projectId);
+        std::stringstream body;
+        body << "Hello " << manager.fullName << ",\n\n"
+             << "This is an automated alert regarding your project: " << project.name << ".\n\n"
+             << "CURRENT STATUS: AT_RISK\n\n";
+
+        bool hasOverdue = false;
+        body << "Overdue or Risky Milestones:\n";
+        for (const auto& ms : milestones)
+        {
+            if (ms.status != "DONE" && ms.dueDate < todayDate)
+            {
+                hasOverdue = true;
+                body << "- " << ms.title << " (Due: " << ms.dueDate << ")\n";
+            }
+        }
+        if (!hasOverdue)
+        {
+            body << "- (No specific overdue milestones found)\n";
+        }
+
+        std::string formattedHelp = suggestedHelp;
+        try {
+            auto jsonHelp = nlohmann::json::parse(suggestedHelp);
+            if (jsonHelp.is_array() && !jsonHelp.empty()) {
+                std::stringstream sb;
+                for (const auto& item : jsonHelp) {
+                    sb << "- " << item.value("name", "Unknown") 
+                       << " (ID: " << item.value("employee_id", 0) << ")\n"
+                       << "  Reason: " << item.value("reason", "") << "\n";
+                }
+                formattedHelp = sb.str();
+            } else if (jsonHelp.is_array() && jsonHelp.empty()) {
+                formattedHelp = "No available employees found matching the criteria.";
+            }
+        } catch (...) {
+            // Not a valid JSON array, keep the raw string
+        }
+
+        body << "\nAI Risk Summary:\n" << aiSummary << "\n\n";
+        body << "Suggested Help:\n" << formattedHelp << "\n\n";
+        body << "Please take necessary actions to bring this project back on track.\n\n"
+             << "Regards,\nPRM System Scheduler\n";
+
+        std::string subject = "Project At-Risk Alert: " + project.name;
+        
+        bool sent = sendEmail(manager.email, subject, body.str());
+        if (!sent)
+        {
+            spdlog::error("Failed to send AT_RISK email to {} for project {}", manager.email, projectId);
+        }
+        else
+        {
+            spdlog::info("Sent AT_RISK email to {} for project {}", manager.email, projectId);
+        }
+    }
+    catch (const std::exception& e)
+    {
+        spdlog::error("Unhandled exception in processProjectAtRisk for project {}: {}", projectId, e.what());
+    }
 }

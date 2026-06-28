@@ -7,18 +7,25 @@
 
 #include "repositories/INotificationRepository.h"
 #include "repositories/IUserRepository.h"
+#include "repositories/ISystemConfigRepository.h"
 #include "services/EmailService.h"
+#include "services/AIService.h"
 #include "services/interfaces/INotificationService.h"
+#include "services/interfaces/IProjectService.h"
 
 class NotificationService : public INotificationService
 {
    public:
     NotificationService(std::shared_ptr<INotificationRepository> notificationRepository,
                         std::shared_ptr<IUserRepository> userRepository,
-                        std::shared_ptr<EmailService> emailService);
+                        std::shared_ptr<EmailService> emailService,
+                        std::shared_ptr<IProjectService> projectService,
+                        std::shared_ptr<AIService> aiService,
+                        std::shared_ptr<ISystemConfigRepository> systemConfigRepo);
 
     void processMissedTimesheetNotifications(const std::string& weekStartDate,
                                              const std::vector<int>& missedUserIds) override;
+    void processProjectAtRisk(int projectId, const std::string& todayDate) override;
     void restoreTimesheetAccess(int userId, const std::string& weekStartDate) override;
     bool isTimesheetAccessLocked(int userId) const override;
 
@@ -33,6 +40,9 @@ class NotificationService : public INotificationService
     std::shared_ptr<INotificationRepository> notificationRepository_;
     std::shared_ptr<IUserRepository> userRepository_;
     std::shared_ptr<EmailService> emailService_;
+    std::shared_ptr<IProjectService> projectService_;
+    std::shared_ptr<AIService> aiService_;
+    std::shared_ptr<ISystemConfigRepository> systemConfigRepo_;
 };
 
 #endif
