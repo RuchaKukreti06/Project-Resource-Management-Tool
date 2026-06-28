@@ -6,6 +6,7 @@
 #include "screens/admin/ManageUsersScreen.h"
 #include "screens/admin/ManageEmployeesScreen.h"
 #include "screens/admin/ManageProjectsScreen.h"
+#include "screens/admin/AllAllocationsScreen.h"
 #include "screens/admin/SystemConfigScreen.h"
 #include "screens/manager/ManagerScreen.h"
 #include "screens/manager/ResourceDashboardScreen.h"
@@ -80,7 +81,7 @@ void Router::showChangePasswordScreen()
 
 void Router::routeToAdminMenu()
 {
-    AdminScreen screen(*this, services_.sessionStore, *services_.projectService, *services_.allocationService, *services_.employeeService);
+    AdminScreen screen(*this, services_.sessionStore);
     screen.show();
 }
 
@@ -114,6 +115,12 @@ void Router::navigateToManageProjects()
     screen.show();
 }
 
+void Router::navigateToAllAllocations()
+{
+    AllAllocationsScreen screen(*services_.projectService, *services_.allocationService, *services_.employeeService);
+    screen.show();
+}
+
 void Router::navigateToSystemConfig()
 {
     SystemConfigScreen screen(*services_.configService);
@@ -122,31 +129,31 @@ void Router::navigateToSystemConfig()
 
 void Router::navigateToResourceDashboard()
 {
-    ResourceDashboardScreen screen(*services_.employeeService, *services_.projectService, *services_.allocationService, *services_.timesheetService);
+    ResourceDashboardScreen screen(*services_.employeeService, *services_.projectService, *services_.allocationService, *services_.timesheetService, services_.sessionStore.userId());
     screen.show();
 }
 
 void Router::navigateToAllocateResource()
 {
-    AllocateResourceScreen screen(*services_.aiService, *services_.allocationService, *services_.projectService, *services_.employeeService);
+    AllocateResourceScreen screen(*services_.aiService, *services_.allocationService, *services_.projectService, *services_.employeeService, services_.sessionStore.userId());
     screen.show();
 }
 
 void Router::navigateToMyProjects()
 {
-    MyProjectsScreen screen(*services_.projectService, *services_.allocationService, *services_.employeeService, *services_.aiService);
+    MyProjectsScreen screen(*services_.projectService, *services_.allocationService, *services_.employeeService, *services_.aiService, services_.sessionStore.userId());
     screen.show();
 }
 
 void Router::navigateToTimesheets()
 {
-    TimesheetsScreen screen(*services_.timesheetService);
+    TimesheetsScreen screen(*services_.timesheetService, services_.sessionStore.userId());
     screen.show();
 }
 
 void Router::navigateToAIAssistant()
 {
-    AIAssistantScreen screen(*services_.aiService, *services_.projectService);
+    AIAssistantScreen screen(*services_.aiService, *services_.projectService, services_.sessionStore.userId());
     screen.show();
 }
 

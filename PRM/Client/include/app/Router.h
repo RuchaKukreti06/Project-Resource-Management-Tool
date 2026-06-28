@@ -29,6 +29,7 @@ public:
     void navigateToManageUsers();
     void navigateToManageEmployees();
     void navigateToManageProjects();
+    void navigateToAllAllocations();
     void navigateToSystemConfig();
 
     // Manager routes

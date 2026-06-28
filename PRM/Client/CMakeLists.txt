@@ -31,6 +31,8 @@ add_library(client-lib STATIC
     src/services/TimesheetClientService.cpp
     src/services/AiClientService.cpp
     src/services/ConfigClientService.cpp
+    src/utils/ConsoleInput.cpp
+    src/utils/DateUtils.cpp
     src/api/AuthSession.cpp
     src/app/Application.cpp
     src/app/Router.cpp
@@ -41,6 +43,7 @@ add_library(client-lib STATIC
     src/screens/ScreenOptions.cpp
     src/screens/ScreenUtils.cpp 
     src/screens/admin/AdminScreen.cpp
+    src/screens/admin/AllAllocationsScreen.cpp
     src/screens/admin/ManageUsersScreen.cpp
     src/screens/admin/ManageEmployeesScreen.cpp
     src/screens/admin/ManageProjectsScreen.cpp
