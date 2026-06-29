@@ -93,7 +93,7 @@ std::vector<Allocation> AllocationRepository::getActiveAllocationsByProject(int 
     {
         // D6: correct column names
         auto result = database_.getSession()
-                          .sql("SELECT id, resource_id, project_id, utilisation_percent, from_date, to_date "
+                          .sql("SELECT id, resource_id, project_id, utilisation_percent, DATE_FORMAT(from_date, '%Y-%m-%d'), COALESCE(DATE_FORMAT(to_date, '%Y-%m-%d'), '') "
                                "FROM allocations "
                                "WHERE project_id = ? AND (to_date IS NULL OR to_date >= CURDATE())")
                           .bind(projectId)
@@ -120,7 +120,7 @@ std::vector<Allocation> AllocationRepository::getOverlappingAllocations(int empl
     try
     {
         auto result = database_.getSession()
-                          .sql("SELECT id, resource_id, project_id, utilisation_percent, from_date, to_date "
+                          .sql("SELECT id, resource_id, project_id, utilisation_percent, DATE_FORMAT(from_date, '%Y-%m-%d'), COALESCE(DATE_FORMAT(to_date, '%Y-%m-%d'), '') "
                                "FROM allocations "
                                "WHERE resource_id = ? AND from_date <= ? "
                                "AND (to_date IS NULL OR to_date >= ?)")
@@ -205,7 +205,7 @@ std::vector<Allocation> AllocationRepository::getAllocationsByEmployee(int emplo
     try
     {
         auto result = database_.getSession()
-                          .sql("SELECT id, resource_id, project_id, utilisation_percent, from_date, to_date "
+                          .sql("SELECT id, resource_id, project_id, utilisation_percent, DATE_FORMAT(from_date, '%Y-%m-%d'), COALESCE(DATE_FORMAT(to_date, '%Y-%m-%d'), '') "
                                "FROM allocations "
                                "WHERE resource_id = ? "
                                "ORDER BY from_date DESC")
@@ -230,7 +230,7 @@ std::optional<Allocation> AllocationRepository::getAllocationById(int allocation
     try
     {
         auto result = database_.getSession()
-                          .sql("SELECT id, resource_id, project_id, utilisation_percent, from_date, to_date "
+                          .sql("SELECT id, resource_id, project_id, utilisation_percent, DATE_FORMAT(from_date, '%Y-%m-%d'), COALESCE(DATE_FORMAT(to_date, '%Y-%m-%d'), '') "
                                "FROM allocations "
                                "WHERE id = ?")
                           .bind(allocationId)
