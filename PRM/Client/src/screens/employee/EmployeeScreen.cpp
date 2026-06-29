@@ -307,7 +307,7 @@ void EmployeeScreen::viewMyAllocations()
         
         displayMyAllocations(allocData, totalUtil);
 
-        if (count == 0)
+        if (allocData.empty())
         {
             showInfo("You have no active allocations.");
         }
