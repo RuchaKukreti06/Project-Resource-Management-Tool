@@ -54,7 +54,7 @@ void AllocationController::handleCreateAllocation(const httplib::Request& req,
         throw exceptions::NotFoundException("Project not found.");
     }
     
-    if (tokenRole == "ADMIN" || projectOpt->managerId != tokenUserId) {
+    if (tokenRole != "ADMIN" && projectOpt->managerId != tokenUserId) {
         throw exceptions::AuthorizationException("Forbidden: Only the project manager can allocate resources.");
     }
 
@@ -87,7 +87,7 @@ void AllocationController::handleEndAllocation(const httplib::Request& req, http
         throw exceptions::NotFoundException("Project not found.");
     }
 
-    if (tokenRole == "ADMIN" || projectOpt->managerId != tokenUserId) {
+    if (tokenRole != "ADMIN" && projectOpt->managerId != tokenUserId) {
         throw exceptions::AuthorizationException("Forbidden: Only the project manager can end allocations.");
     }
 
