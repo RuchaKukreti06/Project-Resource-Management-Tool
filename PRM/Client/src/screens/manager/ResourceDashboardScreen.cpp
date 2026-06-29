@@ -58,8 +58,7 @@ void ResourceDashboardScreen::viewDashboard()
         std::vector<ActiveEmployeeData> activeData;
         int benchCount = 0;
         int activeCount = 0;
-
-        std::vector<EmployeeDTO> activeList = fetchAndCategorizeEmployees(benchData, activeData, benchCount, activeCount);
+        std::vector<EmployeeDTO> activeList = categorizeEmployees(benchData, activeData, benchCount, activeCount);
 
         decorator().render();
         displayBenchEmployees(benchData);
@@ -89,7 +88,7 @@ void ResourceDashboardScreen::viewDashboard()
     }
 }
 
-std::vector<EmployeeDTO> ResourceDashboardScreen::fetchAndCategorizeEmployees(std::vector<BenchEmployeeData>& benchData, std::vector<ActiveEmployeeData>& activeData, int& benchCount, int& activeCount)
+std::vector<EmployeeDTO> ResourceDashboardScreen::categorizeEmployees(std::vector<BenchEmployeeData>& benchData, std::vector<ActiveEmployeeData>& activeData, int& benchCount, int& activeCount)
 {
     auto response = empService_.getTeamEmployees(currentUserId_);
     if (!response.success)
@@ -109,19 +108,7 @@ std::vector<EmployeeDTO> ResourceDashboardScreen::fetchAndCategorizeEmployees(st
 
         if (status == "BENCH")
         {
-            std::string skillsStr = "";
-            auto skillsRes = empService_.getEmployeeSkills(empId);
-            if (skillsRes.success)
-            {
-                int count = 0;
-                for (const auto& s : skillsRes.data)
-                {
-                    if (count > 0) skillsStr += ", ";
-                    skillsStr += s.skillName;
-                    count++;
-                }
-            }
-
+            std::string skillsStr = buildSkillSummary(empId, false);
             benchData.push_back({empId, emp.fullName, emp.department, skillsStr});
             benchCount++;
         }
@@ -152,6 +139,11 @@ void ResourceDashboardScreen::handleInput()
     {
         keepRunning_ = false;
     }
+    else
+    {
+        showError(Messages::INVALID_OPTION);
+        ConsoleInput::waitForEnter(Messages::PRESS_ENTER_TO_CONTINUE);
+    }
 }
 
 void ResourceDashboardScreen::drillIntoEmployeeDetails()
@@ -162,20 +154,20 @@ void ResourceDashboardScreen::drillIntoEmployeeDetails()
         if (!empIdOpt) return;
         int employeeId = empIdOpt.value();
 
-        fetchAndDisplayEmployeeProfile(employeeId);
+        fetchEmployeeProfile(employeeId);
         displayEmployeeAllocations(employeeId);
         displayRecentActivity(employeeId);
 
-        ConsoleInput::waitForEnter("Press Enter to go back\n");
+        ConsoleInput::waitForEnter(Messages::PRESS_ENTER_TO_GO_BACK);
     }
     catch (const ApiException& ex)
     {
         showError(ex.what());
-        ConsoleInput::waitForEnter("Press Enter to continue\n");
+        ConsoleInput::waitForEnter(Messages::PRESS_ENTER_TO_CONTINUE);
     }
     catch (const std::exception&)
     {
-        showError("Something went wrong. Please try again.");
+        showError(Messages::SOMETHING_WENT_WRONG);
     }
 }
 
@@ -186,18 +178,18 @@ std::optional<int> ResourceDashboardScreen::promptForEmployeeId()
 
     if (!parsedEmployeeId)
     {
-        showError("Invalid employee ID format.");
-        ConsoleInput::waitForEnter("Press Enter to continue\n");
+        showError(Messages::INVALID_SELECTION_FORMAT);
+        ConsoleInput::waitForEnter(Messages::PRESS_ENTER_TO_CONTINUE);
         return std::nullopt;
     }
 
     return parsedEmployeeId.value();
 }
 
-void ResourceDashboardScreen::fetchAndDisplayEmployeeProfile(int employeeId)
+void ResourceDashboardScreen::fetchEmployeeProfile(int employeeId)
 {
-    EmployeeDTO targetEmp = fetchEmployeeDTO(employeeId);
-    fetchSkillsAndPrintProfile(targetEmp);
+    EmployeeDTO targetEmployee = fetchEmployeeDTO(employeeId);
+    printEmployeeProfile(targetEmployee);
 }
 
 EmployeeDTO ResourceDashboardScreen::fetchEmployeeDTO(int employeeId)
@@ -215,41 +207,53 @@ EmployeeDTO ResourceDashboardScreen::fetchEmployeeDTO(int employeeId)
     throw ApiException("Employee not found in your team.");
 }
 
-void ResourceDashboardScreen::fetchSkillsAndPrintProfile(const EmployeeDTO& targetEmp)
+void ResourceDashboardScreen::printEmployeeProfile(const EmployeeDTO& targetEmployee)
 {
+    std::cout << "\n── " << targetEmployee.fullName << " ─────────────────────────────────\n";
+    std::cout << "Department     : " << targetEmployee.department << "\n";
+    std::cout << "Designation    : " << targetEmployee.designation << "\n";
+    std::cout << "Current Status : " << targetEmployee.status << "\n";
 
-    std::cout << "\n── " << targetEmp.fullName << " ─────────────────────────────────\n";
-    std::cout << "Department     : " << targetEmp.department << "\n";
-    std::cout << "Designation    : " << targetEmp.designation << "\n";
-    std::cout << "Current Status : " << targetEmp.status << "\n";
-
-    // Fetch skills
-    std::string skillsStr = "";
-    auto skillsRes = empService_.getEmployeeSkills(targetEmp.id);
-    if (skillsRes.success)
-    {
-        int count = 0;
-        for (const auto& s : skillsRes.data)
-        {
-            if (count > 0) skillsStr += ", ";
-            skillsStr += s.skillName + " (" + s.proficiency + ")";
-            count++;
-        }
-    }
+    std::string skillsStr = buildSkillSummary(targetEmployee.id, true);
     std::cout << "Profile Skills : " << (skillsStr.empty() ? "None" : skillsStr) << "\n\n";
+}
+
+std::string ResourceDashboardScreen::buildSkillSummary(int employeeId, bool includeProficiency)
+{
+    std::string skillsSummary;
+    auto skillsResponse = empService_.getEmployeeSkills(employeeId);
+    if (!skillsResponse.success)
+    {
+        return skillsSummary;
+    }
+    int count = 0;
+    for (const auto& skill : skillsResponse.data)
+    {
+        if (count > 0)
+        {
+            skillsSummary += ", ";
+        }
+        skillsSummary += skill.skillName;
+        if (includeProficiency)
+        {
+            skillsSummary += " (" + skill.proficiency + ")";
+        }
+        ++count;
+    }
+    return skillsSummary;
 }
 
 void ResourceDashboardScreen::displayEmployeeAllocations(int employeeId)
 {
     std::vector<AllocationDisplayData> allocData;
-    auto allocRes = allocService_.getEmployeeAllocations(employeeId);
-    if (allocRes.success)
+    auto allocationResponse = allocService_.getEmployeeAllocations(employeeId);
+    if (allocationResponse.success)
     {
-        for (const auto& alloc : allocRes.data)
+        for (const auto& alloc : allocationResponse.data)
         {
-            auto projRes = projService_.getProject(alloc.projectId);
+            auto projectResponse = projService_.getProject(alloc.projectId);
             std::string projName =
-                (projRes.success && projRes.data) ? projRes.data->name : "Unknown";
+                (projectResponse.success && projectResponse.data) ? projectResponse.data->name : "Unknown";
 
             allocData.push_back({projName, std::to_string(alloc.utilizationPercentage) + "%",
                                  alloc.fromDate, alloc.toDate});

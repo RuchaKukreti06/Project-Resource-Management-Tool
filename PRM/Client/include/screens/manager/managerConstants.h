@@ -60,8 +60,31 @@ namespace ManagerConstants
         const std::string OPT_RISK_SUMMARY = "2";
         const std::string OPT_TEAM_BUILDER = "3";
         const std::string OPT_BACK = "4";
-
         const std::string OPT_GO_ALLOCATE = "A";
+    }
+
+    namespace HealthStatus
+    {
+        const std::string ON_TRACK = "🟢 ON TRACK";
+        const std::string AT_RISK = "🔴 AT RISK";
+        const std::string ATTENTION = "🟡 ATTENTION";
+        const std::string DONE = "DONE";
+    }
+
+    namespace Messages
+    {
+        const std::string PRESS_ENTER_TO_CONTINUE = "Press Enter to continue\n";
+        const std::string PRESS_ENTER_TO_GO_BACK = "Press Enter to go back\n";
+        const std::string INVALID_OPTION = "Invalid option.";
+        const std::string INVALID_SELECTION_FORMAT = "Invalid selection format.";
+        const std::string INVALID_PROJECT_SELECTION = "Invalid project selection.";
+        const std::string SOMETHING_WENT_WRONG = "Something went wrong. Please try again.";
+    }
+
+    namespace Display
+    {
+        const int WRAP_WIDTH_AI_REASON = 55;
+        const int WRAP_WIDTH_TEAM_REASON = 50;
     }
 }
 

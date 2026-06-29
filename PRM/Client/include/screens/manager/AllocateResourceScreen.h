@@ -39,15 +39,16 @@ class AllocateResourceScreen : public Screen
     std::optional<int> promptForProject(const std::string& promptText);
     
     std::optional<AiCandidateDTO> fetchSkillMatchCandidates(const std::string& reqText);
-    std::optional<AiCandidateDTO> displayAndSelectAICandidate(const std::vector<AiCandidateDTO>& candidates);
-    void promptForAllocationDetailsAndSave(int empId, int projectId);
+    std::optional<AiCandidateDTO> selectAICandidate(const std::vector<AiCandidateDTO>& candidates);
+    std::optional<CreateAllocationRequest> promptForAllocationRequest(int employeeId, int projectId);
+    void createAllocation(int empId, int projectId);
     std::optional<int> promptForEmployeeId();
     
     std::optional<AllocationDTO> selectActiveAllocation(int projectId);
     std::vector<std::pair<AllocationDTO, std::string>> fetchAllocationsWithNames(const std::vector<AllocationDTO>& activeAllocs);
-    std::optional<AllocationDTO> promptAndReturnAllocation(const std::vector<AllocationDTO>& activeAllocs);
+    std::optional<AllocationDTO> selectAllocation(const std::vector<AllocationDTO>& activeAllocs);
 
-    void confirmAndEndAllocation(int allocId);
+    void endAllocation(int allocId);
 
     int currentUserId_;
     bool keepRunning_ = true;

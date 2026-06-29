@@ -24,6 +24,12 @@ class MyProjectsScreen : public Screen
     void handleInput() override;
 
    private:
+    struct ProjectHealthSummary
+    {
+        std::string healthStatus;
+        std::vector<std::string> overdueTitles;
+    };
+
     ProjectClientService& projService_;
     AllocationClientService& allocService_;
     EmployeeClientService& empService_;
@@ -33,6 +39,7 @@ class MyProjectsScreen : public Screen
     void viewProjectDetail(int projectId);
     std::vector<std::pair<ProjectDTO, std::string>> fetchProjectsDisplayData();
     std::string calculateProjectHealth(int projectId);
+    ProjectHealthSummary buildProjectHealthSummary(const std::vector<MilestoneDTO>& milestones);
     std::optional<int> promptForProjectSelection(size_t maxSelection);
     void displayMilestoneRisks(int projectId);
     void displayAllocationsDetail(int projectId);

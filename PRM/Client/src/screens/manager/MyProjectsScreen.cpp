@@ -77,7 +77,7 @@ void MyProjectsScreen::viewMyProjects()
     }
     catch (const std::exception&)
     {
-        showError("Something went wrong. Please try again.");
+        showError(Messages::SOMETHING_WENT_WRONG);
         keepRunning_ = false;
     }
 }
@@ -101,43 +101,56 @@ std::vector<std::pair<ProjectDTO, std::string>> MyProjectsScreen::fetchProjectsD
     return displayData;
 }
 
-std::string MyProjectsScreen::calculateProjectHealth(int projectId)
+MyProjectsScreen::ProjectHealthSummary MyProjectsScreen::buildProjectHealthSummary(
+    const std::vector<MilestoneDTO>& milestones)
 {
-    auto msRes = projService_.getProjectMilestones(projectId);
+    ProjectHealthSummary summary;
+    summary.healthStatus = HealthStatus::ON_TRACK;
 
-    std::string health = "🟢 ON TRACK";
     bool hasOverdue = false;
     bool hasApproaching = false;
 
     std::string todayStr = DateUtils::getCurrentDateYYYYMMDD();
     std::string nextStr = DateUtils::getDateNextWeekYYYYMMDD();
 
-    if (msRes.success)
+    for (const auto& milestone : milestones)
     {
-        for (const auto& ms : msRes.data)
+        if (milestone.status == "DONE" || milestone.dueDate.empty())
         {
-            std::string status = ms.status;
-            std::string dueDate = ms.dueDate;
-            if (status != "DONE" && !dueDate.empty() && dueDate < todayStr)
-            {
-                hasOverdue = true;
-            }
-            else if (status != "DONE" && !dueDate.empty() && dueDate <= nextStr)
-            {
-                hasApproaching = true;
-            }
+            continue;
+        }
+
+        if (milestone.dueDate < todayStr)
+        {
+            hasOverdue = true;
+            summary.overdueTitles.push_back(milestone.title);
+        }
+        else if (milestone.dueDate <= nextStr)
+        {
+            hasApproaching = true;
         }
     }
 
     if (hasOverdue)
     {
-        health = "🔴 AT RISK";
+        summary.healthStatus = HealthStatus::AT_RISK;
     }
     else if (hasApproaching)
     {
-        health = "🟡 ATTENTION";
+        summary.healthStatus = HealthStatus::ATTENTION;
     }
-    return health;
+
+    return summary;
+}
+
+std::string MyProjectsScreen::calculateProjectHealth(int projectId)
+{
+    auto milestoneResponse = projService_.getProjectMilestones(projectId);
+    if (!milestoneResponse.success)
+    {
+        return HealthStatus::ON_TRACK;
+    }
+    return buildProjectHealthSummary(milestoneResponse.data).healthStatus;
 }
 
 std::optional<int> MyProjectsScreen::promptForProjectSelection(size_t maxSelection)
@@ -147,8 +160,8 @@ std::optional<int> MyProjectsScreen::promptForProjectSelection(size_t maxSelecti
     auto parsedSel = ScreenUtils::safeParseInt(selStr);
     if (!parsedSel)
     {
-        showError("Invalid selection format.");
-        ConsoleInput::waitForEnter("Press Enter to continue\n");
+        showError(Messages::INVALID_SELECTION_FORMAT);
+        ConsoleInput::waitForEnter(Messages::PRESS_ENTER_TO_CONTINUE);
         return std::nullopt;
     }
     int selection = parsedSel.value();
@@ -169,9 +182,9 @@ void MyProjectsScreen::viewProjectDetail(int projectId)
     {
         try
         {
-            auto projRes = projService_.getProject(projectId);
-            if (!projRes.success || !projRes.data) return;
-            auto proj = *projRes.data;
+            auto projectResponse = projService_.getProject(projectId);
+            if (!projectResponse.success || !projectResponse.data) return;
+            auto proj = *projectResponse.data;
 
             std::cout << "\n── " << proj.name << " ───────────────────────────────\n";
 
@@ -189,6 +202,11 @@ void MyProjectsScreen::viewProjectDetail(int projectId)
             {
                 break;
             }
+            else
+            {
+                showError(Messages::INVALID_OPTION);
+                ConsoleInput::waitForEnter(Messages::PRESS_ENTER_TO_CONTINUE);
+            }
         }
         catch (const ApiException& ex)
         {
@@ -198,7 +216,7 @@ void MyProjectsScreen::viewProjectDetail(int projectId)
         }
         catch (const std::exception&)
         {
-            showError("Something went wrong. Please try again.");
+            showError(Messages::SOMETHING_WENT_WRONG);
             break;
         }
     }
@@ -206,67 +224,45 @@ void MyProjectsScreen::viewProjectDetail(int projectId)
 
 void MyProjectsScreen::displayMilestoneRisks(int projectId)
 {
-    auto msRes = projService_.getProjectMilestones(projectId);
-
-    std::string todayStr = DateUtils::getCurrentDateYYYYMMDD();
-    std::string nextStr = DateUtils::getDateNextWeekYYYYMMDD();
-
-    bool hasOverdue = false;
-    bool hasApproaching = false;
-    std::vector<std::string> overdueTitles;
-    if (msRes.success)
+    auto milestoneResponse = projService_.getProjectMilestones(projectId);
+    if (!milestoneResponse.success)
     {
-        for (const auto& ms : msRes.data)
-        {
-            if (ms.status != "DONE" && !ms.dueDate.empty() && ms.dueDate < todayStr)
-            {
-                hasOverdue = true;
-                overdueTitles.push_back(ms.title);
-            }
-            else if (ms.status != "DONE" && !ms.dueDate.empty() && ms.dueDate <= nextStr)
-            {
-                hasApproaching = true;
-            }
-        }
+        return;
     }
 
-    std::string healthStatus = "🟢 ON TRACK";
-    if (hasOverdue)
-        healthStatus = "🔴 AT RISK";
-    else if (hasApproaching)
-        healthStatus = "🟡 ATTENTION";
+    auto summary = buildProjectHealthSummary(milestoneResponse.data);
 
-    std::cout << "Health Status : " << healthStatus << "\n\n";
-    if (hasOverdue)
+    std::cout << "Health Status : " << summary.healthStatus << "\n\n";
+    if (!summary.overdueTitles.empty())
     {
         std::cout << "Risk Flags:\n";
-        for (const auto& title : overdueTitles)
+        for (const auto& title : summary.overdueTitles)
         {
             std::cout << "  ✗ " << title << " milestone is overdue\n";
         }
         std::cout << "\n";
     }
 
-    std::vector<MilestoneDTO> milestones = msRes.success ? msRes.data : std::vector<MilestoneDTO>{};
+    std::vector<MilestoneDTO> milestones = milestoneResponse.success ? milestoneResponse.data : std::vector<MilestoneDTO>{};
     displayMilestones(milestones);
 }
 
 void MyProjectsScreen::displayAllocationsDetail(int projectId)
 {
-    auto allocsRes = allocService_.getProjectAllocations(projectId);
+    auto allocationsResponse = allocService_.getProjectAllocations(projectId);
 
     std::vector<std::pair<AllocationDTO, std::string>> allocData;
     std::map<int, std::string> employeeNameById;
-    auto empsRes = empService_.getTeamEmployees(currentUserId_); // Safe API call
-    if (empsRes.success)
+    auto employeesResponse = empService_.getTeamEmployees(currentUserId_);
+    if (employeesResponse.success)
     {
-        for (const auto& e : empsRes.data)
+        for (const auto& e : employeesResponse.data)
         {
             employeeNameById[e.id] = e.fullName;
         }
     }
 
-    for (const auto& alloc : (allocsRes.success ? allocsRes.data : std::vector<AllocationDTO>{}))
+    for (const auto& alloc : (allocationsResponse.success ? allocationsResponse.data : std::vector<AllocationDTO>{}))
     {
         int empId = alloc.employeeId;
         std::string empName = "Emp " + std::to_string(empId);
@@ -285,17 +281,17 @@ void MyProjectsScreen::handleAIRiskSummary(int projectId, const std::string& pro
     std::cout << "\nGenerating AI summary...\n\n";
     AiRiskSummaryRequest req;
     req.projectId = projectId;
-    auto aiRes = aiService_.getRiskSummary(req);
+    auto aiResponse = aiService_.getRiskSummary(req);
 
     std::cout << "\n── AI Risk Summary — " << projectName << " ────────────\n\n";
 
-    if (!aiRes.fallback_message.has_value())
+    if (!aiResponse.fallback_message.has_value())
     {
-        std::cout << "\"" << aiRes.data.summary << "\"\n";
+        std::cout << "\"" << aiResponse.data.summary << "\"\n";
     }
     else
     {
-        std::cout << "AI service error: " << aiRes.fallback_message.value() << "\n";
+        std::cout << "AI service error: " << aiResponse.fallback_message.value() << "\n";
     }
 
     std::cout << "\n  Note: This summary is AI-generated from milestone and timesheet data.\n\n";

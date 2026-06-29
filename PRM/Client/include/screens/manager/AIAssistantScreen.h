@@ -25,7 +25,7 @@ class AIAssistantScreen : public Screen
     int currentUserId_;
     void skillMatch();
     std::string promptSkillRequirement();
-    AiSkillMatchResponse fetchAIAndHandleFallback(const std::string& reqText);
+    AiSkillMatchResponse generateSkillMatch(const std::string& reqText);
 
     void riskSummary();
     std::vector<ProjectDTO> fetchProjectsForRiskSummary();
@@ -35,11 +35,12 @@ class AIAssistantScreen : public Screen
 
    private:
     void displaySkillMatchResults(const std::vector<AiCandidateDTO>& candidates);
-    void displayTeamMatchResults(const AiTeamBuilderResponse& dto);
+    void displayTeamMatchResults(const AiTeamBuilderResponse& aiResponse);
     void printTeamMemberRow(const AiTeamMemberDTO& item);
 
     bool keepRunning_ = true;
     std::optional<int> promptForProjectSelection(const std::vector<ProjectDTO>& projects);
+    std::vector<std::string> wrapText(const std::string& text, int maxWidth) const;
 
    protected:
     ScreenDecorator decorator() const override;

@@ -14,7 +14,6 @@ ManagerScreen::ManagerScreen(Router& router, api::ISessionStore& sessionStore)
 
 void ManagerScreen::displayMenu()
 {
-    // clearScreen();
     decorator().render();
     std::cout << OPT_RESOURCE_DASHBOARD << ". Resource Dashboard\n";
     std::cout << OPT_ALLOCATE_RESOURCE << ". Allocate Resource\n";
@@ -67,8 +66,8 @@ void ManagerScreen::handleInput()
     }
     else
     {
-        showError("Invalid option. Please enter 1–6.");
-        ScreenUtils::readLine("Press Enter to continue");
+        showError(Messages::INVALID_OPTION);
+        ScreenUtils::readLine(Messages::PRESS_ENTER_TO_CONTINUE);
     }
 }
 

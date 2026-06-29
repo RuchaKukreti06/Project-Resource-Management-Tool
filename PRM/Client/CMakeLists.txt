@@ -40,7 +40,6 @@ add_library(client-lib STATIC
     src/screens/ChangePasswordScreen.cpp
     src/screens/ScreenDecorator.cpp
     src/screens/ScreenInput.cpp
-    src/screens/ScreenOptions.cpp
     src/screens/ScreenUtils.cpp 
     src/screens/admin/AdminScreen.cpp
     src/screens/admin/AllAllocationsScreen.cpp

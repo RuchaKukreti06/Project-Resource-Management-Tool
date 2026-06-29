@@ -616,14 +616,7 @@ void ManageEmployeesScreen::displayEmployees(const std::vector<EmployeeDTO>& emp
 
 std::optional<int> ManageEmployeesScreen::promptForId(const std::string& prompt)
 {
-    std::string inputStr = ConsoleInput::readLine(prompt);
-    auto parsed = ScreenUtils::safeParseInt(inputStr);
-    if (!parsed)
-    {
-        showError("Invalid ID format.");
-        ConsoleInput::waitForEnter("Press Enter to continue\n");
-    }
-    return parsed;
+    return ScreenUtils::promptForInt(prompt, "Invalid ID format.");
 }
 
 std::optional<EmployeeDTO> ManageEmployeesScreen::fetchEmployeeById(int empId)

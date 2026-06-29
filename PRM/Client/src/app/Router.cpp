@@ -75,7 +75,7 @@ void Router::showLoginScreen()
 
 void Router::showChangePasswordScreen()
 {
-    ChangePasswordScreen screen(*services_.authService, services_.sessionStore);
+    ChangePasswordScreen screen(*services_.authService, services_.sessionStore, services_.apiClient);
     screen.show();
 }
 
@@ -147,7 +147,7 @@ void Router::navigateToMyProjects()
 
 void Router::navigateToTimesheets()
 {
-    TimesheetsScreen screen(*services_.timesheetService, services_.sessionStore.userId());
+    TimesheetsScreen screen(*services_.timesheetService, *services_.employeeService, services_.sessionStore.userId());
     screen.show();
 }
 

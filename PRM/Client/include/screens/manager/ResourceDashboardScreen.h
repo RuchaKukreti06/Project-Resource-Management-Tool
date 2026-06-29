@@ -56,13 +56,14 @@ class ResourceDashboardScreen : public Screen
     void drillIntoEmployeeDetails();
     
     std::optional<int> promptForEmployeeId();
-    void fetchAndDisplayEmployeeProfile(int employeeId);
+    void fetchEmployeeProfile(int employeeId);
     void displayEmployeeAllocations(int employeeId);
     void displayRecentActivity(int employeeId);
-    std::vector<EmployeeDTO> fetchAndCategorizeEmployees(std::vector<BenchEmployeeData>& benchData, std::vector<ActiveEmployeeData>& activeData, int& benchCount, int& activeCount);
+    std::vector<EmployeeDTO> categorizeEmployees(std::vector<BenchEmployeeData>& benchData, std::vector<ActiveEmployeeData>& activeData, int& benchCount, int& activeCount);
     void printDashboardSummary(int benchCount, int activeCount);
     EmployeeDTO fetchEmployeeDTO(int employeeId);
-    void fetchSkillsAndPrintProfile(const EmployeeDTO& targetEmp);
+    void printEmployeeProfile(const EmployeeDTO& targetEmployee);
+    std::string buildSkillSummary(int employeeId, bool includeProficiency);
 
     bool keepRunning_ = true;
 

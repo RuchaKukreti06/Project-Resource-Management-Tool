@@ -63,8 +63,8 @@ void AllocateResourceScreen::handleInput()
     }
     else
     {
-        showError("Invalid option. Please enter 1–4.");
-        ScreenUtils::readLine("Press Enter to continue");
+        showError(Messages::INVALID_OPTION);
+        ScreenUtils::readLine(Messages::PRESS_ENTER_TO_CONTINUE);
     }
 }
 
@@ -84,16 +84,16 @@ void AllocateResourceScreen::findResourceAI()
         
         int empId = candidateOpt.value().employee_id;
 
-        promptForAllocationDetailsAndSave(empId, projectId);
+        createAllocation(empId, projectId);
     }
     catch (const ApiException& ex)
     {
         showError(ex.what());
-        ScreenUtils::readLine("Press Enter to continue");
+        ScreenUtils::readLine(Messages::PRESS_ENTER_TO_CONTINUE);
     }
     catch (const std::exception&)
     {
-        showError("Something went wrong. Please try again.");
+        showError(Messages::SOMETHING_WENT_WRONG);
     }
 }
 
@@ -102,15 +102,15 @@ std::optional<AiCandidateDTO> AllocateResourceScreen::fetchSkillMatchCandidates(
     std::cout << "\nSearching... (AI matching in progress)\n";
     AiSkillMatchRequest req;
     req.requirement = reqText;
-    auto aiRes = aiService_.getSkillMatch(req);
+    auto aiResponse = aiService_.getSkillMatch(req);
     
-    if (aiRes.fallback_message.has_value())
+    if (aiResponse.fallback_message.has_value())
     {
-        showError("AI service error: " + aiRes.fallback_message.value());
+        showError("AI service error: " + aiResponse.fallback_message.value());
         return std::nullopt;
     }
 
-    return displayAndSelectAICandidate(aiRes.candidates);
+    return selectAICandidate(aiResponse.candidates);
 }
 
 void AllocateResourceScreen::allocateDirectly()
@@ -125,16 +125,16 @@ void AllocateResourceScreen::allocateDirectly()
         if (!empIdOpt) return;
         int empId = empIdOpt.value();
 
-        promptForAllocationDetailsAndSave(empId, projectId);
+        createAllocation(empId, projectId);
     }
     catch (const ApiException& ex)
     {
         showError(ex.what());
-        ScreenUtils::readLine("Press Enter to continue");
+        ScreenUtils::readLine(Messages::PRESS_ENTER_TO_CONTINUE);
     }
     catch (const std::exception&)
     {
-        showError("Something went wrong. Please try again.");
+        showError(Messages::SOMETHING_WENT_WRONG);
     }
 }
 
@@ -149,16 +149,16 @@ void AllocateResourceScreen::endAllocation()
         auto allocOpt = selectActiveAllocation(projectId);
         if (!allocOpt) return;
         
-        confirmAndEndAllocation(allocOpt.value().id);
+        endAllocation(allocOpt.value().id);
     }
     catch (const ApiException& ex)
     {
         showError(ex.what());
-        ScreenUtils::readLine("Press Enter to continue");
+        ScreenUtils::readLine(Messages::PRESS_ENTER_TO_CONTINUE);
     }
     catch (const std::exception&)
     {
-        showError("Something went wrong. Please try again.");
+        showError(Messages::SOMETHING_WENT_WRONG);
     }
 }
 
@@ -191,13 +191,12 @@ void AllocateResourceScreen::printCandidateRow(const AiCandidateDTO& item, int i
 {
     std::string reason = item.reason;
     
-    // Word-wrap reason into lines of 55 chars
     std::vector<std::string> reasonLines;
-    while ((int)reason.size() > 55)
+    while ((int)reason.size() > Display::WRAP_WIDTH_AI_REASON)
     {
-        int cut = 55;
+        int cut = Display::WRAP_WIDTH_AI_REASON;
         while (cut > 0 && reason[cut] != ' ') cut--;
-        if (cut == 0) cut = 55;
+        if (cut == 0) cut = Display::WRAP_WIDTH_AI_REASON;
         reasonLines.push_back(reason.substr(0, cut));
         reason = reason.substr(cut + 1);
     }
@@ -257,16 +256,42 @@ std::optional<std::string> AllocateResourceScreen::promptForAIRequirement()
 
 std::optional<int> AllocateResourceScreen::promptForProject(const std::string& promptText)
 {
-    std::string projInput = ScreenUtils::readLine(promptText);
-    if (projInput.empty()) return std::nullopt;
+    auto projectResponse = projService_.getManagerProjects(currentUserId_);
+    if (!projectResponse.success || projectResponse.data.empty())
+    {
+        showError("No projects found for your account.");
+        ScreenUtils::readLine("Press Enter to continue");
+        return std::nullopt;
+    }
+
+    std::cout << "\n================ MY PROJECTS ================\n";
+    std::cout << std::left << std::setw(6) << "#" << std::setw(8) << "ID" << std::setw(25) << "Name" << "\n";
+    std::cout << "───────────────────────────────────────────────\n";
+    
+    int row = 1;
+    for (const auto& p : projectResponse.data)
+    {
+        std::cout << std::left << std::setw(6) << row++ << std::setw(8) << p.id 
+                  << std::setw(25) << ScreenUtils::truncate(p.name, 24) << "\n";
+    }
+    std::cout << "───────────────────────────────────────────────\n";
+
+    std::string projInput = ScreenUtils::readLine(promptText + " (or 0 to cancel)");
+    projInput = ScreenUtils::trim(projInput);
+    if (projInput.empty() || projInput == "0") return std::nullopt;
 
     int projectId = 0;
-    auto projRes = projService_.getManagerProjects(currentUserId_);
-    if (projRes.success)
+    
+    auto parsedRow = ScreenUtils::safeParseInt(projInput);
+    if (parsedRow && parsedRow.value() > 0 && parsedRow.value() <= (int)projectResponse.data.size())
     {
-        for (const auto& p : projRes.data)
+        projectId = projectResponse.data[parsedRow.value() - 1].id;
+    }
+    else
+    {
+        for (const auto& p : projectResponse.data)
         {
-            if (std::to_string(p.id) == projInput || p.name == projInput)
+            if (std::to_string(p.id) == projInput || ScreenUtils::equalsIgnoreCase(p.name, projInput))
             {
                 projectId = p.id;
                 break;
@@ -283,7 +308,7 @@ std::optional<int> AllocateResourceScreen::promptForProject(const std::string& p
     return projectId;
 }
 
-std::optional<AiCandidateDTO> AllocateResourceScreen::displayAndSelectAICandidate(const std::vector<AiCandidateDTO>& candidates)
+std::optional<AiCandidateDTO> AllocateResourceScreen::selectAICandidate(const std::vector<AiCandidateDTO>& candidates)
 {
     displayCandidates(candidates);
     std::cout << "  Note: Suggestions are AI-generated. Verify before confirming.\n\n";
@@ -296,10 +321,11 @@ std::optional<AiCandidateDTO> AllocateResourceScreen::displayAndSelectAICandidat
     }
 
     std::string selStr = ScreenUtils::readLine("Select employee (enter #, or 0 to search again)");
+    if (selStr.empty()) return std::nullopt;
     auto parsedSel = ScreenUtils::safeParseInt(selStr);
     if (!parsedSel) 
     {
-        showError("Invalid selection format.");
+        showError(Messages::INVALID_SELECTION_FORMAT);
         return std::nullopt;
     }
     int selection = parsedSel.value();
@@ -311,69 +337,76 @@ std::optional<AiCandidateDTO> AllocateResourceScreen::displayAndSelectAICandidat
     return candidates[selection - 1];
 }
 
-void AllocateResourceScreen::promptForAllocationDetailsAndSave(int empId, int projectId)
+std::optional<CreateAllocationRequest> AllocateResourceScreen::promptForAllocationRequest(
+    int employeeId, int projectId)
 {
-    std::cout << "\n── Selected Employee ID: " << empId << " ─────────────────────────────\n";
-    std::string utilStr = ScreenUtils::readLine("Set Allocation Utilisation %");
-    auto parsedUtil = ScreenUtils::safeParseInt(utilStr);
-    if (!parsedUtil || parsedUtil.value() < 1 || parsedUtil.value() > 100) 
+    std::cout << "\n── Selected Employee ID: " << employeeId << " ─────────────────────────────\n";
+    auto utilOpt = ScreenUtils::promptForIntBounds("Set Allocation Utilisation %", 1, 100, "Utilization must be between 1 and 100.");
+    if (!utilOpt)
     {
-        showError("Utilization must be between 1 and 100.");
-        ConsoleInput::waitForEnter("Press Enter to continue\n");
-        return;
+        ConsoleInput::waitForEnter(Messages::PRESS_ENTER_TO_CONTINUE);
+        return std::nullopt;
     }
-    int utilPercent = parsedUtil.value();
-    std::string fromDate = ScreenUtils::readLine("From Date (YYYY-MM-DD)");
-    if (fromDate.empty()) {
-        showError("From Date is required.");
-        ConsoleInput::waitForEnter("Press Enter to continue\n");
-        return;
+    int utilPercent = utilOpt.value();
+    
+    auto fromDateOpt = ScreenUtils::promptForDate("From Date", true);
+    if (!fromDateOpt)
+    {
+        ConsoleInput::waitForEnter(Messages::PRESS_ENTER_TO_CONTINUE);
+        return std::nullopt;
     }
-    std::string fromDateError = DateUtils::validateDateYYYYMMDD(fromDate, true);
-    if (!fromDateError.empty()) {
-        showError(fromDateError);
-        ConsoleInput::waitForEnter("Press Enter to continue\n");
-        return;
-    }
+    std::string fromDate = fromDateOpt.value();
 
-    std::string toDate = ScreenUtils::readLine("To Date (YYYY-MM-DD) [Optional]");
-    if (!toDate.empty()) {
-        std::string toDateError = DateUtils::validateDateYYYYMMDD(toDate, true);
-        if (!toDateError.empty()) {
-            showError(toDateError);
-            ConsoleInput::waitForEnter("Press Enter to continue\n");
-            return;
-        }
-        if (toDate < fromDate) {
-            showError("To Date cannot be before From Date.");
-            ConsoleInput::waitForEnter("Press Enter to continue\n");
-            return;
-        }
+    auto toDateOpt = ScreenUtils::promptForDate("To Date", false);
+    if (!toDateOpt)
+    {
+        ConsoleInput::waitForEnter(Messages::PRESS_ENTER_TO_CONTINUE);
+        return std::nullopt;
+    }
+    std::string toDate = toDateOpt.value();
+
+    if (!toDate.empty() && toDate < fromDate)
+    {
+        showError("To Date cannot be before From Date.");
+        ConsoleInput::waitForEnter(Messages::PRESS_ENTER_TO_CONTINUE);
+        return std::nullopt;
     }
 
     CreateAllocationRequest allocReq;
-    allocReq.employeeId = empId;
+    allocReq.employeeId = employeeId;
     allocReq.projectId = projectId;
     allocReq.utilizationPercentage = utilPercent;
     allocReq.fromDate = fromDate;
     allocReq.toDate = toDate;
 
-    auto allocRes = allocService_.createAllocation(allocReq);
+    return allocReq;
+}
 
-    if (allocRes.success)
+void AllocateResourceScreen::createAllocation(int empId, int projectId)
+{
+    auto requestOpt = promptForAllocationRequest(empId, projectId);
+    if (!requestOpt)
+    {
+        return;
+    }
+
+    auto allocationResponse = allocService_.createAllocation(requestOpt.value());
+
+    if (allocationResponse.success)
     {
         showSuccess("Allocation saved successfully! ✓");
     }
     else
     {
-        showError(allocRes.message);
+        showError(allocationResponse.message);
     }
-    ScreenUtils::readLine("Press Enter to continue");
+    ConsoleInput::waitForEnter(Messages::PRESS_ENTER_TO_CONTINUE);
 }
 
 std::optional<int> AllocateResourceScreen::promptForEmployeeId()
 {
     std::string empIdStr = ScreenUtils::readLine("Enter Employee ID");
+    if (empIdStr.empty()) return std::nullopt;
     auto parsedEmp = ScreenUtils::safeParseInt(empIdStr);
     if (!parsedEmp) 
     {
@@ -385,21 +418,21 @@ std::optional<int> AllocateResourceScreen::promptForEmployeeId()
 
 std::optional<AllocationDTO> AllocateResourceScreen::selectActiveAllocation(int projectId)
 {
-    auto allocRes = allocService_.getProjectAllocations(projectId);
+    auto allocationResponse = allocService_.getProjectAllocations(projectId);
     
 
-    if (!allocRes.success || allocRes.data.empty())
+    if (!allocationResponse.success || allocationResponse.data.empty())
     {
         showInfo("No active allocations found on this project.");
-        ScreenUtils::readLine("Press Enter to continue");
+        ScreenUtils::readLine(Messages::PRESS_ENTER_TO_CONTINUE);
         return std::nullopt;
     }
     
-    auto activeAllocs = allocRes.data;
+    auto activeAllocs = allocationResponse.data;
     auto allocData = fetchAllocationsWithNames(activeAllocs);
     displayActiveAllocations(allocData);
 
-    return promptAndReturnAllocation(activeAllocs);
+    return selectAllocation(activeAllocs);
 }
 
 std::vector<std::pair<AllocationDTO, std::string>> AllocateResourceScreen::fetchAllocationsWithNames(const std::vector<AllocationDTO>& activeAllocs)
@@ -431,13 +464,14 @@ std::vector<std::pair<AllocationDTO, std::string>> AllocateResourceScreen::fetch
     return allocationsWithNames;
 }
 
-std::optional<AllocationDTO> AllocateResourceScreen::promptAndReturnAllocation(const std::vector<AllocationDTO>& activeAllocs)
+std::optional<AllocationDTO> AllocateResourceScreen::selectAllocation(const std::vector<AllocationDTO>& activeAllocs)
 {
     std::string selStr = ScreenUtils::readLine("Select resource to deallocate (enter #, or 0 to cancel)");
+    if (selStr.empty()) return std::nullopt;
     auto parsedSel = ScreenUtils::safeParseInt(selStr);
     if (!parsedSel) 
     {
-        showError("Invalid selection format");
+        showError(Messages::INVALID_SELECTION_FORMAT);
         return std::nullopt;
     }
     int selection = parsedSel.value();
@@ -449,7 +483,7 @@ std::optional<AllocationDTO> AllocateResourceScreen::promptAndReturnAllocation(c
     return activeAllocs[selection - 1];
 }
 
-void AllocateResourceScreen::confirmAndEndAllocation(int allocId)
+void AllocateResourceScreen::endAllocation(int allocId)
 {
     std::cout << "Confirm setting end date to today (Y/N): ";
     std::string confirm = ScreenUtils::readLine("Choice");
@@ -468,5 +502,5 @@ void AllocateResourceScreen::confirmAndEndAllocation(int allocId)
             showError(response.message);
         }
     }
-    ScreenUtils::readLine("Press Enter to continue");
+    ScreenUtils::readLine(Messages::PRESS_ENTER_TO_CONTINUE);
 }

@@ -1,4 +1,5 @@
 #include "ScreenInput.h"
+#include "utils/ConsoleInput.h"
 
 #include <iostream>
 
@@ -16,9 +17,7 @@ ScreenInput& ScreenInput::onInvalid(Handler handler)
 
 void ScreenInput::prompt() const
 {
-    std::string choice;
-    std::cout << "Enter option: ";
-    std::cin >> choice;
+    std::string choice = ConsoleInput::readLine("Enter option");
 
     auto it = handlers_.find(choice);
     if (it != handlers_.end())

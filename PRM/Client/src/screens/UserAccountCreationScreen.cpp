@@ -31,9 +31,7 @@ void UserAccountCreationScreen::handleInput(IApiClient& apiClient)
     ScreenUtils::printDivider();
     std::cout << "[C] Create Account\n\n";
 
-    std::string choice;
-    std::cout << "Enter option: ";
-    std::cin >> choice;
+    std::string choice = ConsoleInput::readLine("Enter option");
 
     if (choice != "C" && choice != "c")
     {

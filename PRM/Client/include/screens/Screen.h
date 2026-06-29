@@ -7,7 +7,6 @@
 #include "api/IApiClient.h"
 #include "ScreenDecorator.h"
 #include "ScreenInput.h"
-#include "ScreenOptions.h"
 #include "ScreenUtils.h"
 
 class Screen

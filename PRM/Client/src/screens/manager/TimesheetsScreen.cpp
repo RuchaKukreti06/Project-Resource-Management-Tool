@@ -7,14 +7,16 @@
 #include "dto/TimesheetDTO.h"
 #include "screens/ScreenUtils.h"
 #include "services/TimesheetClientService.h"
+#include "services/EmployeeClientService.h"
+#include "dto/EmployeeDTO.h"
 #include "utils/ConsoleInput.h"
 #include "utils/DateUtils.h"
 
 using namespace ManagerConstants;
 using namespace ManagerConstants::Timesheets;
 
-TimesheetsScreen::TimesheetsScreen(TimesheetClientService& tsService, int currentUserId)
-    : tsService_(tsService), currentUserId_(currentUserId)
+TimesheetsScreen::TimesheetsScreen(TimesheetClientService& tsService, EmployeeClientService& empService, int currentUserId)
+    : tsService_(tsService), empService_(empService), currentUserId_(currentUserId)
 {
 }
 
@@ -40,21 +42,20 @@ void TimesheetsScreen::viewTimesheetsBoard()
     try
     {
         decorator().render();
-
         auto dateOpt = promptWeekFilter();
         if (!dateOpt) return;
 
-        fetchAndDisplayManagerTimesheets(dateOpt.value());
+        fetchManagerTimesheets(dateOpt.value());
     }
     catch (const ApiException& ex)
     {
         showError(ex.what());
-        ConsoleInput::waitForEnter("Press Enter to continue\n");
+        ConsoleInput::waitForEnter(Messages::PRESS_ENTER_TO_CONTINUE);
         keepRunning_ = false;
     }
     catch (const std::exception&)
     {
-        showError("Something went wrong. Please try again.");
+        showError(Messages::SOMETHING_WENT_WRONG);
         keepRunning_ = false;
     }
 }
@@ -63,7 +64,7 @@ std::optional<std::string> TimesheetsScreen::promptWeekFilter()
 {
     while (true)
     {
-        std::cout << "Filter by week (DD-MM-YYYY) or press Enter for current week:\n";
+        std::cout << "Filter by week (YYYY-MM-DD) or press Enter for current week:\n";
         std::string weekInput = ConsoleInput::readLine("Week");
 
         if (weekInput.empty())
@@ -71,7 +72,7 @@ std::optional<std::string> TimesheetsScreen::promptWeekFilter()
             return "";
         }
 
-        std::string errorMsg = DateUtils::validateDateDDMMYYYY(weekInput);
+        std::string errorMsg = DateUtils::validateDateYYYYMMDD(weekInput, true);
         if (!errorMsg.empty())
         {
             showError(errorMsg);
@@ -79,18 +80,18 @@ std::optional<std::string> TimesheetsScreen::promptWeekFilter()
             continue;
         }
 
-        return DateUtils::convertDDMMYYYYToYYYYMMDD(weekInput);
+        return weekInput;
     }
 }
 
-void TimesheetsScreen::fetchAndDisplayManagerTimesheets(const std::string& formattedDate)
+void TimesheetsScreen::fetchManagerTimesheets(const std::string& formattedDate)
 {
     int managerId = currentUserId_;
     auto response = tsService_.getManagerTimesheets(managerId, formattedDate);
     if (!response.success)
     {
         showError(response.message);
-        ConsoleInput::waitForEnter("Press Enter to continue\n");
+        ConsoleInput::waitForEnter(Messages::PRESS_ENTER_TO_CONTINUE);
         keepRunning_ = false;
         return;
     }
@@ -114,8 +115,8 @@ void TimesheetsScreen::handleInput()
     }
     else
     {
-        showError("Invalid option.");
-        ConsoleInput::waitForEnter("Press Enter to continue\n");
+        showError(Messages::INVALID_OPTION);
+        ConsoleInput::waitForEnter(Messages::PRESS_ENTER_TO_CONTINUE);
     }
 }
 
@@ -125,37 +126,64 @@ void TimesheetsScreen::viewTimesheetDetail()
     {
         auto empIdOpt = promptForEmployeeId();
         if (!empIdOpt) return;
+        int employeeId = empIdOpt.value();
 
-        fetchAndDisplayEmployeeTimesheets(empIdOpt.value());
-        ConsoleInput::waitForEnter("Press Enter to go back\n");
+        auto teamResponse = empService_.getTeamEmployees(currentUserId_);
+        if (!teamResponse.success)
+        {
+            showError("Failed to fetch your team: " + teamResponse.message);
+            ConsoleInput::waitForEnter(Messages::PRESS_ENTER_TO_CONTINUE);
+            return;
+        }
+
+        bool found = false;
+        for (const auto& emp : teamResponse.data)
+        {
+            if (emp.id == employeeId)
+            {
+                found = true;
+                break;
+            }
+        }
+
+        if (!found)
+        {
+            showError("You can only view timesheets for employees in your team.");
+            ConsoleInput::waitForEnter(Messages::PRESS_ENTER_TO_CONTINUE);
+            return;
+        }
+
+        fetchEmployeeTimesheets(employeeId);
+        ConsoleInput::waitForEnter(Messages::PRESS_ENTER_TO_GO_BACK);
     }
     catch (const ApiException& ex)
     {
         showError(ex.what());
-        ConsoleInput::waitForEnter("Press Enter to continue\n");
+        ConsoleInput::waitForEnter(Messages::PRESS_ENTER_TO_CONTINUE);
     }
     catch (const std::exception&)
     {
-        showError("Something went wrong. Please try again.");
+        showError(Messages::SOMETHING_WENT_WRONG);
     }
 }
 
 std::optional<int> TimesheetsScreen::promptForEmployeeId()
 {
     std::string employeeIdInput = ConsoleInput::readLine("Enter Employee ID");
+    if (employeeIdInput.empty()) return std::nullopt;
     auto parsedEmployeeId = ScreenUtils::safeParseInt(employeeIdInput);
 
     if (!parsedEmployeeId)
     {
-        showError("Invalid employee ID format.");
-        ConsoleInput::waitForEnter("Press Enter to continue\n");
+        showError(Messages::INVALID_SELECTION_FORMAT);
+        ConsoleInput::waitForEnter(Messages::PRESS_ENTER_TO_CONTINUE);
         return std::nullopt;
     }
 
     return parsedEmployeeId.value();
 }
 
-void TimesheetsScreen::fetchAndDisplayEmployeeTimesheets(int employeeId)
+void TimesheetsScreen::fetchEmployeeTimesheets(int employeeId)
 {
     auto response = tsService_.getEmployeeTimesheets(employeeId);
 

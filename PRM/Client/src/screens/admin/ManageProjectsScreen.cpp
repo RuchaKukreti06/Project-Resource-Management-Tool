@@ -110,14 +110,7 @@ std::optional<int> ManageProjectsScreen::promptForStoryPoints(const std::string&
 
 std::optional<int> ManageProjectsScreen::promptForManagerUserId(const std::string& prompt)
 {
-    std::string mgrId = ConsoleInput::readLine(prompt);
-    auto parsedMgrId = ScreenUtils::safeParseInt(mgrId);
-    if (!parsedMgrId)
-    {
-        showError("Invalid manager ID format");
-        return std::nullopt;
-    }
-    return parsedMgrId.value();
+    return ScreenUtils::promptForInt(prompt, "Invalid manager ID format");
 }
 
 std::optional<std::string> ManageProjectsScreen::promptForProjectStatus(const std::string& currentStatus)
@@ -127,7 +120,8 @@ std::optional<std::string> ManageProjectsScreen::promptForProjectStatus(const st
     std::cout << "2. ACTIVE\n";
     std::cout << "3. ON_HOLD\n";
     std::cout << "4. COMPLETED\n";
-    std::string statusChoice = ConsoleInput::readLine("Choice");
+    std::string promptStr = currentStatus.empty() ? "Choice" : ("Choice (Press Enter to keep: " + currentStatus + ")");
+    std::string statusChoice = ConsoleInput::readLine(promptStr);
     
     if (statusChoice.empty() && !currentStatus.empty())
     {
@@ -184,8 +178,14 @@ std::optional<std::pair<std::string, std::string>> ManageProjectsScreen::promptF
         return std::nullopt;
     }
 
-    if (status == PROJECT_STATUS_COMPLETED && !endDate.empty())
+    if (status == PROJECT_STATUS_COMPLETED)
     {
+        if (endDate.empty())
+        {
+            showError("A completed project must have an end date.");
+            ConsoleInput::waitForEnter("Press Enter to continue\n");
+            return std::nullopt;
+        }
         std::string err = DateUtils::validateDateYYYYMMDD(endDate, false);
         if (!err.empty())
         {
@@ -212,8 +212,8 @@ std::optional<std::pair<std::string, std::string>> ManageProjectsScreen::promptF
 
 std::optional<std::pair<std::string, std::string>> ManageProjectsScreen::promptForUpdatedDates(const ProjectDTO& currentProj, const std::string& status)
 {
-    std::string newStart = ScreenUtils::readValidDate("Start Date", true, currentProj.startDate);
-    std::string newEnd = ScreenUtils::readValidDate("End Date", true, currentProj.endDate);
+    std::string newStart = ScreenUtils::readOptionalDateForUpdate("Start Date", true, currentProj.startDate);
+    std::string newEnd = ScreenUtils::readOptionalDateForUpdate("End Date", true, currentProj.endDate);
 
     if (!isValidProjectDateRange(newStart, newEnd)) 
     {
@@ -224,8 +224,14 @@ std::optional<std::pair<std::string, std::string>> ManageProjectsScreen::promptF
     if (newStart.empty()) newStart = currentProj.startDate;
     if (newEnd.empty()) newEnd = currentProj.endDate;
     
-    if (status == PROJECT_STATUS_COMPLETED && !newEnd.empty())
+    if (status == PROJECT_STATUS_COMPLETED)
     {
+        if (newEnd.empty())
+        {
+            showError("A completed project must have an end date.");
+            ConsoleInput::waitForEnter("Press Enter to continue\n");
+            return std::nullopt;
+        }
         std::string err = DateUtils::validateDateYYYYMMDD(newEnd, false);
         if (!err.empty())
         {
@@ -533,14 +539,7 @@ void ManageProjectsScreen::displayMilestones(const std::vector<MilestoneDTO>& mi
 
 std::optional<int> ManageProjectsScreen::promptForProjectId(const std::string& prompt)
 {
-    std::string inputStr = ConsoleInput::readLine(prompt);
-    auto parsed = ScreenUtils::safeParseInt(inputStr);
-    if (!parsed)
-    {
-        showError("Invalid ID format.");
-        ConsoleInput::waitForEnter("Press Enter to continue\n");
-    }
-    return parsed;
+    return ScreenUtils::promptForInt(prompt, "Invalid ID format.");
 }
 
 void ManageProjectsScreen::handleAddMilestone(int projectId)

@@ -25,6 +25,10 @@ std::string toLower(const std::string& s);
 bool equalsIgnoreCase(const std::string& a, const std::string& b);
 
 std::string readValidDate(const std::string& label, bool allowFuture, const std::string& fallback = "");
+std::string readOptionalDateForUpdate(const std::string& label, bool allowFuture, const std::string& fallback);
+std::optional<std::string> promptForDate(const std::string& label, bool required);
+std::optional<int> promptForIntBounds(const std::string& label, int min, int max, const std::string& errorMsg);
+std::optional<int> promptForInt(const std::string& label, const std::string& errorMsg = "Invalid format.");
 }
 
 #endif

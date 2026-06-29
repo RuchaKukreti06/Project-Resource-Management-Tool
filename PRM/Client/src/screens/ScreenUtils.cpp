@@ -36,7 +36,7 @@ std::string readLine(const std::string& label)
 {
     std::string value;
     std::cout << label << ": ";
-    std::getline(std::cin >> std::ws, value);
+    std::getline(std::cin, value);
     return value;
 }
 
@@ -49,7 +49,7 @@ std::string readPassword(const std::string& label)
     DWORD mode;
     GetConsoleMode(hStdin, &mode);
     SetConsoleMode(hStdin, mode & (~ENABLE_ECHO_INPUT));
-    std::getline(std::cin >> std::ws, password);
+    std::getline(std::cin, password);
     SetConsoleMode(hStdin, mode);
     std::cout << '\n';
 #else
@@ -58,7 +58,7 @@ std::string readPassword(const std::string& label)
     termios newt = oldt;
     newt.c_lflag &= ~ECHO;
     tcsetattr(STDIN_FILENO, TCSANOW, &newt);
-    std::getline(std::cin >> std::ws, password);
+    std::getline(std::cin, password);
     tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
     std::cout << '\n';
 #endif
@@ -194,6 +194,76 @@ std::string readValidDate(const std::string& label, bool allowFuture, const std:
         break;
     }
     return dateStr;
+}
+
+std::string readOptionalDateForUpdate(const std::string& label, bool allowFuture, const std::string& fallback)
+{
+    std::string dateStr;
+    while (true)
+    {
+        std::string fullPrompt = label;
+        if (fallback.empty())
+        {
+            fullPrompt += " (Press Enter to skip)";
+        }
+        else
+        {
+            fullPrompt += " (Press Enter to keep: " + fallback + ")";
+        }
+        
+        dateStr = readLine(fullPrompt);
+        
+        if (dateStr.empty()) return fallback;
+
+        std::string err = DateUtils::validateDateYYYYMMDD(dateStr, allowFuture);
+        if (!err.empty())
+        {
+            std::cout << "\n  Date error: " << err << "\n\n";
+            continue;
+        }
+        break;
+    }
+    return dateStr;
+}
+
+std::optional<std::string> promptForDate(const std::string& label, bool required)
+{
+    std::string dateStr = readLine(label + " (YYYY-MM-DD)" + (required ? "" : " [Optional]"));
+    if (dateStr.empty())
+    {
+        return required ? std::nullopt : std::make_optional("");
+    }
+    std::string error = DateUtils::validateDateYYYYMMDD(dateStr, true);
+    if (!error.empty())
+    {
+        std::cout << "\nError: " << error << "\n";
+        return std::nullopt;
+    }
+    return dateStr;
+}
+
+std::optional<int> promptForIntBounds(const std::string& label, int min, int max, const std::string& errorMsg)
+{
+    std::string input = readLine(label);
+    auto parsed = safeParseInt(input);
+    if (!parsed || parsed.value() < min || parsed.value() > max)
+    {
+        std::cout << "\nError: " << errorMsg << "\n";
+        return std::nullopt;
+    }
+    return parsed.value();
+}
+
+std::optional<int> promptForInt(const std::string& label, const std::string& errorMsg)
+{
+    std::string input = readLine(label);
+    auto parsed = safeParseInt(input);
+    if (!parsed)
+    {
+        std::cout << "\nError: " << errorMsg << "\n";
+        return std::nullopt;
+    }
+    return parsed.value();
 }
 
 }

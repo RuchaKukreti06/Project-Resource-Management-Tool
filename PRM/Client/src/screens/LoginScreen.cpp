@@ -23,7 +23,8 @@ ScreenDecorator LoginScreen::decorator() const
 void LoginScreen::displayMenu()
 {
     decorator().render();
-    ScreenOptions({"Login", "Exit"}).render();
+    std::cout << "1. Login\n";
+    std::cout << "2. Exit\n";
 }
 
 void LoginScreen::show()
