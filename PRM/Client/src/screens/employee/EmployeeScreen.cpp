@@ -15,6 +15,7 @@
 #include "services/ProjectClientService.h"
 #include "services/AllocationClientService.h"
 #include "screens/ScreenUtils.h"
+#include "utils/DateUtils.h"
 
 #include "app/Router.h"
 #include "api/ISessionStore.h"
@@ -294,14 +295,27 @@ void EmployeeScreen::viewMyAllocations()
             for (const auto& alloc : allocs.data)
             {
                 std::string pName = alloc.projectName.empty() ? ("Project " + std::to_string(alloc.projectId)) : alloc.projectName;
+                
+                std::string status = "ACTIVE";
+                std::string today = DateUtils::getCurrentDateYYYYMMDD();
+                
+                if (!alloc.toDate.empty() && alloc.toDate < today) {
+                    status = "INACTIVE";
+                } else if (!alloc.fromDate.empty() && alloc.fromDate > today) {
+                    status = "UPCOMING";
+                }
+                
                 allocData.push_back({
                     pName.substr(0, 19),
                     std::to_string(alloc.utilizationPercentage) + "%",
                     ScreenUtils::valueOrDash(alloc.fromDate),
                     ScreenUtils::valueOrDash(alloc.toDate),
-                    "ACTIVE"
+                    status
                 });
-                totalUtil += alloc.utilizationPercentage;
+                
+                if (status == "ACTIVE") {
+                    totalUtil += alloc.utilizationPercentage;
+                }
             }
         }
         
