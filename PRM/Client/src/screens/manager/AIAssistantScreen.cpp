@@ -88,15 +88,8 @@ void AIAssistantScreen::skillMatch()
             std::cout << "  (No structured results returned by AI)\n\n";
         }
         std::cout << "  Note: AI-generated suggestions. Always verify before allocating.\n\n";
-
-        std::cout << "[" << OPT_GO_ALLOCATE << "] Go to Allocate Resource     [" << OPT_BACK
-                  << "] Back\n";
-        std::string choice = ConsoleInput::readLine("Choice");
-        if (ScreenUtils::equalsIgnoreCase(choice, OPT_GO_ALLOCATE))
-        {
-            std::cout << "\nPlease navigate to 'Allocate Resource' from the main menu.\n";
-            ConsoleInput::waitForEnter(Messages::PRESS_ENTER_TO_CONTINUE);
-        }
+        std::cout << "\n";
+        ConsoleInput::waitForEnter(Messages::PRESS_ENTER_TO_CONTINUE);
     }
     catch (const ApiException& ex)
     {
