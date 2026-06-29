@@ -1,6 +1,7 @@
 #include "utils/ConsoleInput.h"
 #include <iostream>
 #include <limits>
+#include <algorithm>
 
 namespace ConsoleInput
 {
@@ -13,6 +14,10 @@ std::string readLine(const std::string& prompt)
     }
     std::string value;
     std::getline(std::cin, value);
+    // Sanitize input: remove non-printable control characters
+    value.erase(std::remove_if(value.begin(), value.end(), [](unsigned char c) {
+        return c < 32 && c != '\t';
+    }), value.end());
     return value;
 }
 
