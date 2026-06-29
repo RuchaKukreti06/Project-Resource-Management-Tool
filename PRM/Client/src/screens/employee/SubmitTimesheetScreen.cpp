@@ -77,7 +77,10 @@ void SubmitTimesheetScreen::handleInput()
         else if (weekInput.length() == 10 && weekInput[2] == '-' && weekInput[5] == '-')
         {
             weekStart = weekInput.substr(6, 4) + "-" + weekInput.substr(3, 2) + "-" + weekInput.substr(0, 2);
-        }        std::cout << "\nChecking your active allocations for this week...\n";
+        }
+        
+        std::cout << "\nSelected Week Start: " << weekStart << "\n";
+        std::cout << "\nChecking your active allocations for this week...\n";
 
         // Query active projects/allocations
         auto allocRes = allocService_.getEmployeeAllocations(empId);
@@ -124,6 +127,9 @@ void SubmitTimesheetScreen::handleInput()
             auto parsedHours = ScreenUtils::safeParseInt(hrsStr);
             if (!parsedHours) throw std::invalid_argument("Invalid hours format");
             int hours = parsedHours.value();
+            if (hours < 0 || hours > 168) {
+                throw std::invalid_argument("Hours must be between 0 and 168");
+            }
             totalHours += hours;
 
             std::cout << "\nWhat did you work on? Select activity tags:\n";
@@ -215,14 +221,9 @@ void SubmitTimesheetScreen::handleInput()
                 TimesheetLineRequest lr;
                 lr.projectId = line["project_id"].get<int>();
                 lr.hoursLogged = line["hours_worked"].get<int>();
-                std::string tagsStr = "";
-                int tCount = 0;
                 for (const auto& t : line["tags"]) {
-                    if (tCount > 0) tagsStr += ",";
-                    tagsStr += t.get<std::string>();
-                    tCount++;
+                    lr.tags.push_back(t.get<std::string>());
                 }
-                lr.activityTag = tagsStr;
                 tsReq.lines.push_back(lr);
             }
 
