@@ -80,65 +80,32 @@ void SubmitTimesheetScreen::handleInput()
         }        std::cout << "\nChecking your active allocations for this week...\n";
 
         // Query active projects/allocations
-        auto projRes = projService_.viewAllProjects();
+        auto allocRes = allocService_.getEmployeeAllocations(empId);
         std::vector<nlohmann::json> activeAllocs;
 
-        if (projRes.success)
+        if (allocRes.success)
         {
-            for (const auto& proj : projRes.data)
+            for (const auto& alloc : allocRes.data)
             {
-                int projId = proj.id;
-                auto allocs = allocService_.getProjectAllocations(projId);
-                if (!allocs.success) continue;
-                for (const auto& alloc : allocs.data)
+                std::string fromD = alloc.fromDate;
+                std::string toD = alloc.toDate;
+                
+                if (fromD <= weekStart && (toD.empty() || toD >= weekStart))
                 {
-                    if (alloc.employeeId == empId)
-                    {
-                        std::string fromD = alloc.fromDate;
-                        std::string toD = alloc.toDate;
-                        
-                        if (fromD <= weekStart && (toD.empty() || toD >= weekStart))
-                        {
-                            activeAllocs.push_back({
-                                {"project_id", projId},
-                                {"project_name", proj.name},
-                                {"utilisation_percent", alloc.utilizationPercentage}
-                            });
-                        }
-                    }
+                    activeAllocs.push_back({
+                        {"project_id", alloc.projectId},
+                        {"project_name", alloc.projectName},
+                        {"utilisation_percent", alloc.utilizationPercentage}
+                    });
                 }
             }
         }
 
         if (activeAllocs.empty())
         {
-            showInfo("No active allocations found. Standard 40 hours will be logged to Bench/Operations.");
-            // Log to Bench Project
-            // Find a project named Bench or Operations
-            int benchProjId = 0;
-            if (projRes.success)
-            {
-                for (const auto& p : projRes.data)
-                {
-                    std::string pName = p.name;
-                    if (pName == "Bench" || pName == "Operations")
-                    {
-                        benchProjId = p.id;
-                        break;
-                    }
-                }
-            }
-            if (benchProjId == 0)
-            {
-                showError("No Bench or Operations project found to log hours.");
-                ConsoleInput::waitForEnter("Press Enter to continue\n");
-                return;
-            }
-            activeAllocs.push_back({
-                {"project_id", benchProjId},
-                {"project_name", "Bench/Operations"},
-                {"utilisation_percent", 100}
-            });
+            showError("No active allocations found for this week. You cannot submit a timesheet.");
+            ConsoleInput::waitForEnter("Press Enter to continue\n");
+            return;
         }
 
         nlohmann::json timesheetLines = nlohmann::json::array();

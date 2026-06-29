@@ -76,18 +76,36 @@ void EmployeeScreen::show()
         std::strftime(bufferDisp, sizeof(bufferDisp), "%d-%b-%Y", &lastMonday);
         missingWeekStr_ = bufferDisp;
 
-        hasMissingTimesheet_ = true;
+        hasMissingTimesheet_ = false;
         if (empId > 0)
         {
-            auto tsRes = tsService_.getEmployeeTimesheets(empId);
-            if (tsRes.success)
+            auto allocRes = allocService_.getEmployeeAllocations(empId);
+            bool hasAllocations = false;
+            if (allocRes.success)
             {
-                for (const auto& ts : tsRes.data)
+                for (const auto& alloc : allocRes.data)
                 {
-                    if (ts.weekStartDate == lastMondayIso && ts.status == "SUBMITTED")
+                    if (alloc.fromDate <= lastMondayIso && (alloc.toDate.empty() || alloc.toDate >= lastMondayIso))
                     {
-                        hasMissingTimesheet_ = false;
+                        hasAllocations = true;
                         break;
+                    }
+                }
+            }
+
+            if (hasAllocations)
+            {
+                hasMissingTimesheet_ = true;
+                auto tsRes = tsService_.getEmployeeTimesheets(empId);
+                if (tsRes.success)
+                {
+                    for (const auto& ts : tsRes.data)
+                    {
+                        if (ts.weekStartDate == lastMondayIso && ts.status == "SUBMITTED")
+                        {
+                            hasMissingTimesheet_ = false;
+                            break;
+                        }
                     }
                 }
             }
@@ -133,20 +151,11 @@ void EmployeeScreen::viewMyTimesheets()
 {
     try
     {
-        // Find Employee ID
-        int userId = sessionStore_.userId();
         int empId = 0;
-        auto empRes = empService_.viewAllEmployees();
-        if (empRes.success)
+        auto empRes = empService_.getMe();
+        if (empRes.success && empRes.data)
         {
-            for (const auto& e : empRes.data)
-            {
-                if (e.userId == userId)
-                {
-                    empId = e.id;
-                    break;
-                }
-            }
+            empId = empRes.data->id;
         }
 
         if (empId == 0)
@@ -203,6 +212,10 @@ void EmployeeScreen::viewMyTimesheets()
             if (choice == "V" || choice == "v")
             {
                 std::string dateToView = ConsoleInput::readLine("Enter Week Start Date (YYYY-MM-DD)");
+                if (dateToView.empty())
+                {
+                    continue;
+                }
 
                 // Validate format before searching
                 int yy, mm, dd;
@@ -257,20 +270,11 @@ void EmployeeScreen::viewMyAllocations()
 {
     try
     {
-        // Find Employee ID
-        int userId = sessionStore_.userId();
         int empId = 0;
-        auto empRes = empService_.viewAllEmployees();
-        if (empRes.success)
+        auto empRes = empService_.getMe();
+        if (empRes.success && empRes.data)
         {
-            for (const auto& e : empRes.data)
-            {
-                if (e.userId == userId)
-                {
-                    empId = e.id;
-                    break;
-                }
-            }
+            empId = empRes.data->id;
         }
 
         if (empId == 0)
@@ -282,16 +286,6 @@ void EmployeeScreen::viewMyAllocations()
 
         std::vector<AllocationDisplayData> allocData;
 
-        auto projRes = projService_.viewAllProjects();
-        std::map<int, std::string> projectNames;
-        if (projRes.success)
-        {
-            for (const auto& proj : projRes.data)
-            {
-                projectNames[proj.id] = proj.name;
-            }
-        }
-
         int count = 0;
         int totalUtil = 0;
         auto allocs = allocService_.getEmployeeAllocations(empId);
@@ -299,16 +293,15 @@ void EmployeeScreen::viewMyAllocations()
         {
             for (const auto& alloc : allocs.data)
             {
-                std::string pName = projectNames.count(alloc.projectId) ? projectNames[alloc.projectId] : "Unknown Project";
+                std::string pName = alloc.projectName.empty() ? ("Project " + std::to_string(alloc.projectId)) : alloc.projectName;
                 allocData.push_back({
                     pName.substr(0, 19),
                     std::to_string(alloc.utilizationPercentage) + "%",
-                    alloc.fromDate,
-                    alloc.toDate,
+                    ScreenUtils::valueOrDash(alloc.fromDate),
+                    ScreenUtils::valueOrDash(alloc.toDate),
                     "ACTIVE"
                 });
                 totalUtil += alloc.utilizationPercentage;
-                count++;
             }
         }
         
