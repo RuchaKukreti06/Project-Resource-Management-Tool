@@ -79,8 +79,8 @@ void EmployeeService::deactivateEmployee(int employeeId, const std::string& toda
         throw exceptions::DatabaseException("Failed to end active allocations.");
     }
 
-    if (!employeeRepository_->setEmployeeActive(employeeId, false) ||
-        !employeeRepository_->setEmployeeStatus(employeeId, "BENCH"))
+    if (employee.status != "BENCH" &&
+        !employeeRepository_->setEmployeeStatusAndUtilization(employeeId, "BENCH", 0))
     {
         throw exceptions::DatabaseException("Failed to deactivate employee profile.");
     }

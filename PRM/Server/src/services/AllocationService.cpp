@@ -98,8 +98,8 @@ void AllocationService::recomputeEmployeeStatus(int employeeId, const std::strin
 {
     const std::string effectiveDate = todayDate.empty() ? utils::currentDateIso() : todayDate;
     const int utilization = allocationRepository_->getCurrentUtilization(employeeId, effectiveDate);
-    if (!employeeRepository_->setEmployeeStatus(employeeId,
-                                                utilization > 0 ? "ALLOCATED" : "BENCH"))
+    if (!employeeRepository_->setEmployeeStatusAndUtilization(employeeId,
+                                                utilization > 0 ? "ALLOCATED" : "BENCH", utilization))
     {
         throw exceptions::DatabaseException("Failed to set employee status.");
     }

@@ -15,7 +15,7 @@ class EmployeeRepository : public IEmployeeRepository
     std::vector<Employee> getAllEmployees() override;
     std::vector<Employee> getEmployeesByManager(int managerUserId) override;
     bool setEmployeeActive(int employeeId, bool isActive) override;
-    bool setEmployeeStatus(int employeeId, const std::string& status) override;
+    bool setEmployeeStatusAndUtilization(int employeeId, const std::string& status, int utilization) override;
 
     int ensureSkill(const std::string& name, const std::string& category) override;
     bool addEmployeeSkill(int employeeId, int skillId, const std::string& proficiencyLevel) override;

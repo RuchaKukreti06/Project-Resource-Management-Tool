@@ -25,7 +25,7 @@ class IEmployeeRepository
     virtual std::vector<Employee> getAllEmployees() = 0;
     virtual std::vector<Employee> getEmployeesByManager(int managerUserId) = 0;
     virtual bool setEmployeeActive(int employeeId, bool isActive) = 0;
-    virtual bool setEmployeeStatus(int employeeId, const std::string& status) = 0;
+    virtual bool setEmployeeStatusAndUtilization(int employeeId, const std::string& status, int utilization) = 0;
 
     virtual int ensureSkill(const std::string& name, const std::string& category) = 0;
     virtual bool addEmployeeSkill(int employeeId, int skillId, const std::string& proficiencyLevel) = 0;

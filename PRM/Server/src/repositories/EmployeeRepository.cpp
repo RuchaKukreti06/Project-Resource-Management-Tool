@@ -228,7 +228,7 @@ bool EmployeeRepository::setEmployeeActive(int employeeId, bool isActive)
     }
 }
 
-bool EmployeeRepository::setEmployeeStatus(int employeeId, const std::string& status)
+bool EmployeeRepository::setEmployeeStatusAndUtilization(int employeeId, const std::string& status, int utilization)
 {
     try
     {
@@ -236,6 +236,7 @@ bool EmployeeRepository::setEmployeeStatus(int employeeId, const std::string& st
             .getTable("resources")
             .update()
             .set("status", status)
+            .set("total_utilisation", utilization)
             .where("id = :id")
             .bind("id", employeeId)
             .execute();

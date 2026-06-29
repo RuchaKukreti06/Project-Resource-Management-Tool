@@ -60,9 +60,10 @@ class MockEmployeeRepository : public IEmployeeRepository
         return true;
     }
 
-    bool setEmployeeStatus(int id, const std::string& status) override
+    bool setEmployeeStatusAndUtilization(int id, const std::string& status, int utilization) override
     {
         employees[id].status = status;
+        employees[id].totalUtilisation = utilization;
         return true;
     }
 
