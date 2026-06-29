@@ -127,6 +127,11 @@ std::vector<TimesheetResponse> TimesheetService::getEmployeeTimesheets(int emplo
     return DTOMapper::mapToTimesheetResponse(timesheetRepository_->getTimesheetsByEmployee(employeeId));
 }
 
+std::optional<Timesheet> TimesheetService::getTimesheetById(int timesheetId)
+{
+    return timesheetRepository_->getTimesheetById(timesheetId);
+}
+
 std::vector<TeamTimesheetResponse> TimesheetService::getTeamTimesheets(int managerUserId,
                                                                  const std::string& weekStartDate)
 {

@@ -3,6 +3,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <optional>
 
 #include "repositories/IAllocationRepository.h"
 #include "repositories/IEmployeeRepository.h"
@@ -21,6 +22,7 @@ class TimesheetService : public ITimesheetService
 
     void submitTimesheet(const SubmitTimesheetRequest& req) override;
     std::vector<TimesheetResponse> getEmployeeTimesheets(int employeeId) override;
+    std::optional<Timesheet> getTimesheetById(int timesheetId) override;
     std::vector<TeamTimesheetResponse> getTeamTimesheets(int managerUserId,
                                                       const std::string& weekStartDate) override;
     std::vector<TimesheetDetailResponse> getTimesheetDetails(int timesheetId) override;

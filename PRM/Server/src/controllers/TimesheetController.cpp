@@ -123,8 +123,12 @@ void TimesheetController::registerRoutes(httplib::Server& server) const
                        throw exceptions::NotFoundException("Employee not found.");
                    }
 
-                    if (tokenRole == "ADMIN" || (tokenRole == "EMPLOYEE" && employeeOpt->user_id != tokenUserId) || (tokenRole == "MANAGER" && employeeOpt->manager_id != tokenUserId)) {
-                        throw exceptions::AuthorizationException("Forbidden: You cannot view timesheets for this employee.");
+                    if (tokenRole == "EMPLOYEE" && employeeOpt->user_id != tokenUserId) {
+                        throw exceptions::AuthorizationException("Forbidden: You can only view your own timesheets.");
+                    } else if (tokenRole == "MANAGER" && employeeOpt->manager_id != tokenUserId) {
+                        throw exceptions::AuthorizationException("Forbidden: You can only view timesheets for your team.");
+                    } else if (tokenRole != "ADMIN" && tokenRole != "EMPLOYEE" && tokenRole != "MANAGER") {
+                        throw exceptions::AuthorizationException("Forbidden: Invalid role.");
                     }
 
                    const auto timesheets = timesheetService_.getEmployeeTimesheets(employeeId);
@@ -145,7 +149,7 @@ void TimesheetController::registerRoutes(httplib::Server& server) const
 
                    const int managerId = std::stoi(req.matches[1]);
                    
-                   if (tokenRole == "ADMIN" || tokenRole == "EMPLOYEE" || tokenUserId != managerId) {
+                   if (tokenRole == "EMPLOYEE" || (tokenRole == "MANAGER" && tokenUserId != managerId)) {
                        throw exceptions::AuthorizationException("Forbidden: You cannot view this team's timesheets.");
                    }
 
@@ -164,7 +168,31 @@ void TimesheetController::registerRoutes(httplib::Server& server) const
     server.Get(R"(/timesheets/(\d+))",
                [&](const httplib::Request& req, httplib::Response& res)
                {
+                   std::string authHeader = req.get_header_value("Authorization");
+                   std::string token = authHeader.substr(7);
+                   int tokenUserId = tokenService_.getClaimUserId(token);
+                   std::string tokenRole = tokenService_.getClaimRole(token);
+
                    const int timesheetId = std::stoi(req.matches[1]);
+                   
+                   auto tsOpt = timesheetService_.getTimesheetById(timesheetId);
+                   if (!tsOpt.has_value()) {
+                       throw exceptions::NotFoundException("Timesheet not found.");
+                   }
+                   
+                   auto employeeOpt = employeeService_.getEmployeeById(tsOpt->employeeId);
+                   if (!employeeOpt.has_value()) {
+                       throw exceptions::NotFoundException("Employee for this timesheet not found.");
+                   }
+
+                   if (tokenRole == "EMPLOYEE" && employeeOpt->user_id != tokenUserId) {
+                       throw exceptions::AuthorizationException("Forbidden: You can only view your own timesheet details.");
+                   } else if (tokenRole == "MANAGER" && employeeOpt->manager_id != tokenUserId) {
+                       throw exceptions::AuthorizationException("Forbidden: You can only view timesheet details for your team.");
+                   } else if (tokenRole != "ADMIN" && tokenRole != "EMPLOYEE" && tokenRole != "MANAGER") {
+                       throw exceptions::AuthorizationException("Forbidden: Invalid role.");
+                   }
+
                    const auto details = timesheetService_.getTimesheetDetails(timesheetId);
 
                    res.set_content(

@@ -2,6 +2,7 @@
 
 #include <string>
 #include <vector>
+#include <optional>
 
 #include "models/Allocations.h"
 #include "models/Timesheet.h"
@@ -43,6 +44,7 @@ class ITimesheetRepository
     virtual std::vector<Allocation> getActiveAllocationsForWeek(int employeeId,
                                                                  const std::string& weekStartDate,
                                                                  const std::string& weekEndDate) = 0;
+    virtual std::optional<Timesheet> getTimesheetById(int timesheetId) = 0;
     virtual std::vector<Timesheet> getTimesheetsByEmployee(int employeeId) = 0;
     virtual std::vector<TeamTimesheetRow> getTeamTimesheets(int managerUserId,
                                                              const std::string& weekStartDate) = 0;

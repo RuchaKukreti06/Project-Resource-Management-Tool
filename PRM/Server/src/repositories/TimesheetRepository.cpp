@@ -159,6 +159,38 @@ std::vector<Allocation> TimesheetRepository::getActiveAllocationsForWeek(
     return allocations;
 }
 
+std::optional<Timesheet> TimesheetRepository::getTimesheetById(int timesheetId)
+{
+    try
+    {
+        auto result = database_.getSession()
+                          .sql("SELECT t.id, t.resource_id, t.week_start_date, t.created_at, t.status, COALESCE(SUM(te.hours), 0) "
+                               "FROM timesheets t "
+                               "LEFT JOIN timesheet_entries te ON t.id = te.timesheet_id "
+                               "WHERE t.id = ? "
+                               "GROUP BY t.id")
+                          .bind(timesheetId)
+                          .execute();
+
+        if (auto row = result.fetchOne())
+        {
+            Timesheet ts;
+            ts.id = row[0].get<int>();
+            ts.employeeId = row[1].get<int>();
+            ts.weekStartDate = row[2].get<std::string>();
+            ts.submittedAt = row[3].isNull() ? "" : row[3].get<std::string>();
+            ts.status = row[4].get<std::string>();
+            ts.totalHours = row[5].get<int>();
+            return ts;
+        }
+    }
+    catch (const mysqlx::Error& e)
+    {
+        spdlog::error("getTimesheetById failed: {}", e.what());
+    }
+    return std::nullopt;
+}
+
 std::vector<Timesheet> TimesheetRepository::getTimesheetsByEmployee(int employeeId)
 {
     std::vector<Timesheet> timesheets;

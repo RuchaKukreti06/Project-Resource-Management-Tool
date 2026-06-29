@@ -1,5 +1,8 @@
 #pragma once
 
+#include <string>
+#include <vector>
+#include <optional>
 #include "database/Database.h"
 #include "repositories/ITimesheetRepository.h"
 
@@ -14,6 +17,7 @@ class TimesheetRepository : public ITimesheetRepository
     std::vector<Allocation> getActiveAllocationsForWeek(int employeeId,
                                                          const std::string& weekStartDate,
                                                          const std::string& weekEndDate) override;
+    std::optional<Timesheet> getTimesheetById(int timesheetId) override;
     std::vector<Timesheet> getTimesheetsByEmployee(int employeeId) override;
     std::vector<TeamTimesheetRow> getTeamTimesheets(int managerUserId,
                                                      const std::string& weekStartDate) override;
