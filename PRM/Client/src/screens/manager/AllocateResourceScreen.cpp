@@ -26,7 +26,6 @@ AllocateResourceScreen::AllocateResourceScreen(AiClientService& aiService, Alloc
 void AllocateResourceScreen::displayMenu()
 {
     decorator().render();
-    std::cout << OPT_FIND_RESOURCE_AI << ". Find resource using AI (recommended)\n";
     std::cout << OPT_ALLOCATE_DIRECTLY << ". Allocate directly (I already know who I want)\n";
     std::cout << OPT_END_ALLOCATION << ". End an existing allocation\n";
     std::cout << OPT_BACK << ". Back\n";
@@ -45,11 +44,7 @@ void AllocateResourceScreen::show()
 void AllocateResourceScreen::handleInput()
 {
     std::string choice = ScreenUtils::readLine("Enter option");
-    if (choice == OPT_FIND_RESOURCE_AI)
-    {
-        findResourceAI();
-    }
-    else if (choice == OPT_ALLOCATE_DIRECTLY)
+    if (choice == OPT_ALLOCATE_DIRECTLY)
     {
         allocateDirectly();
     }
@@ -357,7 +352,7 @@ std::optional<CreateAllocationRequest> AllocateResourceScreen::promptForAllocati
     }
     std::string fromDate = fromDateOpt.value();
 
-    auto toDateOpt = ScreenUtils::promptForDate("To Date", false);
+    auto toDateOpt = ScreenUtils::promptForDate("To Date", true);
     if (!toDateOpt)
     {
         ConsoleInput::waitForEnter(Messages::PRESS_ENTER_TO_CONTINUE);
