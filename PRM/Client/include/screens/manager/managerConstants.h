@@ -38,6 +38,7 @@ namespace ManagerConstants
     namespace Timesheets
     {
         const std::string OPT_VIEW_DETAIL = "V";
+        const std::string OPT_RESTORE_ACCESS = "R";
         const std::string OPT_BACK = "B";
         const int COL_EMPLOYEE = 20;
         const int COL_PROJECT = 20;
@@ -48,10 +49,9 @@ namespace ManagerConstants
 
     namespace AllocateResource
     {
-        const std::string OPT_FIND_RESOURCE_AI = "1";
-        const std::string OPT_ALLOCATE_DIRECTLY = "2";
-        const std::string OPT_END_ALLOCATION = "3";
-        const std::string OPT_BACK = "4";
+        const std::string OPT_ALLOCATE_DIRECTLY = "1";
+        const std::string OPT_END_ALLOCATION = "2";
+        const std::string OPT_BACK = "3";
     }
 
     namespace AIAssistant

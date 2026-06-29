@@ -26,6 +26,7 @@ class TimesheetsScreen : public Screen
     EmployeeClientService& empService_;
     int currentUserId_;
     void viewTimesheetDetail();
+    void restoreTimesheetAccess();
     
     void viewTimesheetsBoard();
     std::optional<std::string> promptWeekFilter();

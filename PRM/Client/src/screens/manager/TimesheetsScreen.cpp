@@ -102,12 +102,17 @@ void TimesheetsScreen::fetchManagerTimesheets(const std::string& formattedDate)
 
 void TimesheetsScreen::handleInput()
 {
-    std::cout << "[" << OPT_VIEW_DETAIL << "] View employee timesheet detail     [" << OPT_BACK
+    std::cout << "[" << OPT_VIEW_DETAIL << "] View employee timesheet detail     "
+              << "[" << OPT_RESTORE_ACCESS << "] Restore submission access     [" << OPT_BACK
               << "] Back\n";
     std::string choice = ConsoleInput::readLine("Enter choice");
     if (ScreenUtils::equalsIgnoreCase(choice, OPT_VIEW_DETAIL))
     {
         viewTimesheetDetail();
+    }
+    else if (ScreenUtils::equalsIgnoreCase(choice, OPT_RESTORE_ACCESS))
+    {
+        restoreTimesheetAccess();
     }
     else if (ScreenUtils::equalsIgnoreCase(choice, OPT_BACK))
     {
@@ -164,6 +169,46 @@ void TimesheetsScreen::viewTimesheetDetail()
     catch (const std::exception&)
     {
         showError(Messages::SOMETHING_WENT_WRONG);
+    }
+}
+
+void TimesheetsScreen::restoreTimesheetAccess()
+{
+    try
+    {
+        auto empIdOpt = promptForEmployeeId();
+        if (!empIdOpt) return;
+        int employeeId = empIdOpt.value();
+
+        std::string weekStart = ConsoleInput::readLine("Enter week start date (YYYY-MM-DD)");
+        std::string errorMsg = DateUtils::validateDateYYYYMMDD(weekStart, true);
+        if (!errorMsg.empty())
+        {
+            showError(errorMsg);
+            ConsoleInput::waitForEnter("Press Enter to continue\n");
+            return;
+        }
+
+        auto response = tsService_.restoreTimesheetAccess(employeeId, weekStart);
+        if (response.success)
+        {
+            showSuccess("Timesheet access restored successfully.");
+        }
+        else
+        {
+            showError(response.message);
+        }
+        ConsoleInput::waitForEnter(Messages::PRESS_ENTER_TO_CONTINUE);
+    }
+    catch (const ApiException& ex)
+    {
+        showError(ex.what());
+        ConsoleInput::waitForEnter(Messages::PRESS_ENTER_TO_CONTINUE);
+    }
+    catch (const std::exception&)
+    {
+        showError(Messages::SOMETHING_WENT_WRONG);
+        ConsoleInput::waitForEnter(Messages::PRESS_ENTER_TO_CONTINUE);
     }
 }
 
