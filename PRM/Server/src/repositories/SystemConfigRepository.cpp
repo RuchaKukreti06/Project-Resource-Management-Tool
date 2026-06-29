@@ -12,7 +12,11 @@ void tryExecute(mysqlx::Session& session, const std::string& query)
     }
     catch (const std::exception& e)
     {
-        spdlog::warn("System config schema update skipped: {}", e.what());
+        std::string errMsg = e.what();
+        if (errMsg.find("Duplicate column name") == std::string::npos)
+        {
+            spdlog::warn("System config schema update skipped: {}", errMsg);
+        }
     }
 }
 
@@ -27,21 +31,21 @@ void SystemConfigRepository::ensureSchema()
 {
     auto& session = db_.getSession();
     tryExecute(session,
-               "ALTER TABLE system_config ADD COLUMN IF NOT EXISTS smtp_enabled BOOLEAN NOT NULL DEFAULT FALSE");
+               "ALTER TABLE system_config ADD COLUMN smtp_enabled BOOLEAN NOT NULL DEFAULT FALSE");
     tryExecute(session,
-               "ALTER TABLE system_config ADD COLUMN IF NOT EXISTS smtp_host VARCHAR(255) NOT NULL DEFAULT ''");
+               "ALTER TABLE system_config ADD COLUMN smtp_host VARCHAR(255) NOT NULL DEFAULT ''");
     tryExecute(session,
-               "ALTER TABLE system_config ADD COLUMN IF NOT EXISTS smtp_port INT NOT NULL DEFAULT 587");
+               "ALTER TABLE system_config ADD COLUMN smtp_port INT NOT NULL DEFAULT 587");
     tryExecute(session,
-               "ALTER TABLE system_config ADD COLUMN IF NOT EXISTS smtp_username VARCHAR(255) NOT NULL DEFAULT ''");
+               "ALTER TABLE system_config ADD COLUMN smtp_username VARCHAR(255) NOT NULL DEFAULT ''");
     tryExecute(session,
-               "ALTER TABLE system_config ADD COLUMN IF NOT EXISTS smtp_password VARCHAR(255) NOT NULL DEFAULT ''");
+               "ALTER TABLE system_config ADD COLUMN smtp_password VARCHAR(255) NOT NULL DEFAULT ''");
     tryExecute(session,
-               "ALTER TABLE system_config ADD COLUMN IF NOT EXISTS smtp_from_email VARCHAR(255) NOT NULL DEFAULT ''");
+               "ALTER TABLE system_config ADD COLUMN smtp_from_email VARCHAR(255) NOT NULL DEFAULT ''");
     tryExecute(session,
-               "ALTER TABLE system_config ADD COLUMN IF NOT EXISTS smtp_from_name VARCHAR(255) NOT NULL DEFAULT ''");
+               "ALTER TABLE system_config ADD COLUMN smtp_from_name VARCHAR(255) NOT NULL DEFAULT ''");
     tryExecute(session,
-               "ALTER TABLE system_config ADD COLUMN IF NOT EXISTS smtp_use_tls BOOLEAN NOT NULL DEFAULT TRUE");
+               "ALTER TABLE system_config ADD COLUMN smtp_use_tls BOOLEAN NOT NULL DEFAULT TRUE");
 }
 
 SystemConfig SystemConfigRepository::getConfig()
