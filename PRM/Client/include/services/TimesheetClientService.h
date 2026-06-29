@@ -17,7 +17,7 @@ public:
     ApiEmptyResponse submitTimesheet(const SubmitTimesheetRequest& request);
     ApiListResponse<TimesheetDTO> getEmployeeTimesheets(int employeeId);
     ApiListResponse<ManagerTimesheetDTO> getManagerTimesheets(int managerId, const std::string& weekStartDate = "");
-    ApiEmptyResponse restoreTimesheetAccess(int timesheetId);
+    ApiEmptyResponse restoreTimesheetAccess(int employeeId, const std::string& weekStartDate);
     ApiListResponse<TimesheetEntryDTO> getTimesheetEntries(int timesheetId);
 };
 

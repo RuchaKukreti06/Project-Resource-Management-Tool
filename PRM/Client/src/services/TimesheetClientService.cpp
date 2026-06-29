@@ -25,10 +25,11 @@ ApiListResponse<ManagerTimesheetDTO> TimesheetClientService::getManagerTimesheet
     return ApiListResponse<ManagerTimesheetDTO>::fromJson(apiClient_.get(endpoint));
 }
 
-ApiEmptyResponse TimesheetClientService::restoreTimesheetAccess(int timesheetId)
+ApiEmptyResponse TimesheetClientService::restoreTimesheetAccess(int employeeId, const std::string& weekStartDate)
 {
     return ApiEmptyResponse::fromJson(apiClient_.put("/timesheets/access/restore", {
-        {"timesheet_id", timesheetId}
+        {"employee_id", employeeId},
+        {"week_start_date", weekStartDate}
     }));
 }
 
