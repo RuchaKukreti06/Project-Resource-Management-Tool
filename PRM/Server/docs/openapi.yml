@@ -318,13 +318,13 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/SuccessResponse' }
 
-  /employees/{employee_id}/manager:
-    patch:
-      tags: [Employees]
-      summary: Assign Manager to Employee
-      description: Assign a manager to an employee. The manager_user_id must belong to a user with role MANAGER.
+  /users/{user_id}/assign-manager:
+    put:
+      tags: [Users]
+      summary: Assign Manager to User/Employee
+      description: Assign a manager to an employee user. The manager_id must belong to a user with role MANAGER.
       parameters:
-        - name: employee_id
+        - name: user_id
           in: path
           required: true
           schema: { type: integer }
@@ -335,9 +335,9 @@ paths:
           application/json:
             schema:
               type: object
-              required: [manager_user_id]
+              required: [manager_id]
               properties:
-                manager_user_id: { type: integer, example: 2 }
+                manager_id: { type: integer, example: 2 }
       responses:
         '200':
           description: Manager assigned
@@ -469,6 +469,24 @@ paths:
       responses:
         '200':
           description: List of timesheets
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessResponse' }
+
+  /employees/{employee_id}/allocations:
+    get:
+      tags: [Allocations]
+      summary: Get Employee Allocations
+      description: Returns all allocations for a specific employee.
+      parameters:
+        - name: employee_id
+          in: path
+          required: true
+          schema: { type: integer }
+          example: 3
+      responses:
+        '200':
+          description: List of allocations
           content:
             application/json:
               schema: { $ref: '#/components/schemas/SuccessResponse' }
