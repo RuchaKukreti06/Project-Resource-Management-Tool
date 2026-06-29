@@ -4,8 +4,8 @@
 #include <nlohmann/json.hpp>
 #include "exceptions/Exceptions.h"
 
-AuthController::AuthController(IAuthService& authService, ITokenService& tokenService) 
-    : authService_(authService), tokenService_(tokenService)
+AuthController::AuthController(IAuthService& authService, ITokenService& tokenService, IUserRepository& userRepository)
+    : authService_(authService), tokenService_(tokenService), userRepository_(userRepository)
 {
 }
 
@@ -73,7 +73,17 @@ void AuthController::handleChangePassword(const httplib::Request& req, httplib::
 
     nlohmann::json response;
     response["success"] = success;
-    response["message"] = "Password changed successfully.";
+    if (success) {
+        response["message"] = "Password changed successfully.";
+        
+        User user = userRepository_.getUserById(request.userId);
+        if (user.id > 0) {
+            std::string newToken = tokenService_.generateToken(user);
+            response["token"] = newToken;
+        }
+    } else {
+        response["message"] = "Failed to change password.";
+    }
 
     res.status = 200;
     res.set_content(response.dump(), "application/json");

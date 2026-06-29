@@ -137,7 +137,7 @@ void ApiClient::throwExceptionForStatus(int status, const std::string& errorMess
         case constants::HTTP_STATUS_UNAUTHORIZED:
             throw AuthenticationException(errorMessage);
         case constants::HTTP_STATUS_FORBIDDEN:
-            throw AuthorizationException("You are not allowed to perform this action.");
+            throw AuthorizationException(errorMessage);
         case constants::HTTP_STATUS_NOT_FOUND:
             throw NotFoundException(errorMessage);
         default:

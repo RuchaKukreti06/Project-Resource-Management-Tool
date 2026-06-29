@@ -11,6 +11,7 @@ class ChangePasswordScreen : public Screen
    private:
     AuthClientService& authService_;
     api::ISessionStore& sessionStore_;
+    IApiClient& apiClient_;
 
     std::pair<std::string, std::string> promptPasswords();
     std::string promptSaveOption();
@@ -19,11 +20,11 @@ class ChangePasswordScreen : public Screen
     bool executePasswordChange(const std::string& newPassword);
     
     bool handleFailedChange(const std::string& message);
-    void updateSessionContext();
+    void updateSessionContext(const std::string& newToken);
     bool handleChangeException(const std::string& errorMessage);
 
    public:
-    ChangePasswordScreen(AuthClientService& authService, api::ISessionStore& sessionStore);
+    ChangePasswordScreen(AuthClientService& authService, api::ISessionStore& sessionStore, IApiClient& apiClient);
 
     void show() override;
     void displayMenu() override;

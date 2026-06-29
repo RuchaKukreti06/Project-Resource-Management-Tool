@@ -1,12 +1,13 @@
 #include "ChangePasswordScreen.h"
+#include "ChangePasswordScreen.h"
 #include "api/ISessionStore.h"
 #include "dto/ApiResponse.h"
 #include "api/ApiException.h"
 #include "utils/ConsoleInput.h"
 #include "utils/Constants.h"
 
-ChangePasswordScreen::ChangePasswordScreen(AuthClientService& authService, api::ISessionStore& sessionStore)
-    : authService_(authService), sessionStore_(sessionStore)
+ChangePasswordScreen::ChangePasswordScreen(AuthClientService& authService, api::ISessionStore& sessionStore, IApiClient& apiClient)
+    : authService_(authService), sessionStore_(sessionStore), apiClient_(apiClient)
 {
 }
 
@@ -94,7 +95,7 @@ bool ChangePasswordScreen::executePasswordChange(const std::string& newPassword)
         }
 
         std::cout << ui_constants::MSG_PASSWORD_UPDATED;
-        updateSessionContext();
+        updateSessionContext(res.token);
         return true;
     }
     catch (const ApiException& ex)
@@ -113,15 +114,16 @@ bool ChangePasswordScreen::handleFailedChange(const std::string& message)
     return false;
 }
 
-void ChangePasswordScreen::updateSessionContext()
+void ChangePasswordScreen::updateSessionContext(const std::string& newToken)
 {
     api::SessionData sessionData{
-        sessionStore_.token(),
+        newToken,
         sessionStore_.username(),
         sessionStore_.role(),
         sessionStore_.userId(),
         false // password changed
     };
+    apiClient_.setToken(newToken);
     sessionStore_.login(sessionData);
 }
 

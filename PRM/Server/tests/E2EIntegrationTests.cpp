@@ -126,7 +126,7 @@ protected:
         schedulerService = std::make_unique<SchedulerService>(employeeService, projectService, allocationService, timesheetService, notificationService);
 
         // 3. Initialize Controllers
-        authController = std::make_unique<AuthController>(*authService, *tokenService);
+        authController = std::make_unique<AuthController>(*authService, *tokenService, *userRepo);
         userController = std::make_unique<UserController>(*userService);
         employeeController = std::make_unique<EmployeeController>(*employeeService, *tokenService);
         projectController = std::make_unique<ProjectController>(*projectService, *tokenService);

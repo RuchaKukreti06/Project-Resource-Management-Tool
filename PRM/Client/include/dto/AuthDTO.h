@@ -39,3 +39,19 @@ struct AuthLoginResponse
         return r;
     }
 };
+
+struct AuthChangePasswordResponse
+{
+    bool success;
+    std::string message;
+    std::string token;
+
+    static AuthChangePasswordResponse fromJson(const nlohmann::json& j)
+    {
+        AuthChangePasswordResponse r;
+        r.success = j.value("success", false);
+        r.message = j.value("message", "");
+        r.token = j.value("token", "");
+        return r;
+    }
+};

@@ -110,7 +110,7 @@ bool Application::run()
 
         // ── Controllers ───────────────────────────────────────────────────────
         AuthMiddleware      authMiddleware(*tokenService);
-        AuthController      authController(authService, *tokenService);
+        AuthController      authController(authService, *tokenService, *userRepository);
         UserController      userController(userService);
         EmployeeController  employeeController(*employeeService, *tokenService);
         ProjectController   projectController(*projectService, *tokenService);

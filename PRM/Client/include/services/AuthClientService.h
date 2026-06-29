@@ -15,7 +15,7 @@ public:
     explicit AuthClientService(IApiClient& apiClient);
 
     AuthLoginResponse login(const std::string& username, const std::string& password);
-    ApiEmptyResponse changePassword(int userId, const std::string& newPassword);
+    AuthChangePasswordResponse changePassword(int userId, const std::string& newPassword);
 };
 
 #endif // AUTH_CLIENT_SERVICE_H

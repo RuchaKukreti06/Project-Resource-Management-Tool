@@ -39,7 +39,7 @@ class AuthControllerTest : public ::testing::Test
         authService = std::make_unique<AuthService>(
             repo, hasher, tokenService);
 
-        controller = std::make_unique<AuthController>(*authService, *tokenService);
+        controller = std::make_unique<AuthController>(*authService, *tokenService, *repo);
         authMiddleware = std::make_unique<AuthMiddleware>(*tokenService);
 
         serverThread = std::thread([this]() {

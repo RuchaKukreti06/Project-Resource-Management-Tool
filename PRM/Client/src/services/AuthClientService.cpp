@@ -14,11 +14,11 @@ AuthLoginResponse AuthClientService::login(const std::string& username, const st
     return AuthLoginResponse::fromJson(response);
 }
 
-ApiEmptyResponse AuthClientService::changePassword(int userId, const std::string& newPassword)
+AuthChangePasswordResponse AuthClientService::changePassword(int userId, const std::string& newPassword)
 {
     auto response = apiClient_.post("/auth/change-password", {
         {"user_id", userId},
         {"new_password", newPassword}
     });
-    return ApiEmptyResponse::fromJson(response);
+    return AuthChangePasswordResponse::fromJson(response);
 }
