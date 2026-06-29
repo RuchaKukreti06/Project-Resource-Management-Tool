@@ -1,0 +1,91 @@
+#ifndef MANAGER_CONSTANTS_H
+#define MANAGER_CONSTANTS_H
+
+#include <string>
+
+namespace ManagerConstants
+{
+    const int DEFAULT_PANEL_WIDTH = 40;
+    const int DEFAULT_PADDING = 2;
+    
+    namespace MainMenu
+    {
+        const std::string OPT_RESOURCE_DASHBOARD = "1";
+        const std::string OPT_ALLOCATE_RESOURCE = "2";
+        const std::string OPT_MY_PROJECTS = "3";
+        const std::string OPT_TIMESHEETS = "4";
+        const std::string OPT_AI_ASSISTANT = "5";
+        const std::string OPT_LOGOUT = "6";
+    }
+
+    namespace MyProjects
+    {
+        const std::string OPT_AI_RISK_SUMMARY = "A";
+        const std::string OPT_BACK = "B";
+        const int COL_NO = 6;
+        const int COL_PROJECT = 25;
+        const int COL_DATE = 15;
+        const int COL_HEALTH = 15;
+        const int COL_STATUS = 15;
+    }
+
+    namespace ResourceDashboard
+    {
+        const std::string OPT_DRILL_DOWN = "D";
+        const std::string OPT_BACK = "B";
+    }
+
+    namespace Timesheets
+    {
+        const std::string OPT_VIEW_DETAIL = "V";
+        const std::string OPT_RESTORE_ACCESS = "R";
+        const std::string OPT_BACK = "B";
+        const int COL_EMPLOYEE = 20;
+        const int COL_PROJECT = 20;
+        const int COL_HOURS = 8;
+        const int COL_STATUS = 14;
+        const int COL_WEEK_START = 15;
+    }
+
+    namespace AllocateResource
+    {
+        const std::string OPT_ALLOCATE_DIRECTLY = "1";
+        const std::string OPT_END_ALLOCATION = "2";
+        const std::string OPT_BACK = "3";
+    }
+
+    namespace AIAssistant
+    {
+        const std::string OPT_SKILL_MATCH = "1";
+        const std::string OPT_RISK_SUMMARY = "2";
+        const std::string OPT_TEAM_BUILDER = "3";
+        const std::string OPT_BACK = "4";
+        const std::string OPT_GO_ALLOCATE = "A";
+    }
+
+    namespace HealthStatus
+    {
+        const std::string ON_TRACK = "🟢 ON TRACK";
+        const std::string AT_RISK = "🔴 AT RISK";
+        const std::string ATTENTION = "🟡 ATTENTION";
+        const std::string DONE = "DONE";
+    }
+
+    namespace Messages
+    {
+        const std::string PRESS_ENTER_TO_CONTINUE = "Press Enter to continue\n";
+        const std::string PRESS_ENTER_TO_GO_BACK = "Press Enter to go back\n";
+        const std::string INVALID_OPTION = "Invalid option.";
+        const std::string INVALID_SELECTION_FORMAT = "Invalid selection format.";
+        const std::string INVALID_PROJECT_SELECTION = "Invalid project selection.";
+        const std::string SOMETHING_WENT_WRONG = "Something went wrong. Please try again.";
+    }
+
+    namespace Display
+    {
+        const int WRAP_WIDTH_AI_REASON = 55;
+        const int WRAP_WIDTH_TEAM_REASON = 50;
+    }
+}
+
+#endif

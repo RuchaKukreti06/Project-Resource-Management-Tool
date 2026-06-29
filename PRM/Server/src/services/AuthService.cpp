@@ -1,17 +1,17 @@
 #include "services/AuthService.h"
 
-#include <jwt-cpp/jwt.h>
-#include <jwt-cpp/traits/nlohmann-json/defaults.h>
-#include <openssl/evp.h>
 #include <spdlog/spdlog.h>
 
+#include <chrono>
+#include <iomanip>
+#include <sstream>
 #include <stdexcept>
+#include "exceptions/Exceptions.h"
 
-#include "ConfigLoader.h"
-#include "UserRepository.h"
-
-AuthService::AuthService(std::shared_ptr<IUserRepository> repository)
-    : repository_(std::move(repository))
+AuthService::AuthService(std::shared_ptr<IUserRepository> repository,
+                         std::shared_ptr<IPasswordHasher> passwordHasher,
+                         std::shared_ptr<ITokenService> tokenService)
+    : repository_(std::move(repository)), passwordHasher_(std::move(passwordHasher)), tokenService_(std::move(tokenService))
 {
 }
 
@@ -19,79 +19,70 @@ AuthService::~AuthService()
 {
 }
 
-IUserRepository& AuthService::repository()
+LoginResponse AuthService::login(const LoginRequest& req)
 {
-    if (!repository_)
+    User user = repository_->getUserByUsername(req.username);
+
+    if (user.username.empty() || !passwordHasher_->verifyPassword(req.password, user.passwordHash))
     {
-        repository_ = std::make_shared<UserRepository>(database::Database::instance());
-    }
-    return *repository_;
-}
-
-nlohmann::json AuthService::login(const std::string& username, const std::string& password)
-{
-    auto& repository = this->repository();
-    nlohmann::json response;
-
-    User user = repository.getUserByUsername(username);
-    response["success"] = false;
-
-    if (user.username.empty() || !verifyPassword(password, user.passwordHash))
-    {
-        response["message"] = "Invalid username or password.";
-        return response;
+        throw exceptions::AuthenticationException("Invalid username or password.");
     }
 
     if (user.status != "ACTIVE")
     {
-        response["message"] = "Account is not active.";
-        return response;
+        throw exceptions::AuthenticationException("Account is not active.");
     }
 
-    std::string token = generateToken(user);
-    response["success"] = true;
-    response["token"] = token;
-    response["user"] = {{"id", user.id}, {"username", user.username}, {"role", user.role}};
-    response["message"] = "Login successful.";
+    const std::string token = tokenService_->generateToken(user);
+    
+    LoginResponse response;
+    response.success = true;
+    response.token   = token;
+    response.userId  = user.id;
+    response.username = user.username;
+    response.role = user.role;
+    response.forcePasswordChange = user.forcePasswordChange;
+    response.message = "Login successful.";
     return response;
 }
 
-nlohmann::json AuthService::registerUser(const std::string& username, const std::string& password)
+RegisterResponse AuthService::registerUser(const RegisterRequest& req)
 {
-    auto& repository = this->repository();
-    nlohmann::json response;
-
-    if (repository.getUserByUsername(username).username.empty())
+    std::string validationMessage;
+    if (!userValidator_.validateUsername(req.username, validationMessage))
     {
-        User newUser;
-        newUser.username = username;
-        newUser.passwordHash = hashPassword(password);
-        newUser.role = "user";
-        newUser.status = "active";
-        newUser.forcePasswordChange = false;
+        throw exceptions::ValidationException(validationMessage);
+    }
 
-        if (repository.createUser(newUser))
-        {
-            response["success"] = true;
-            response["message"] = "Registration successful.";
-        }
-        else
-        {
-            response["success"] = false;
-            response["message"] = "Failed to create user.";
-        }
-    }
-    else
+    if (!repository_->getUserByUsername(req.username).username.empty())
     {
-        response["success"] = false;
-        response["message"] = "Username already exists.";
+        throw exceptions::ConflictException("Username already exists.");
     }
+
+    User newUser;
+    newUser.username            = req.username;
+    newUser.passwordHash        = passwordHasher_->hashPassword(req.password);
+    newUser.role                = "EMPLOYEE";
+    newUser.email               = req.email;
+    newUser.fullName            = req.fullName;
+    newUser.isActive            = true;
+    newUser.status              = "ACTIVE";
+    newUser.forcePasswordChange = true;
+
+    if (!repository_->createUser(newUser))
+    {
+        throw exceptions::DatabaseException("Failed to create user. Email may already be in use.");
+    }
+    
+    RegisterResponse response;
+    response.success = true;
+    response.message = "Registration successful.";
     return response;
 }
 
 bool AuthService::isLoggedIn() const
 {
-    return token_.has_value() && validateToken(*token_);
+    return token_.has_value() && tokenService_->validateToken(*token_);
 }
 
 void AuthService::setToken(const std::string& token)
@@ -99,83 +90,22 @@ void AuthService::setToken(const std::string& token)
     token_ = token;
 }
 
-bool AuthService::changePassword(int userId, const std::string& newPassword)
+bool AuthService::changePassword(const ResetPasswordRequest& req)
 {
-    auto& repository = this->repository();
-    std::string newHash = hashPassword(newPassword);
-    return repository.updatePassword(userId, newHash);
+    const std::string newHash = passwordHasher_->hashPassword(req.newPassword);
+    if (!repository_->updatePassword(req.userId, newHash))
+    {
+        throw exceptions::NotFoundException("Failed to change password. User not found.");
+    }
+    
+    if (!repository_->setForcePasswordChange(req.userId, false))
+    {
+        throw exceptions::DatabaseException("Failed to update password force change status.");
+    }
+    return true;
 }
 
 bool AuthService::validateToken(const std::string& token) const
 {
-    try
-    {
-        auto& config = utils::ConfigLoader::instance();
-        auto secretKey = config.jwtSecret();
-        auto decoded = jwt::decode(token);
-        auto verifier = jwt::verify()
-                            .allow_algorithm(jwt::algorithm::hs256{secretKey})
-                            .with_issuer("PRM_Server");
-        verifier.verify(decoded);
-        return true;
-    }
-    catch (const std::exception& e)
-    {
-        spdlog::error("Token validation failed: {}", e.what());
-        return false;
-    }
-}
-
-std::string AuthService::generateToken(const User& user)
-{
-    auto& config = utils::ConfigLoader::instance();
-    auto secretKey = config.jwtSecret();
-    auto expirationMinutes = config.jwtExpirationMinutes();
-
-    auto token = jwt::create()
-                     .set_issuer("PRM_Server")
-                     .set_type("JWT")
-                     .set_issued_at(std::chrono::system_clock::now())
-                     .set_expires_at(std::chrono::system_clock::now() +
-                                     std::chrono::minutes(expirationMinutes))
-                     .set_payload_claim("id", jwt::claim(std::to_string(user.id)))
-                     .set_payload_claim("username", jwt::claim(user.username))
-                     .set_payload_claim("role", jwt::claim(user.role))
-                     .sign(jwt::algorithm::hs256{secretKey});
-
-    return token;
-}
-
-std::string AuthService::hashPassword(const std::string& password)
-{
-    unsigned char digest[EVP_MAX_MD_SIZE];
-    unsigned int digestLength = 0;
-    EVP_MD_CTX* context = EVP_MD_CTX_new();
-    if (context == nullptr)
-    {
-        throw std::runtime_error("Failed to create OpenSSL message digest context");
-    }
-
-    if (EVP_DigestInit_ex(context, EVP_sha256(), nullptr) != 1 ||
-        EVP_DigestUpdate(context, password.data(), password.size()) != 1 ||
-        EVP_DigestFinal_ex(context, digest, &digestLength) != 1)
-    {
-        EVP_MD_CTX_free(context);
-        throw std::runtime_error("Failed to compute password hash");
-    }
-    EVP_MD_CTX_free(context);
-
-    std::ostringstream oss;
-    oss << std::hex << std::setfill('0');
-    for (unsigned int i = 0; i < digestLength; ++i)
-    {
-        oss << std::setw(2) << static_cast<int>(digest[i]);
-    }
-    return oss.str();
-}
-
-bool AuthService::verifyPassword(const std::string& password, const std::string& hash)
-{
-    auto computedHash = hashPassword(password);
-    return computedHash == hash;
+    return tokenService_->validateToken(token);
 }
