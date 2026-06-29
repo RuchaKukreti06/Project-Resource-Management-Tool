@@ -164,7 +164,7 @@ std::optional<Timesheet> TimesheetRepository::getTimesheetById(int timesheetId)
     try
     {
         auto result = database_.getSession()
-                          .sql("SELECT t.id, t.resource_id, t.week_start_date, t.created_at, t.status, COALESCE(SUM(te.hours), 0) "
+                          .sql("SELECT t.id, t.resource_id, DATE_FORMAT(t.week_start_date, '%Y-%m-%d'), DATE_FORMAT(t.created_at, '%Y-%m-%d %H:%i:%s'), t.status, COALESCE(SUM(te.hours), 0) "
                                "FROM timesheets t "
                                "LEFT JOIN timesheet_entries te ON t.id = te.timesheet_id "
                                "WHERE t.id = ? "
@@ -197,7 +197,7 @@ std::vector<Timesheet> TimesheetRepository::getTimesheetsByEmployee(int employee
     try
     {
         auto result = database_.getSession()
-                          .sql("SELECT t.id, t.resource_id, t.week_start_date, t.created_at, t.status, COALESCE(SUM(te.hours), 0) "
+                          .sql("SELECT t.id, t.resource_id, DATE_FORMAT(t.week_start_date, '%Y-%m-%d'), DATE_FORMAT(t.created_at, '%Y-%m-%d %H:%i:%s'), t.status, COALESCE(SUM(te.hours), 0) "
                                "FROM timesheets t "
                                "LEFT JOIN timesheet_entries te ON t.id = te.timesheet_id "
                                "WHERE t.resource_id = ? "
