@@ -10,6 +10,7 @@ struct AllocationResponse
     int utilizationPercentage;
     std::string fromDate;
     std::string toDate;
+    std::string projectName;
 };
 
 inline void to_json(nlohmann::json& j, const AllocationResponse& dto)
@@ -20,6 +21,7 @@ inline void to_json(nlohmann::json& j, const AllocationResponse& dto)
         {"project_id", dto.projectId},
         {"utilization_percentage", dto.utilizationPercentage},
         {"from_date", dto.fromDate},
-        {"to_date", dto.toDate}
+        {"to_date", dto.toDate},
+        {"project_name", dto.projectName}
     };
 }

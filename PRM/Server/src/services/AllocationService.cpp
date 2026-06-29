@@ -72,12 +72,26 @@ void AllocationService::endAllocation(const EndAllocationRequest& req)
 
 std::vector<AllocationResponse> AllocationService::getProjectAllocations(int projectId)
 {
-    return DTOMapper::mapToAllocationResponse(allocationRepository_->getActiveAllocationsByProject(projectId));
+    auto responses = DTOMapper::mapToAllocationResponse(allocationRepository_->getActiveAllocationsByProject(projectId));
+    auto proj = projectRepository_->getProjectById(projectId);
+    if (proj.id != 0) {
+        for (auto& resp : responses) {
+            resp.projectName = proj.name;
+        }
+    }
+    return responses;
 }
 
 std::vector<AllocationResponse> AllocationService::getEmployeeAllocations(int employeeId)
 {
-    return DTOMapper::mapToAllocationResponse(allocationRepository_->getAllocationsByEmployee(employeeId));
+    auto responses = DTOMapper::mapToAllocationResponse(allocationRepository_->getAllocationsByEmployee(employeeId));
+    for (auto& resp : responses) {
+        auto proj = projectRepository_->getProjectById(resp.projectId);
+        if (proj.id != 0) {
+            resp.projectName = proj.name;
+        }
+    }
+    return responses;
 }
 
 void AllocationService::recomputeEmployeeStatus(int employeeId, const std::string& todayDate)
@@ -97,5 +111,10 @@ std::optional<AllocationResponse> AllocationService::getAllocationById(int alloc
     if (!allocation.has_value()) {
         return std::nullopt;
     }
-    return DTOMapper::mapToAllocationResponse(allocation.value());
+    auto response = DTOMapper::mapToAllocationResponse(allocation.value());
+    auto proj = projectRepository_->getProjectById(response.projectId);
+    if (proj.id != 0) {
+        response.projectName = proj.name;
+    }
+    return response;
 }
