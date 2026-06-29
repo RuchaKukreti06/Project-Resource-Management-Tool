@@ -66,14 +66,14 @@ struct TimesheetLineRequest
 {
     int projectId;
     int hoursLogged;
-    std::string activityTag;
+    std::vector<std::string> tags;
 
     nlohmann::json toJson() const
     {
         return {
             {"project_id", projectId},
-            {"hours_logged", hoursLogged},
-            {"activity_tag", activityTag}
+            {"hours_worked", hoursLogged},
+            {"tags", tags}
         };
     }
 };
