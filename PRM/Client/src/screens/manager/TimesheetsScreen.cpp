@@ -69,7 +69,24 @@ std::optional<std::string> TimesheetsScreen::promptWeekFilter()
 
         if (weekInput.empty())
         {
-            return "";
+            std::time_t now = std::time(nullptr);
+            std::tm local = {};
+#ifdef _WIN32
+            localtime_s(&local, &now);
+#else
+            local = *std::localtime(&now);
+#endif
+            int daysSinceMonday = local.tm_wday == 0 ? 6 : local.tm_wday - 1;
+            std::time_t lastMondayTime = now - ((daysSinceMonday + 7) * 24 * 60 * 60);
+            std::tm lastMonday = {};
+#ifdef _WIN32
+            localtime_s(&lastMonday, &lastMondayTime);
+#else
+            lastMonday = *std::localtime(&lastMondayTime);
+#endif
+            char buffer[11] = {0};
+            std::strftime(buffer, sizeof(buffer), "%Y-%m-%d", &lastMonday);
+            return std::string(buffer);
         }
 
         std::string errorMsg = DateUtils::validateDateYYYYMMDD(weekInput, true);

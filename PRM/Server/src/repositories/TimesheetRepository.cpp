@@ -164,7 +164,7 @@ std::optional<Timesheet> TimesheetRepository::getTimesheetById(int timesheetId)
     try
     {
         auto result = database_.getSession()
-                          .sql("SELECT t.id, t.resource_id, DATE_FORMAT(t.week_start_date, '%Y-%m-%d'), DATE_FORMAT(t.created_at, '%Y-%m-%d %H:%i:%s'), t.status, COALESCE(SUM(te.hours), 0) "
+                          .sql("SELECT t.id, t.resource_id, DATE_FORMAT(t.week_start_date, '%Y-%m-%d'), DATE_FORMAT(t.created_at, '%Y-%m-%d %H:%i:%s'), t.status, CAST(COALESCE(SUM(te.hours), 0) AS UNSIGNED) "
                                "FROM timesheets t "
                                "LEFT JOIN timesheet_entries te ON t.id = te.timesheet_id "
                                "WHERE t.id = ? "
@@ -180,7 +180,7 @@ std::optional<Timesheet> TimesheetRepository::getTimesheetById(int timesheetId)
             ts.weekStartDate = row[2].get<std::string>();
             ts.submittedAt = row[3].isNull() ? "" : row[3].get<std::string>();
             ts.status = row[4].get<std::string>();
-            ts.totalHours = row[5].get<int>();
+            ts.totalHours = static_cast<int>(row[5].get<uint64_t>());
             return ts;
         }
     }
@@ -197,7 +197,7 @@ std::vector<Timesheet> TimesheetRepository::getTimesheetsByEmployee(int employee
     try
     {
         auto result = database_.getSession()
-                          .sql("SELECT t.id, t.resource_id, DATE_FORMAT(t.week_start_date, '%Y-%m-%d'), DATE_FORMAT(t.created_at, '%Y-%m-%d %H:%i:%s'), t.status, COALESCE(SUM(te.hours), 0) "
+                          .sql("SELECT t.id, t.resource_id, DATE_FORMAT(t.week_start_date, '%Y-%m-%d'), DATE_FORMAT(t.created_at, '%Y-%m-%d %H:%i:%s'), t.status, CAST(COALESCE(SUM(te.hours), 0) AS UNSIGNED) "
                                "FROM timesheets t "
                                "LEFT JOIN timesheet_entries te ON t.id = te.timesheet_id "
                                "WHERE t.resource_id = ? "
@@ -214,7 +214,7 @@ std::vector<Timesheet> TimesheetRepository::getTimesheetsByEmployee(int employee
             ts.weekStartDate = row[2].get<std::string>();
             ts.submittedAt = row[3].isNull() ? "" : row[3].get<std::string>();
             ts.status = row[4].get<std::string>();
-            ts.totalHours = row[5].get<int>();
+            ts.totalHours = static_cast<int>(row[5].get<uint64_t>());
             timesheets.push_back(ts);
         }
     }
@@ -308,7 +308,7 @@ int TimesheetRepository::getProjectHoursForWeek(int projectId, const std::string
     {
         auto result = database_.getSession()
                           .sql(
-                              "SELECT COALESCE(SUM(te.hours), 0) "
+                              "SELECT CAST(COALESCE(SUM(te.hours), 0) AS UNSIGNED) "
                               "FROM timesheet_entries te "
                               "JOIN timesheets t ON t.id = te.timesheet_id "
                               "WHERE te.project_id = ? AND t.week_start_date = ?")
@@ -318,7 +318,7 @@ int TimesheetRepository::getProjectHoursForWeek(int projectId, const std::string
 
         if (auto row = result.fetchOne())
         {
-            return row.get(0);
+            return static_cast<int>(row[0].get<uint64_t>());
         }
     }
     catch (const mysqlx::Error& e)
